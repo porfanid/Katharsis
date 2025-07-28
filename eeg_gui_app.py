@@ -119,14 +119,15 @@ class EEGProcessingThread(QThread):
     status_update = pyqtSignal(str)
     processing_complete = pyqtSignal(bool, str)
     ica_ready = pyqtSignal(dict)
-    def __init__(self, service, input_file):
+    def __init__(self, service, input_file, selected_channels=None):
         super().__init__()
         self.service = service
         self.input_file = input_file
+        self.selected_channels = selected_channels
     def run(self):
         try:
             self.status_update.emit("Φόρτωση και προετοιμασία αρχείου...")
-            load_result = self.service.load_and_prepare_file(self.input_file)
+            load_result = self.service.load_and_prepare_file(self.input_file, self.selected_channels)
             if not load_result['success']:
                 self.processing_complete.emit(False, f"Σφάλμα φόρτωσης: {load_result.get('error', 'Άγνωστο σφάλμα')}")
                 return
@@ -214,13 +215,14 @@ class EEGArtifactCleanerGUI(QMainWindow):
             self.splash.set_progress(90)
             
             # Import and create component selector in main thread
-            from components import ICAComponentSelector, ComparisonScreen
+            from components import ICAComponentSelector, ComparisonScreen, ChannelSelectorWidget
             theme = {
                 "background": "#FFFFFF", "primary": "#007AFF", "primary_hover": "#0056b3",
                 "success": "#28a745", "success_hover": "#218838", "danger": "#dc3545",
                 "text": "#212529", "text_light": "#6c757d", "statusbar_bg": "#343a40",
                 "statusbar_text": "#FFFFFF", "border": "#dee2e6"
             }
+            self.channel_selector_screen = ChannelSelectorWidget(theme=theme)
             self.ica_selector_screen = ICAComponentSelector(theme=theme)
             self.comparison_screen = ComparisonScreen(theme=theme)
             
@@ -262,6 +264,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.welcome_screen = self.create_welcome_screen()
 
         self.stacked_widget.addWidget(self.welcome_screen)
+        self.stacked_widget.addWidget(self.channel_selector_screen)
         self.stacked_widget.addWidget(self.ica_selector_screen)
         self.stacked_widget.addWidget(self.comparison_screen)
 
@@ -292,6 +295,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
     def setup_connections(self):
         # ... (Η συνάρτηση παραμένει ίδια με πριν)
         self.select_input_btn.clicked.connect(self.select_input_file)
+        self.channel_selector_screen.channels_selected.connect(self.on_channels_selected)
         self.ica_selector_screen.components_selected.connect(self.apply_cleaning)
         self.comparison_screen.return_to_home.connect(self.reset_ui)
         
@@ -310,11 +314,33 @@ class EEGArtifactCleanerGUI(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Επιλογή EDF", str(Path.home()), "*.edf", options=QFileDialog.Option.DontUseNativeDialog)
         if file_path:
             self.current_input_file = file_path
-            self.start_processing()
+            # Go to channel selection instead of directly processing
+            self.show_channel_selection()
+    
+    def show_channel_selection(self):
+        """Show channel selection screen"""
+        try:
+            self.channel_selector_screen.set_edf_file(self.current_input_file)
+            # Navigate to channel selection screen (index 1)
+            self.stacked_widget.setCurrentIndex(1)
+            self.status_bar.showMessage("Επιλέξτε κανάλια για ανάλυση")
+        except Exception as e:
+            self.show_message_box(QMessageBox.Icon.Critical, "Σφάλμα", 
+                                f"Αδυναμία φόρτωσης αρχείου για επιλογή καναλιών:\n{str(e)}")
+    
+    def on_channels_selected(self, selected_channels):
+        """Handle channel selection and start processing"""
+        self.selected_channels = selected_channels
+        self.start_processing()
+        
     def start_processing(self):
         self.select_input_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
-        self.processing_thread = EEGProcessingThread(self.service, self.current_input_file)
+        
+        # Use selected channels if available
+        channels_to_use = getattr(self, 'selected_channels', None)
+        
+        self.processing_thread = EEGProcessingThread(self.service, self.current_input_file, channels_to_use)
         self.processing_thread.progress_update.connect(self.progress_bar.setValue)
         self.processing_thread.status_update.connect(self.status_bar.showMessage)
         self.processing_thread.processing_complete.connect(self.on_processing_complete)
@@ -322,7 +348,8 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.processing_thread.start()
     def on_ica_ready(self, viz_data):
         self.ica_selector_screen.set_ica_data(**viz_data)
-        self.stacked_widget.setCurrentIndex(1)
+        # Navigate to ICA selector screen (index 2)
+        self.stacked_widget.setCurrentIndex(2)
     def apply_cleaning(self, selected_components):
         default_path = self.current_input_file.replace('.edf', '_clean.edf')
         output_file, _ = QFileDialog.getSaveFileName(self, "Αποθήκευση Καθαρού Αρχείου", default_path, "*.edf", options=QFileDialog.Option.DontUseNativeDialog)
@@ -350,8 +377,8 @@ class EEGArtifactCleanerGUI(QMainWindow):
                     input_file=results['input_file'],
                     output_file=results['output_file']
                 )
-                # Navigate to comparison screen (index 2)
-                self.stacked_widget.setCurrentIndex(2)
+                # Navigate to comparison screen (index 3)
+                self.stacked_widget.setCurrentIndex(3)
                 self.status_bar.showMessage("Σύγκριση αποτελεσμάτων - Επιτυχής καθαρισμός!")
             except Exception as e:
                 # Fallback to original message box if comparison screen fails

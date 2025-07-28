@@ -57,15 +57,16 @@ class EEGDataManager:
         return available_eeg_channels
     
     @staticmethod
-    def load_edf_file(file_path: str) -> Tuple[mne.io.Raw, List[str]]:
+    def load_edf_file(file_path: str, selected_channels: Optional[List[str]] = None) -> Tuple[mne.io.Raw, List[str]]:
         """
-        Φόρτωση EDF αρχείου και εξαγωγή EEG καναλιών
+        Φόρτωση EDF αρχείου και εξαγωγή καναλιών
         
         Args:
             file_path: Διαδρομή του EDF αρχείου
+            selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
             
         Returns:
-            Tuple[mne.io.Raw, List[str]]: Raw δεδομένα και λίστα EEG καναλιών
+            Tuple[mne.io.Raw, List[str]]: Raw δεδομένα και λίστα καναλιών
             
         Raises:
             FileNotFoundError: Εάν το αρχείο δεν βρεθεί
@@ -79,19 +80,64 @@ class EEGDataManager:
         except Exception as e:
             raise ValueError(f"Σφάλμα φόρτωσης EDF αρχείου: {str(e)}")
         
-        # Αυτόματος εντοπισμός EEG καναλιών
-        available_channels = EEGDataManager.detect_eeg_channels(raw)
+        if selected_channels is None:
+            # Αυτόματος εντοπισμός EEG καναλιών (backward compatibility)
+            available_channels = EEGDataManager.detect_eeg_channels(raw)
+            
+            if not available_channels:
+                raise ValueError("Δεν βρέθηκαν έγκυρα EEG κανάλια στο αρχείο")
+        else:
+            # Χρήση επιλεγμένων καναλιών
+            available_channels = []
+            for ch in selected_channels:
+                if ch in raw.ch_names:
+                    available_channels.append(ch)
+                else:
+                    raise ValueError(f"Το κανάλι '{ch}' δεν υπάρχει στο αρχείο")
+            
+            if len(available_channels) < 3:
+                raise ValueError("Χρειάζονται τουλάχιστον 3 κανάλια για την ανάλυση")
         
-        if not available_channels:
-            raise ValueError("Δεν βρέθηκαν έγκυρα EEG κανάλια στο αρχείο")
-        
-        # Κρατάμε μόνο τα EEG κανάλια
+        # Κρατάμε μόνο τα επιλεγμένα κανάλια
         raw.pick_channels(available_channels)
         
         # Ορισμός montage για τοπογραφική απεικόνιση
-        raw.set_montage('standard_1020', on_missing='warn')
+        try:
+            raw.set_montage('standard_1020', on_missing='warn')
+        except Exception:
+            # Αν αποτύχει το montage, συνεχίζουμε χωρίς αυτό
+            pass
         
         return raw, available_channels
+    
+    @staticmethod
+    def load_edf_file_info(file_path: str) -> Dict[str, Any]:
+        """
+        Φόρτωση πληροφοριών EDF αρχείου χωρίς επεξεργασία
+        
+        Args:
+            file_path: Διαδρομή του EDF αρχείου
+            
+        Returns:
+            Dict με πληροφορίες αρχείου
+        """
+        if not Path(file_path).exists():
+            raise FileNotFoundError(f"Το αρχείο {file_path} δεν βρέθηκε")
+            
+        try:
+            raw = mne.io.read_raw_edf(file_path, preload=False, verbose=False)
+            return {
+                'success': True,
+                'channels': raw.ch_names,
+                'sampling_rate': raw.info['sfreq'],
+                'n_channels': len(raw.ch_names),
+                'detected_eeg': EEGDataManager.detect_eeg_channels(raw)
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
     
     @staticmethod
     def save_cleaned_data(raw: mne.io.Raw, output_path: str) -> bool:
@@ -210,19 +256,20 @@ class EEGBackendCore:
         self.filtered_data = None
         self.current_file = None
         
-    def load_file(self, file_path: str) -> Dict[str, Any]:
+    def load_file(self, file_path: str, selected_channels: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Φόρτωση και αρχική επεξεργασία αρχείου
         
         Args:
             file_path: Διαδρομή αρχείου
+            selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
             
         Returns:
             Dictionary με πληροφορίες φόρτωσης
         """
         try:
             # Φόρτωση δεδομένων
-            self.raw_data, channels = self.data_manager.load_edf_file(file_path)
+            self.raw_data, channels = self.data_manager.load_edf_file(file_path, selected_channels)
             self.current_file = file_path
             
             # Εφαρμογή φίλτρου
@@ -239,6 +286,24 @@ class EEGBackendCore:
                 'stats_filtered': self.preprocessor.get_data_statistics(self.filtered_data)
             }
             
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_file_info(self, file_path: str) -> Dict[str, Any]:
+        """
+        Λήψη πληροφοριών αρχείου χωρίς φόρτωση δεδομένων
+        
+        Args:
+            file_path: Διαδρομή αρχείου
+            
+        Returns:
+            Dictionary με πληροφορίες αρχείου
+        """
+        try:
+            return self.data_manager.load_edf_file_info(file_path)
         except Exception as e:
             return {
                 'success': False,
