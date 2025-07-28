@@ -31,6 +31,7 @@ class ChannelCheckBox(QCheckBox):
                 border-radius: 4px;
                 background-color: #f8f9fa;
                 border: 1px solid #dee2e6;
+                color: #212529;
             }
             QCheckBox:hover {
                 background-color: #e9ecef;
@@ -40,6 +41,7 @@ class ChannelCheckBox(QCheckBox):
                 background-color: #d4e6f1;
                 border-color: #007AFF;
                 font-weight: bold;
+                color: #212529;
             }
             QCheckBox::indicator {
                 width: 18px;
@@ -96,12 +98,13 @@ class FileInfoWidget(QFrame):
         self.info_text.setMaximumHeight(120)
         self.info_text.setStyleSheet(f"""
             QTextEdit {{
-                background-color: #f8f9fa;
+                background-color: white;
                 border: 1px solid {self.theme['border']};
                 border-radius: 4px;
                 padding: 8px;
                 font-family: monospace;
                 font-size: 10px;
+                color: {self.theme['text']};
             }}
         """)
         layout.addWidget(self.info_text)
@@ -187,9 +190,12 @@ class ChannelSelectorWidget(QWidget):
                 border: 2px solid {self.theme['border']};
                 border-radius: 6px;
                 font-size: 11px;
+                background-color: white;
+                color: {self.theme['text']};
             }}
             QLineEdit:focus {{
                 border-color: {self.theme['primary']};
+                background-color: #f8f9fa;
             }}
         """)
         filter_layout.addWidget(self.search_box)
@@ -239,11 +245,15 @@ class ChannelSelectorWidget(QWidget):
             QScrollArea {{
                 border: 2px solid {self.theme['border']};
                 border-radius: 8px;
-                background-color: {self.theme['background']};
+                background-color: white;
+            }}
+            QScrollArea QWidget {{
+                background-color: white;
             }}
         """)
         
         self.channels_widget = QWidget()
+        self.channels_widget.setStyleSheet("background-color: white;")
         self.channels_layout = QGridLayout(self.channels_widget)
         self.channels_layout.setSpacing(5)
         
@@ -354,12 +364,14 @@ class ChannelSelectorWidget(QWidget):
                     border-radius: 8px;
                     margin: 10px 0px;
                     padding-top: 15px;
+                    background-color: white;
                 }}
                 QGroupBox::title {{
                     subcontrol-origin: margin;
                     left: 10px;
                     padding: 0 5px 0 5px;
                     color: {self.theme['success']};
+                    background-color: white;
                 }}
             """)
             
@@ -391,12 +403,14 @@ class ChannelSelectorWidget(QWidget):
                     border-radius: 8px;
                     margin: 10px 0px;
                     padding-top: 15px;
+                    background-color: white;
                 }}
                 QGroupBox::title {{
                     subcontrol-origin: margin;
                     left: 10px;
                     padding: 0 5px 0 5px;
                     color: {self.theme['text_light']};
+                    background-color: white;
                 }}
             """)
             
