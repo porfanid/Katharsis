@@ -4,13 +4,14 @@ ICA Component Selector Widget - v4.0 - Correct Event Bubbling for Scrolling
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QCheckBox, QLabel, QPushButton, QDialog
+    QCheckBox, QLabel, QPushButton, QDialog, QComboBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent
+from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QTimer, QThread
 from PyQt6.QtGui import QFont, QWheelEvent
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from typing import Dict, List
+from typing import Dict, List, Optional
+import numpy as np
 
 # --- 1. ΔΗΜΙΟΥΡΓΟΥΜΕ ΕΝΑ CUSTOM CANVAS ---
 # Αυτή η κλάση κληρονομεί όλες τις ιδιότητες του FigureCanvas,
@@ -22,6 +23,274 @@ class CustomCanvas(FigureCanvas):
         Όταν ένα event αγνοείται, η Qt το προωθεί αυτόματα στο γονικό widget.
         """
         event.ignore()
+
+
+# --- 2. BACKGROUND THREAD ΓΙΑ PREVIEW UPDATE ---
+class PreviewUpdateThread(QThread):
+    """Thread για υπολογισμό του καθαρισμένου σήματος στο background"""
+    preview_ready = pyqtSignal(object, object)  # (original_raw, cleaned_raw)
+    
+    def __init__(self, ica, raw, components_to_remove: List[int]):
+        super().__init__()
+        self.ica = ica
+        self.raw = raw
+        self.components_to_remove = components_to_remove
+        
+    def run(self):
+        try:
+            # If no components to remove, return original signal as both
+            if not self.components_to_remove:
+                self.preview_ready.emit(self.raw, self.raw)
+                return
+                
+            # Δημιουργία αντιγράφου για καθαρισμό
+            cleaned_raw = self.raw.copy()
+            
+            # Ορισμός συνιστωσών προς αφαίρεση
+            ica_copy = self.ica.copy()
+            ica_copy.exclude = self.components_to_remove
+            
+            # Εφαρμογή καθαρισμού
+            cleaned_raw = ica_copy.apply(cleaned_raw, verbose=False)
+            
+            # Εκπομπή των αποτελεσμάτων
+            self.preview_ready.emit(self.raw, cleaned_raw)
+            
+        except Exception as e:
+            print(f"Σφάλμα στο preview thread: {str(e)}")
+            # Εκπομπή μόνο του αρχικού σήματος σε περίπτωση σφάλματος
+            self.preview_ready.emit(self.raw, None)
+
+
+# --- 3. PREVIEW WIDGET ---
+class PreviewWidget(QWidget):
+    """Widget για εμφάνιση preview του καθαρισμένου σήματος"""
+    
+    def __init__(self, theme: Dict[str, str], parent=None):
+        super().__init__(parent)
+        self.theme = theme
+        self.selected_channel_idx = 0
+        self.channel_names = []
+        self.update_callback = None  # Callback για ενημέρωση preview
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Header layout με τίτλο και dropdown για επιλογή καναλιού
+        header_layout = QHBoxLayout()
+        
+        # Τίτλος
+        title_label = QLabel("📊 Ζωντανή Προεπισκόπηση Αποτελέσματος Καθαρισμού")
+        title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title_label.setStyleSheet(f"color: {self.theme['text']}; margin-bottom: 5px;")
+        header_layout.addWidget(title_label)
+        
+        header_layout.addStretch()
+        
+        # Dropdown για επιλογή καναλιού
+        channel_label = QLabel("Κανάλι / Channel:")
+        channel_label.setStyleSheet(f"color: {self.theme['text']}; font-size: 12px;")
+        header_layout.addWidget(channel_label)
+        
+        self.channel_dropdown = QComboBox()
+        self.channel_dropdown.setMinimumWidth(180)
+        self.channel_dropdown.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {self.theme.get('background', '#ffffff')};
+                color: {self.theme['text']};
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 12px;
+                font-weight: 500;
+                min-height: 20px;
+            }}
+            QComboBox:hover {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+                background-color: {self.theme.get('background', '#ffffff')};
+                box-shadow: 0 2px 4px rgba(0, 122, 255, 0.15);
+            }}
+            QComboBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+                outline: none;
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 25px;
+                border-left: none;
+                border-top-right-radius: 8px;
+                border-bottom-right-radius: 8px;
+                background-color: transparent;
+            }}
+            QComboBox::drop-down:hover {{
+                background-color: rgba(0, 122, 255, 0.1);
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 6px solid {self.theme['text']};
+                margin: 0px;
+            }}
+            QComboBox::down-arrow:hover {{
+                border-top-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {self.theme.get('background', '#ffffff')};
+                color: {self.theme['text']};
+                border: 2px solid {self.theme.get('primary', '#007AFF')};
+                border-radius: 8px;
+                padding: 4px;
+                outline: none;
+                selection-background-color: {self.theme.get('primary', '#007AFF')};
+                selection-color: white;
+            }}
+            QComboBox QAbstractItemView::item {{
+                padding: 8px 12px;
+                margin: 2px;
+                border-radius: 4px;
+                background-color: transparent;
+                color: {self.theme['text']};
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: rgba(0, 122, 255, 0.1);
+                color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {self.theme.get('primary', '#007AFF')};
+                color: white;
+            }}
+        """)
+        self.channel_dropdown.currentIndexChanged.connect(self._on_channel_changed)
+        header_layout.addWidget(self.channel_dropdown)
+        
+        layout.addLayout(header_layout)
+        
+        # Canvas για τα γραφήματα
+        self.figure = Figure(figsize=(12, 6), dpi=80)
+        self.canvas = CustomCanvas(self.figure)
+        layout.addWidget(self.canvas)
+        
+        # Αρχική εμφάνιση κενού γραφήματος
+        self.show_empty_plot()
+        
+    def set_update_callback(self, callback):
+        """Ορισμός callback για ενημέρωση preview"""
+        self.update_callback = callback
+        
+    def set_channel_data(self, raw):
+        """Ενημέρωση του dropdown με τα διαθέσιμα κανάλια"""
+        self.channel_names = raw.ch_names
+        self.channel_dropdown.clear()
+        self.channel_dropdown.addItems(self.channel_names)
+        self.selected_channel_idx = 0
+        
+    def _on_channel_changed(self, index):
+        """Καλείται όταν αλλάζει η επιλογή καναλιού"""
+        self.selected_channel_idx = index
+        # Trigger preview update if we have a callback
+        if self.update_callback:
+            self.update_callback()
+    
+    def show_empty_plot(self):
+        """Εμφάνιση κενού γραφήματος με οδηγίες"""
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, 
+                'Επιλέξτε συνιστώσες για να δείτε την προεπισκόπηση του καθαρισμένου σήματος\n'
+                'Select components to see preview of cleaned signal',
+                ha='center', va='center', fontsize=12,
+                color=self.theme.get('text_light', '#6c757d'),
+                transform=ax.transAxes)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        self.canvas.draw()
+        
+    def update_preview(self, original_raw, cleaned_raw):
+        """Ενημέρωση του preview με τα νέα δεδομένα"""
+        try:
+            self.figure.clear()
+            
+            # Χρησιμοποιούμε τα πρώτα 10 δευτερόλεπτα για preview
+            preview_duration = 10.0
+            n_samples = int(preview_duration * original_raw.info['sfreq'])
+            
+            # Λήψη των δεδομένων
+            original_data = original_raw.get_data()[:, :n_samples]
+            time_points = np.arange(n_samples) / original_raw.info['sfreq']
+            
+            if cleaned_raw is not None:
+                cleaned_data = cleaned_raw.get_data()[:, :n_samples]
+                
+                # Ensure cleaned_data matches the expected length
+                min_samples = min(original_data.shape[1], cleaned_data.shape[1], len(time_points))
+                original_data = original_data[:, :min_samples]
+                cleaned_data = cleaned_data[:, :min_samples]
+                time_points = time_points[:min_samples]
+                
+                # Δύο subplots - αρχικό και καθαρισμένο
+                ax1 = self.figure.add_subplot(2, 1, 1)
+                ax2 = self.figure.add_subplot(2, 1, 2)
+                
+                # Εμφάνιση του επιλεγμένου καναλιού
+                channel_idx = self.selected_channel_idx
+                
+                # Αρχικό σήμα
+                ax1.plot(time_points, original_data[channel_idx, :], 
+                        color=self.theme.get('danger', '#e74c3c'), linewidth=1, alpha=0.8)
+                channel_name = self.channel_names[channel_idx] if channel_idx < len(self.channel_names) else f"Channel {channel_idx}"
+                ax1.set_title(f'Αρχικό Σήμα - {channel_name} / Original Signal - {channel_name}', fontsize=10, 
+                             color=self.theme['text'])
+                ax1.set_ylabel('Amplitude (μV)', fontsize=9)
+                ax1.grid(True, alpha=0.3)
+                
+                # Καθαρισμένο σήμα
+                ax2.plot(time_points, cleaned_data[channel_idx, :], 
+                        color=self.theme.get('success', '#27ae60'), linewidth=1, alpha=0.8)
+                ax2.set_title(f'Καθαρισμένο Σήμα - {channel_name} / Cleaned Signal - {channel_name}', fontsize=10, 
+                             color=self.theme['text'])
+                ax2.set_xlabel('Χρόνος (s) / Time (s)', fontsize=9)
+                ax2.set_ylabel('Amplitude (μV)', fontsize=9)
+                ax2.grid(True, alpha=0.3)
+                
+            else:
+                # Μόνο το αρχικό σήμα αν υπάρχει σφάλμα
+                ax = self.figure.add_subplot(111)
+                channel_idx = self.selected_channel_idx
+                channel_name = self.channel_names[channel_idx] if channel_idx < len(self.channel_names) else f"Channel {channel_idx}"
+                ax.plot(time_points, original_data[channel_idx, :], 
+                       color=self.theme.get('primary', '#007AFF'), linewidth=1)
+                ax.set_title(f'Αρχικό Σήμα - {channel_name} / Original Signal - {channel_name}', fontsize=12, 
+                            color=self.theme['text'])
+                ax.set_xlabel('Χρόνος (s) / Time (s)', fontsize=10)
+                ax.set_ylabel('Amplitude (μV)', fontsize=10)
+                ax.grid(True, alpha=0.3)
+            
+            self.figure.tight_layout(pad=1.0)
+            self.canvas.draw()
+            
+        except Exception as e:
+            print(f"Σφάλμα στην ενημέρωση preview: {str(e)}")
+            self.show_error_plot(str(e))
+            
+    def show_error_plot(self, error_msg: str):
+        """Εμφάνιση μηνύματος σφάλματος"""
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, f'Σφάλμα στην προεπισκόπηση:\n{error_msg}',
+                ha='center', va='center', fontsize=10,
+                color=self.theme.get('danger', '#e74c3c'),
+                transform=ax.transAxes)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        self.canvas.draw()
 
 class ComponentDisplayWidget(QWidget):
     def __init__(self, component_idx: int, theme: Dict[str, str], parent=None):
@@ -110,6 +379,13 @@ class ICAComponentSelector(QWidget):
         self.suggested_artifacts = []
         self.checkboxes = {}
         self.component_widgets = {}
+        
+        # Preview functionality
+        self.preview_timer = QTimer()
+        self.preview_timer.setSingleShot(True)  # Μόνο μία φορά όταν λήξει
+        self.preview_timer.timeout.connect(self._start_preview_update)
+        self.preview_thread = None
+        
         self.setup_ui()
 
     def setup_ui(self):
@@ -148,7 +424,12 @@ class ICAComponentSelector(QWidget):
         self.components_layout.setContentsMargins(0, 0, 5, 0)
         self.components_layout.setSpacing(10)
         self.scroll_area.setWidget(self.components_widget)
-        main_layout.addWidget(self.scroll_area, 1)
+        main_layout.addWidget(self.scroll_area, 1)  # Μικρότερο stretch factor
+        
+        # Προσθήκη του Preview Widget
+        self.preview_widget = PreviewWidget(self.theme)
+        self.preview_widget.setMinimumHeight(300)  # Ελάχιστο ύψος για το preview
+        main_layout.addWidget(self.preview_widget, 1)  # Ίσος χώρος με το scroll area
 
         self.apply_btn = QPushButton("✅ Εφαρμογή Καθαρισμού και Αποθήκευση")
         self.apply_btn.setMinimumHeight(50)
@@ -181,23 +462,9 @@ class ICAComponentSelector(QWidget):
         
         self.apply_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {self.theme['success']}; color: white; border-radius: 8px; }}
-            QPushButton:hover {{ background-color: {self.theme['success_hover']}; }}
+            QPushButton:hover {{ background-color: {self.theme.get('success_hover', self.theme['success'])}; }}
         """)
 
-    def set_ica_data(self, ica, raw, suggested_artifacts, **kwargs):
-        # ... (Η συνάρτηση παραμένει ίδια)
-        self.ica = ica
-        self.raw = raw
-        self.suggested_artifacts = suggested_artifacts
-        while self.components_layout.count():
-            item = self.components_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self.checkboxes.clear()
-        self.component_widgets.clear()
-        for i in range(self.ica.n_components_):
-            self.create_single_component_widget(i)
-        self.components_layout.addStretch(1)
 
     def create_single_component_widget(self, i):
         is_artifact = i in self.suggested_artifacts
@@ -214,6 +481,7 @@ class ICAComponentSelector(QWidget):
         checkbox.setChecked(is_artifact)
         checkbox.setStyleSheet(f"color: {self.theme['text_light']}; border: none;")
         checkbox.toggled.connect(lambda state, widget=comp_container: self.update_selection_style(widget, state))
+        checkbox.toggled.connect(self._on_checkbox_toggled)  # Προσθήκη για preview
         self.checkboxes[i] = checkbox
 
         # Το νέο κουμπί "Ανάλυση"
@@ -270,17 +538,70 @@ class ICAComponentSelector(QWidget):
         # ... (Η συνάρτηση παραμένει ίδια)
         for checkbox in self.checkboxes.values():
             checkbox.setChecked(state)
+        # Trigger preview update after setting all checkboxes
+        self._on_checkbox_toggled()
 
     def select_suggested(self):
         # ... (Η συνάρτηση παραμένει ίδια)
         for i, checkbox in self.checkboxes.items():
             checkbox.setChecked(i in self.suggested_artifacts)
+        # Trigger preview update after selecting suggested
+        self._on_checkbox_toggled()
             
     def emit_selected_components(self):
         # ... (Η συνάρτηση παραμένει ίδια)
         selected = [i for i, cb in self.checkboxes.items() if cb.isChecked()]
         self.components_selected.emit(selected)
-
+    
+    def _on_checkbox_toggled(self):
+        """Called when any checkbox is toggled - starts the preview update timer"""
+        if self.ica and self.raw:
+            # Restart the timer - αν ο χρήστης κάνει γρήγορες αλλαγές,
+            # περιμένουμε 500ms από την τελευταία αλλαγή
+            self.preview_timer.stop()
+            self.preview_timer.start(500)
+    
+    def _start_preview_update(self):
+        """Starts the background thread to compute the cleaned signal"""
+        if not self.ica or not self.raw:
+            return
+            
+        # Ακύρωσε το τυχόν προηγούμενο thread αν τρέχει ακόμα
+        if self.preview_thread and self.preview_thread.isRunning():
+            self.preview_thread.quit()
+            self.preview_thread.wait()
+        
+        # Πάρε τις τρέχουσες επιλεγμένες συνιστώσες
+        selected_components = [i for i, cb in self.checkboxes.items() if cb.isChecked()]
+        
+        # Δημιούργησε και ξεκίνησε το νέο thread
+        self.preview_thread = PreviewUpdateThread(self.ica, self.raw, selected_components)
+        self.preview_thread.preview_ready.connect(self.preview_widget.update_preview)
+        self.preview_thread.start()
+    
+    def set_ica_data(self, ica, raw, suggested_artifacts, **kwargs):
+        # ... (Η συνάρτηση παραμένει ίδια με προσθήκη αρχικού preview)
+        self.ica = ica
+        self.raw = raw
+        self.suggested_artifacts = suggested_artifacts
+        while self.components_layout.count():
+            item = self.components_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.checkboxes.clear()
+        self.component_widgets.clear()
+        for i in range(self.ica.n_components_):
+            self.create_single_component_widget(i)
+        self.components_layout.addStretch(1)
+        
+        # Ενημέρωση του preview widget με τα δεδομένα καναλιών και callback
+        self.preview_widget.set_channel_data(raw)
+        self.preview_widget.set_update_callback(self._start_preview_update)
+        
+        # Ενημέρωση του αρχικού preview με τις προτεινόμενες συνιστώσες
+        if suggested_artifacts:
+            self._start_preview_update()
+    
     def show_component_properties(self, component_idx):
         """
         Δημιουργεί και εμφανίζει ένα νέο παράθυρο με τις ιδιότητες της συνιστώσας.
