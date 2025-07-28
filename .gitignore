@@ -124,3 +124,6 @@ dmypy.json
 .pyre/
 
 sample_data/
+
+# Test data files
+test_*.edf
