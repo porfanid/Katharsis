@@ -15,7 +15,7 @@ class EEGArtifactCleaningService:
     """Κεντρική υπηρεσία για EEG artifact cleaning"""
     
     def __init__(self, 
-                 n_components: int = 5,
+                 n_components: int = None,
                  variance_threshold: float = 2.0,
                  kurtosis_threshold: float = 2.0,
                  range_threshold: float = 3.0):
@@ -23,7 +23,7 @@ class EEGArtifactCleaningService:
         Αρχικοποίηση service
         
         Args:
-            n_components: Αριθμός ICA συνιστωσών
+            n_components: Αριθμός ICA συνιστωσών (None για αυτόματη ανίχνευση)
             variance_threshold: Κατώφλι διακύμανσης
             kurtosis_threshold: Κατώφλι κύρτωσης
             range_threshold: Κατώφλι εύρους
@@ -288,7 +288,7 @@ class EEGArtifactCleaningService:
         
         # Reset backend components
         self.backend_core = EEGBackendCore()
-        self.ica_processor = ICAProcessor(n_components=self.ica_processor.n_components)
+        self.ica_processor = ICAProcessor(n_components=None)  # Use automatic detection
     
     def get_processing_summary(self) -> Dict[str, Any]:
         """

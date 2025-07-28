@@ -17,12 +17,12 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 class ICAProcessor:
     """Επεξεργαστής ICA για εντοπισμό και αφαίρεση artifacts"""
     
-    def __init__(self, n_components: int = 5, random_state: int = 42):
+    def __init__(self, n_components: int = None, random_state: int = 42):
         """
         Αρχικοποίηση ICA processor
         
         Args:
-            n_components: Αριθμός ICA συνιστωσών
+            n_components: Αριθμός ICA συνιστωσών (None για αυτόματη ανίχνευση)
             random_state: Seed για αναπαραγωγιμότητα
         """
         self.n_components = n_components
@@ -43,6 +43,13 @@ class ICAProcessor:
         """
         try:
             self.raw_data = raw.copy()
+            
+            # Αυτόματος προσδιορισμός αριθμού συνιστωσών αν δεν δοθεί
+            if self.n_components is None:
+                self.n_components = min(len(raw.ch_names), len(raw.ch_names))
+            else:
+                # Βεβαιώνουμε ότι δεν υπερβαίνουμε τον αριθμό των καναλιών
+                self.n_components = min(self.n_components, len(raw.ch_names))
             
             # Δημιουργία και εκπαίδευση ICA
             self.ica = mne.preprocessing.ICA(

@@ -20,6 +20,43 @@ class EEGDataManager:
     """Διαχείριση δεδομένων EEG - φόρτωση, αποθήκευση, επικύρωση"""
     
     @staticmethod
+    def detect_eeg_channels(raw: mne.io.Raw) -> List[str]:
+        """
+        Αυτόματος εντοπισμός EEG καναλιών από τα διαθέσιμα κανάλια
+        
+        Args:
+            raw: Raw EEG δεδομένα
+            
+        Returns:
+            List[str]: Λίστα με τα εντοπισμένα EEG κανάλια
+        """
+        # Κοινά EEG κανάλια βάσει του 10-20 συστήματος
+        common_eeg_channels = [
+            'Fp1', 'Fp2', 'F7', 'F3', 'Fz', 'F4', 'F8', 'FC5', 'FC1', 'FC2', 'FC6',
+            'A1', 'T7', 'C3', 'Cz', 'C4', 'T8', 'A2', 'CP5', 'CP1', 'CP2', 'CP6',
+            'P7', 'P3', 'Pz', 'P4', 'P8', 'PO9', 'O1', 'Oz', 'O2', 'PO10',
+            'AF3', 'AF4', 'F1', 'F2', 'F5', 'F6', 'FT7', 'FC3', 'FC4', 'FT8',
+            'C1', 'C2', 'C5', 'C6', 'TP7', 'CP3', 'CPz', 'CP4', 'TP8',
+            'P1', 'P2', 'P5', 'P6', 'PO7', 'PO3', 'POz', 'PO4', 'PO8'
+        ]
+        
+        # Βρες διαθέσιμα EEG κανάλια
+        available_eeg_channels = []
+        
+        for ch_name in raw.ch_names:
+            # Έλεγχος για κοινά EEG κανάλια
+            if ch_name in common_eeg_channels:
+                available_eeg_channels.append(ch_name)
+            # Έλεγχος για κανάλια που μοιάζουν με EEG (π.χ. F4, P3, etc.)
+            elif len(ch_name) >= 2 and ch_name[0].upper() in ['F', 'C', 'P', 'O', 'T', 'A'] and ch_name[1:].replace('z', '').replace('Z', '').isdigit():
+                available_eeg_channels.append(ch_name)
+            # Έλεγχος για κανάλια με πρόθεμα AF, FP, PO, etc.
+            elif len(ch_name) >= 3 and ch_name[:2].upper() in ['AF', 'FP', 'PO', 'FC', 'CP', 'FT', 'TP'] and ch_name[2:].replace('z', '').replace('Z', '').isdigit():
+                available_eeg_channels.append(ch_name)
+        
+        return available_eeg_channels
+    
+    @staticmethod
     def load_edf_file(file_path: str) -> Tuple[mne.io.Raw, List[str]]:
         """
         Φόρτωση EDF αρχείου και εξαγωγή EEG καναλιών
@@ -42,9 +79,8 @@ class EEGDataManager:
         except Exception as e:
             raise ValueError(f"Σφάλμα φόρτωσης EDF αρχείου: {str(e)}")
         
-        # Εξαγωγή EEG καναλιών
-        eeg_channels = ['AF3', 'T7', 'Pz', 'T8', 'AF4']
-        available_channels = [ch for ch in eeg_channels if ch in raw.ch_names]
+        # Αυτόματος εντοπισμός EEG καναλιών
+        available_channels = EEGDataManager.detect_eeg_channels(raw)
         
         if not available_channels:
             raise ValueError("Δεν βρέθηκαν έγκυρα EEG κανάλια στο αρχείο")
