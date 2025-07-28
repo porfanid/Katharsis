@@ -4,7 +4,7 @@ ICA Component Selector Widget - v4.0 - Correct Event Bubbling for Scrolling
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QCheckBox, QLabel, QPushButton, QDialog
+    QCheckBox, QLabel, QPushButton, QDialog, QComboBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QTimer, QThread
 from PyQt6.QtGui import QFont, QWheelEvent
@@ -69,17 +69,61 @@ class PreviewWidget(QWidget):
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
         self.theme = theme
+        self.selected_channel_idx = 0
+        self.channel_names = []
+        self.update_callback = None  # Callback για ενημέρωση preview
         self.setup_ui()
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         
+        # Header layout με τίτλο και dropdown για επιλογή καναλιού
+        header_layout = QHBoxLayout()
+        
         # Τίτλος
         title_label = QLabel("📊 Ζωντανή Προεπισκόπηση Αποτελέσματος Καθαρισμού")
         title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         title_label.setStyleSheet(f"color: {self.theme['text']}; margin-bottom: 5px;")
-        layout.addWidget(title_label)
+        header_layout.addWidget(title_label)
+        
+        header_layout.addStretch()
+        
+        # Dropdown για επιλογή καναλιού
+        channel_label = QLabel("Κανάλι / Channel:")
+        channel_label.setStyleSheet(f"color: {self.theme['text']}; font-size: 12px;")
+        header_layout.addWidget(channel_label)
+        
+        self.channel_dropdown = QComboBox()
+        self.channel_dropdown.setMinimumWidth(150)
+        self.channel_dropdown.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {self.theme.get('background', '#ffffff')};
+                color: {self.theme['text']};
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 5px 8px;
+                font-size: 11px;
+            }}
+            QComboBox:hover {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid {self.theme['text']};
+                margin: 0px;
+            }}
+        """)
+        self.channel_dropdown.currentIndexChanged.connect(self._on_channel_changed)
+        header_layout.addWidget(self.channel_dropdown)
+        
+        layout.addLayout(header_layout)
         
         # Canvas για τα γραφήματα
         self.figure = Figure(figsize=(12, 6), dpi=80)
@@ -89,6 +133,24 @@ class PreviewWidget(QWidget):
         # Αρχική εμφάνιση κενού γραφήματος
         self.show_empty_plot()
         
+    def set_update_callback(self, callback):
+        """Ορισμός callback για ενημέρωση preview"""
+        self.update_callback = callback
+        
+    def set_channel_data(self, raw):
+        """Ενημέρωση του dropdown με τα διαθέσιμα κανάλια"""
+        self.channel_names = raw.ch_names
+        self.channel_dropdown.clear()
+        self.channel_dropdown.addItems(self.channel_names)
+        self.selected_channel_idx = 0
+        
+    def _on_channel_changed(self, index):
+        """Καλείται όταν αλλάζει η επιλογή καναλιού"""
+        self.selected_channel_idx = index
+        # Trigger preview update if we have a callback
+        if self.update_callback:
+            self.update_callback()
+    
     def show_empty_plot(self):
         """Εμφάνιση κενού γραφήματος με οδηγίες"""
         self.figure.clear()
@@ -133,13 +195,14 @@ class PreviewWidget(QWidget):
                 ax1 = self.figure.add_subplot(2, 1, 1)
                 ax2 = self.figure.add_subplot(2, 1, 2)
                 
-                # Εμφάνιση μόνο του πρώτου καναλιού για απλότητα
-                channel_idx = 0
+                # Εμφάνιση του επιλεγμένου καναλιού
+                channel_idx = self.selected_channel_idx
                 
                 # Αρχικό σήμα
                 ax1.plot(time_points, original_data[channel_idx, :], 
                         color=self.theme.get('danger', '#e74c3c'), linewidth=1, alpha=0.8)
-                ax1.set_title('Αρχικό Σήμα / Original Signal', fontsize=10, 
+                channel_name = self.channel_names[channel_idx] if channel_idx < len(self.channel_names) else f"Channel {channel_idx}"
+                ax1.set_title(f'Αρχικό Σήμα - {channel_name} / Original Signal - {channel_name}', fontsize=10, 
                              color=self.theme['text'])
                 ax1.set_ylabel('Amplitude (μV)', fontsize=9)
                 ax1.grid(True, alpha=0.3)
@@ -147,7 +210,7 @@ class PreviewWidget(QWidget):
                 # Καθαρισμένο σήμα
                 ax2.plot(time_points, cleaned_data[channel_idx, :], 
                         color=self.theme.get('success', '#27ae60'), linewidth=1, alpha=0.8)
-                ax2.set_title('Καθαρισμένο Σήμα / Cleaned Signal', fontsize=10, 
+                ax2.set_title(f'Καθαρισμένο Σήμα - {channel_name} / Cleaned Signal - {channel_name}', fontsize=10, 
                              color=self.theme['text'])
                 ax2.set_xlabel('Χρόνος (s) / Time (s)', fontsize=9)
                 ax2.set_ylabel('Amplitude (μV)', fontsize=9)
@@ -156,10 +219,11 @@ class PreviewWidget(QWidget):
             else:
                 # Μόνο το αρχικό σήμα αν υπάρχει σφάλμα
                 ax = self.figure.add_subplot(111)
-                channel_idx = 0
+                channel_idx = self.selected_channel_idx
+                channel_name = self.channel_names[channel_idx] if channel_idx < len(self.channel_names) else f"Channel {channel_idx}"
                 ax.plot(time_points, original_data[channel_idx, :], 
                        color=self.theme.get('primary', '#007AFF'), linewidth=1)
-                ax.set_title('Αρχικό Σήμα / Original Signal', fontsize=12, 
+                ax.set_title(f'Αρχικό Σήμα - {channel_name} / Original Signal - {channel_name}', fontsize=12, 
                             color=self.theme['text'])
                 ax.set_xlabel('Χρόνος (s) / Time (s)', fontsize=10)
                 ax.set_ylabel('Amplitude (μV)', fontsize=10)
@@ -485,6 +549,10 @@ class ICAComponentSelector(QWidget):
         for i in range(self.ica.n_components_):
             self.create_single_component_widget(i)
         self.components_layout.addStretch(1)
+        
+        # Ενημέρωση του preview widget με τα δεδομένα καναλιών και callback
+        self.preview_widget.set_channel_data(raw)
+        self.preview_widget.set_update_callback(self._start_preview_update)
         
         # Ενημέρωση του αρχικού preview με τις προτεινόμενες συνιστώσες
         if suggested_artifacts:
