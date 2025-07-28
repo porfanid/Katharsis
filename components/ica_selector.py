@@ -95,29 +95,73 @@ class PreviewWidget(QWidget):
         header_layout.addWidget(channel_label)
         
         self.channel_dropdown = QComboBox()
-        self.channel_dropdown.setMinimumWidth(150)
+        self.channel_dropdown.setMinimumWidth(180)
         self.channel_dropdown.setStyleSheet(f"""
             QComboBox {{
                 background-color: {self.theme.get('background', '#ffffff')};
                 color: {self.theme['text']};
-                border: 1px solid {self.theme.get('border', '#dee2e6')};
-                border-radius: 4px;
-                padding: 5px 8px;
-                font-size: 11px;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 12px;
+                font-weight: 500;
+                min-height: 20px;
             }}
             QComboBox:hover {{
                 border-color: {self.theme.get('primary', '#007AFF')};
+                background-color: {self.theme.get('background', '#ffffff')};
+                box-shadow: 0 2px 4px rgba(0, 122, 255, 0.15);
+            }}
+            QComboBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+                outline: none;
             }}
             QComboBox::drop-down {{
-                border: none;
-                width: 20px;
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 25px;
+                border-left: none;
+                border-top-right-radius: 8px;
+                border-bottom-right-radius: 8px;
+                background-color: transparent;
+            }}
+            QComboBox::drop-down:hover {{
+                background-color: rgba(0, 122, 255, 0.1);
             }}
             QComboBox::down-arrow {{
                 image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 5px solid {self.theme['text']};
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 6px solid {self.theme['text']};
                 margin: 0px;
+            }}
+            QComboBox::down-arrow:hover {{
+                border-top-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {self.theme.get('background', '#ffffff')};
+                color: {self.theme['text']};
+                border: 2px solid {self.theme.get('primary', '#007AFF')};
+                border-radius: 8px;
+                padding: 4px;
+                outline: none;
+                selection-background-color: {self.theme.get('primary', '#007AFF')};
+                selection-color: white;
+            }}
+            QComboBox QAbstractItemView::item {{
+                padding: 8px 12px;
+                margin: 2px;
+                border-radius: 4px;
+                background-color: transparent;
+                color: {self.theme['text']};
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: rgba(0, 122, 255, 0.1);
+                color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {self.theme.get('primary', '#007AFF')};
+                color: white;
             }}
         """)
         self.channel_dropdown.currentIndexChanged.connect(self._on_channel_changed)
