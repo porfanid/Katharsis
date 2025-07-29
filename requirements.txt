@@ -24,3 +24,5 @@ pytest>=7.0.0
 pytest-qt>=4.0.0
 pyedflib
 PyWavelets
+
+python-picard

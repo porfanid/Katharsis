@@ -273,6 +273,7 @@ class EEGDataManager:
 
         # Κρατάμε μόνο τα επιλεγμένα κανάλια
         raw.pick_channels(available_channels)
+        raw.set_channel_types({ch: 'eeg' for ch in raw.ch_names})
 
         # Κανονικοποίηση ονομάτων ηλεκτροδίων για ICLabel συμβατότητα
         rename_mapping = EEGDataManager.normalize_electrode_names(raw)
