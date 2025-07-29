@@ -739,7 +739,6 @@ class ICAComponentSelector(QWidget):
         """
         try:
             from scipy import signal
-            import numpy as np
 
             # Λήψη των ICA sources
             sources = self.ica.get_sources(self.raw).get_data()
