@@ -49,6 +49,7 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+.ruff_cache/
 
 # Translations
 *.mo
@@ -123,7 +124,160 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+#  be added to the global gitignore or merged into this project gitignore.  For a PyCharm
+#  project, it is generally recommended to exclude all other files unless they are
+#  specifically needed for the project.
+.idea/
+
+# Original project specific
 sample_data/
 
 # Test data files
 test_*.edf
+
+# === EXTENDED GITIGNORE FOR PROJECT SECURITY ===
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# IDE and Editor files
+.vscode/
+.sublime-project
+.sublime-workspace
+*.code-workspace
+
+# OS generated files
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Data files that shouldn't be committed
+*.edf
+*.bdf
+*.gdf
+*.fif
+*.set
+*.vhdr
+*.vmrk
+*.eeg
+data/
+recordings/
+raw_data/
+cleaned_data/
+output/
+results/
+
+# Large files and media
+*.avi
+*.mp4
+*.mov
+*.wav
+*.flac
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.tiff
+*.bmp
+*.svg
+# Exclude our documentation images
+!docs/*.png
+!docs/*.jpg
+!docs/*.jpeg
+!*.png
+!*.jpg
+!*.jpeg
+
+# Configuration files with sensitive data
+config.ini
+settings.cfg
+*.conf
+secret.key
+.secrets/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Cache directories
+.cache/
+.npm/
+.yarn/
+node_modules/
+
+# Documentation build artifacts
+docs/_build/
+docs/build/
+_build/
+site/
+
+# Profiling and performance data
+*.prof
+*.lprof
+profile_*.txt
+memory_*.txt
+
+# Application specific temporary files
+artifact_cleaning_*.png
+ica_components_*.png
+comparison_*.png
+stats_*.txt
+session_*.log
+
+# User-specific files
+user_settings.json
+user_config.py
+personal_*.py
+
+# Development and debug files
+debug.log
+debug_*.py
+test_script.py
+scratch.py
+temp_*.py
+
+# Package manager lock files (uncomment if you want to exclude them)
+# poetry.lock
+# Pipfile.lock
+# conda-environment.yml
+
+# Virtual environment directories
+katharsis_env/
+.katharsis/
+
+# Jupyter notebook checkpoints and outputs
+*.ipynb
+.jupyter/
+
+# Documentation generated files
+*.pdf
+documentation.html
+
+# CI/CD temporary files
+.github/workflows/temp_*
+.github/temp/
+
+# Security scanning results
+security_scan_*.txt
+bandit_results.txt
+safety_results.txt
+
+# Performance benchmarks
+benchmark_*.json
+performance_*.log
+

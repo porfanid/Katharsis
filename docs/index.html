@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Katharsis - Επαγγελματικός καθαρισμός EEG δεδομένων με ICA τεχνολογία">
+    <meta name="keywords" content="EEG, artifact cleaning, ICA, neuroscience, brain signals, καθαρισμός EEG">
+    <title>Katharsis - EEG Artifact Cleaner Pro</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 0;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+        
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            transition: opacity 0.3s;
+        }
+        
+        .nav-links a:hover {
+            opacity: 0.8;
+        }
+        
+        .hero {
+            text-align: center;
+            padding: 120px 0 80px;
+            color: white;
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero .subtitle {
+            font-size: 1.3rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: #007AFF;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+        }
+        
+        .cta-button:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 122, 255, 0.4);
+        }
+        
+        .features {
+            background: white;
+            padding: 80px 0;
+        }
+        
+        .features h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: #333;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 3rem;
+        }
+        
+        .feature {
+            text-align: center;
+            padding: 2rem;
+            border-radius: 15px;
+            background: #f8f9fa;
+            transition: transform 0.3s;
+        }
+        
+        .feature:hover {
+            transform: translateY(-5px);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .feature h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #007AFF;
+        }
+        
+        .screenshot {
+            background: #f8f9fa;
+            padding: 80px 0;
+        }
+        
+        .screenshot h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: #333;
+        }
+        
+        .screenshot-container {
+            text-align: center;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .screenshot img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .tech-specs {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 80px 0;
+        }
+        
+        .tech-specs h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+        
+        .spec {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .spec h3 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: #FFF;
+        }
+        
+        .spec ul {
+            list-style: none;
+        }
+        
+        .spec li {
+            padding: 0.3rem 0;
+            opacity: 0.9;
+        }
+        
+        .spec li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .download {
+            background: white;
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .download h2 {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            color: #333;
+        }
+        
+        .download-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .download-btn:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+        }
+        
+        .download-btn.secondary {
+            background: #6c757d;
+            box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+        }
+        
+        .download-btn.secondary:hover {
+            background: #545b62;
+            box-shadow: 0 8px 25px rgba(108, 117, 125, 0.4);
+        }
+        
+        footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 2rem 0;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero .subtitle {
+                font-size: 1.1rem;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .download-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">🧠 Katharsis</div>
+            <ul class="nav-links">
+                <li><a href="#features">Χαρακτηριστικά</a></li>
+                <li><a href="#screenshot">Εικόνες</a></li>
+                <li><a href="#tech">Τεχνολογία</a></li>
+                <li><a href="#download">Λήψη</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Katharsis</h1>
+            <p class="subtitle">Επαγγελματικός Καθαρισμός EEG Δεδομένων</p>
+            <p>Αυτόματη αφαίρεση artifacts από EEG σήματα με προηγμένη ICA τεχνολογία</p>
+            <br>
+            <a href="#download" class="cta-button">Δωρεάν Λήψη</a>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="container">
+            <h2>Ισχυρά Χαρακτηριστικά</h2>
+            <div class="features-grid">
+                <div class="feature">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Αυτόματος Εντοπισμός</h3>
+                    <p>Αυτόματος εντοπισμός EOG artifacts με πολλαπλές μεθόδους ανάλυσης και στατιστικούς αλγορίθμους.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔬</div>
+                    <h3>ICA Ανάλυση</h3>
+                    <p>Προηγμένη Independent Component Analysis για την ανάλυση των EEG σημάτων σε ανεξάρτητες συνιστώσες.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📊</div>
+                    <h3>Οπτικοποίηση</h3>
+                    <p>Διαδραστική οπτικοποίηση των ICA συνιστωσών με δυνατότητα επιλογής και σύγκρισης αποτελεσμάτων.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Γρήγορη Επεξεργασία</h3>
+                    <p>Γρήγορη επεξεργασία με multithreading για αποφυγή μπλοκαρίσματος του γραφικού περιβάλλοντος.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📁</div>
+                    <h3>EDF Support</h3>
+                    <p>Πλήρης υποστήριξη αρχείων EDF από συσκευές EEG όπως το Emotiv Insight και άλλες.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📈</div>
+                    <h3>Στατιστική Ανάλυση</h3>
+                    <p>Λεπτομερή στατιστικά και μετρήσεις αποτελεσματικότητας για την αξιολόγηση του καθαρισμού.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="screenshot" class="screenshot">
+        <div class="container">
+            <h2>Εικόνες από την Εφαρμογή</h2>
+            <div class="screenshot-container">
+                <img src="../live_preview_feature_demo.png" alt="Katharsis EEG Artifact Cleaner Screenshot" loading="lazy">
+                <p style="margin-top: 1rem; color: #666;">Διαδραστικό περιβάλλον επιλογής ICA συνιστωσών με live preview</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="tech" class="tech-specs">
+        <div class="container">
+            <h2>Τεχνικές Προδιαγραφές</h2>
+            <div class="specs-grid">
+                <div class="spec">
+                    <h3>🐍 Γλώσσα Προγραμματισμού</h3>
+                    <ul>
+                        <li>Python 3.8+</li>
+                        <li>PyQt6 για GUI</li>
+                        <li>MNE-Python για EEG ανάλυση</li>
+                        <li>Scikit-learn για ICA</li>
+                    </ul>
+                </div>
+                <div class="spec">
+                    <h3>📊 Υποστηριζόμενα Formats</h3>
+                    <ul>
+                        <li>EDF (European Data Format)</li>
+                        <li>Emotiv Insight 2 συμβατό</li>
+                        <li>10-20 electrode system</li>
+                        <li>Multi-channel recording</li>
+                    </ul>
+                </div>
+                <div class="spec">
+                    <h3>⚙️ Αλγόριθμοι</h3>
+                    <ul>
+                        <li>FastICA Algorithm</li>
+                        <li>Band-pass φιλτράρισμα 1-40 Hz</li>
+                        <li>Στατιστική ανάλυση (κύρτωση, διακύμανση)</li>
+                        <li>Αυτόματος εντοπισμός EOG</li>
+                    </ul>
+                </div>
+                <div class="spec">
+                    <h3>💻 Συστήματα</h3>
+                    <ul>
+                        <li>Windows 10/11</li>
+                        <li>macOS 10.15+</li>
+                        <li>Linux (Ubuntu, CentOS)</li>
+                        <li>Headless support</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="download" class="download">
+        <div class="container">
+            <h2>Ξεκινήστε Τώρα</h2>
+            <p>Κατεβάστε το Katharsis και ξεκινήστε τον επαγγελματικό καθαρισμό των EEG δεδομένων σας.</p>
+            
+            <div class="download-buttons">
+                <a href="https://github.com/porfanid/Katharsis/releases/latest" class="download-btn">
+                    📥 Τελευταία Έκδοση
+                </a>
+                <a href="https://github.com/porfanid/Katharsis" class="download-btn secondary">
+                    🔧 Πηγαίος Κώδικας
+                </a>
+            </div>
+            
+            <div style="margin-top: 3rem; padding: 2rem; background: #f8f9fa; border-radius: 15px; max-width: 600px; margin-left: auto; margin-right: auto;">
+                <h3 style="color: #007AFF; margin-bottom: 1rem;">Γρήγορη Εγκατάσταση</h3>
+                <div style="background: #333; color: #fff; padding: 1rem; border-radius: 8px; font-family: monospace; text-align: left;">
+                    <div>git clone https://github.com/porfanid/Katharsis.git</div>
+                    <div>cd Katharsis</div>
+                    <div>pip install -r requirements.txt</div>
+                    <div>python eeg_gui_app.py</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 Katharsis EEG Artifact Cleaner. Ανοιχτός πηγαίος κώδικας κάτω από MIT License.</p>
+            <p>Δημιουργήθηκε για την ερευνητική κοινότητα με ❤️</p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling για navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        // Observe elements for animation
+        document.querySelectorAll('.feature, .spec').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
