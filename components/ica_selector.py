@@ -2,23 +2,16 @@
 """
 ICA Component Selector Widget - v4.0 - Correct Event Bubbling for Scrolling
 """
-from PyQt6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QScrollArea,
-    QCheckBox,
-    QLabel,
-    QPushButton,
-    QDialog,
-    QComboBox,
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QTimer, QThread
-from PyQt6.QtGui import QFont, QWheelEvent
+from typing import Dict, List, Optional
+
+import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from typing import Dict, List, Optional
-import numpy as np
+from PyQt6.QtCore import QEvent, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QFont, QWheelEvent
+from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QHBoxLayout,
+                             QLabel, QPushButton, QScrollArea, QVBoxLayout,
+                             QWidget)
 
 
 # --- 1. ΔΗΜΙΟΥΡΓΟΥΜΕ ΕΝΑ CUSTOM CANVAS ---

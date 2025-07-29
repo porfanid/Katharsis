@@ -14,8 +14,8 @@ def test_backend_functionality():
     """Test the backend channel selection functionality"""
     print("🧪 Testing Backend Channel Selection...")
 
-    from backend.eeg_backend import EEGDataManager
     from backend import EEGArtifactCleaningService
+    from backend.eeg_backend import EEGDataManager
 
     # Test 1: File info loading
     print("\n1. Testing file info loading...")

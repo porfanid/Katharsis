@@ -4,27 +4,15 @@ Channel Selector Component - Interactive channel selection interface
 Στοιχείο Επιλογής Καναλιών - Διαδραστική διεπαφή επιλογής καναλιών
 """
 
-from PyQt6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QPushButton,
-    QLabel,
-    QCheckBox,
-    QScrollArea,
-    QFrame,
-    QGridLayout,
-    QGroupBox,
-    QLineEdit,
-    QMessageBox,
-    QSplitter,
-    QTextEdit,
-    QProgressBar,
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QPalette
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import mne
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPixmap
+from PyQt6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QGroupBox,
+                             QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+                             QProgressBar, QPushButton, QScrollArea, QSplitter,
+                             QTextEdit, QVBoxLayout, QWidget)
 
 
 class ChannelCheckBox(QCheckBox):

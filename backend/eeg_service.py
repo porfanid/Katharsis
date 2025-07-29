@@ -14,11 +14,13 @@ Author: porfanid
 Version: 1.0
 """
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import mne
+
+from .artifact_detector import ArtifactDetector
 from .eeg_backend import EEGBackendCore
 from .ica_processor import ICAProcessor
-from .artifact_detector import ArtifactDetector
-import mne
 
 
 class EEGArtifactCleaningService:

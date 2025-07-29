@@ -13,12 +13,13 @@ Author: porfanid
 Version: 1.0
 """
 
-import numpy as np
-import mne
-from sklearn.decomposition import FastICA
-from typing import List, Tuple, Dict, Any, Optional
-from scipy import stats
 import warnings
+from typing import Any, Dict, List, Optional, Tuple
+
+import mne
+import numpy as np
+from scipy import stats
+from sklearn.decomposition import FastICA
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 

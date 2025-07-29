@@ -13,12 +13,13 @@ Author: porfanid
 Version: 1.0
 """
 
-import numpy as np
-import mne
-from pathlib import Path
-from typing import Tuple, List, Optional, Dict, Any
-from scipy import stats
 import warnings
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import mne
+import numpy as np
+from scipy import stats
 
 # Suppress MNE warnings for cleaner output
 warnings.filterwarnings("ignore", category=RuntimeWarning)

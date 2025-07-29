@@ -4,14 +4,11 @@ GUI Components Package Initialization
 Αρχικοποίηση Package Στοιχείων GUI
 """
 
-from .ica_selector import ICAComponentSelector, ComponentDisplayWidget
-from .results_display import (
-    ResultsDisplayWidget,
-    StatisticsTableWidget,
-    ComparisonPlotWidget,
-)
-from .comparison_screen import ComparisonScreen
 from .channel_selector import ChannelSelectorWidget
+from .comparison_screen import ComparisonScreen
+from .ica_selector import ComponentDisplayWidget, ICAComponentSelector
+from .results_display import (ComparisonPlotWidget, ResultsDisplayWidget,
+                              StatisticsTableWidget)
 
 __all__ = [
     "ICAComponentSelector",

@@ -4,25 +4,21 @@ Unit Tests for EEG Backend Core
 Μοναδιαίοι Έλεγχοι για EEG Backend Core
 """
 
-import unittest
-import numpy as np
-import mne
-import tempfile
 import os
-from pathlib import Path
 import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import mne
+import numpy as np
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend import (
-    EEGDataManager,
-    EEGPreprocessor,
-    EEGBackendCore,
-    ICAProcessor,
-    ArtifactDetector,
-    EEGArtifactCleaningService,
-)
+from backend import (ArtifactDetector, EEGArtifactCleaningService,
+                     EEGBackendCore, EEGDataManager, EEGPreprocessor,
+                     ICAProcessor)
 
 
 class TestEEGDataManager(unittest.TestCase):

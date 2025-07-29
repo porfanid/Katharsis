@@ -13,10 +13,12 @@ Author: porfanid
 Version: 1.0
 """
 
-import numpy as np
+from typing import Any, Dict, List, Optional, Tuple
+
 import mne
-from typing import List, Dict, Any, Optional, Tuple
+import numpy as np
 from scipy import stats
+
 from .ica_processor import ICAProcessor
 
 

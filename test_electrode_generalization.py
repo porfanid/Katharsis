@@ -4,10 +4,12 @@ Test script for electrode generalization feature
 Σκριπτ ελέγχου για τη λειτουργία γενίκευσης ηλεκτροδίων
 """
 
-import numpy as np
-import mne
-import tempfile
 import os
+import tempfile
+
+import mne
+import numpy as np
+
 from backend import EEGArtifactCleaningService, EEGDataManager
 
 

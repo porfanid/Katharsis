@@ -4,12 +4,13 @@ Unit Tests for GUI Components
 Μοναδιαίοι Έλεγχοι για Στοιχεία GUI
 """
 
-import unittest
-import sys
 import os
-from unittest.mock import Mock, MagicMock, patch
-import numpy as np
+import sys
+import unittest
+from unittest.mock import MagicMock, Mock, patch
+
 import mne
+import numpy as np
 import pytest
 
 # Add parent directory to path for imports
@@ -17,9 +18,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Try to import PyQt6 - skip tests if not available
 try:
-    from PyQt6.QtWidgets import QApplication, QWidget
     from PyQt6.QtCore import Qt
     from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QApplication, QWidget
 
     # Import components to test
     from components import ICAComponentSelector, ResultsDisplayWidget

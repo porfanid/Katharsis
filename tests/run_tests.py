@@ -4,9 +4,9 @@ Test Runner - Εκτέλεση όλων των unit tests
 Test Runner - Execute all unit tests
 """
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

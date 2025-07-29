@@ -4,10 +4,10 @@ Backend Package Initialization
 Αρχικοποίηση Backend Package
 """
 
-from .eeg_backend import EEGBackendCore, EEGDataManager, EEGPreprocessor
-from .ica_processor import ICAProcessor
 from .artifact_detector import ArtifactDetector
+from .eeg_backend import EEGBackendCore, EEGDataManager, EEGPreprocessor
 from .eeg_service import EEGArtifactCleaningService
+from .ica_processor import ICAProcessor
 
 __all__ = [
     "EEGBackendCore",

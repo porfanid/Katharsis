@@ -4,26 +4,18 @@ Results Display Widget - Εμφάνιση αποτελεσμάτων καθαρ�
 Results Display Widget - Display cleaning results and statistics
 """
 
-from PyQt6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QLabel,
-    QGroupBox,
-    QGridLayout,
-    QHeaderView,
-    QFrame,
-)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPalette, QColor
+from typing import Any, Dict, List, Optional
+
 import matplotlib.pyplot as plt
+import mne
+import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-import numpy as np
-from typing import Dict, List, Any, Optional
-import mne
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QFont, QPalette
+from PyQt6.QtWidgets import (QFrame, QGridLayout, QGroupBox, QHBoxLayout,
+                             QHeaderView, QLabel, QTableWidget,
+                             QTableWidgetItem, QVBoxLayout, QWidget)
 
 
 class StatisticsTableWidget(QWidget):
