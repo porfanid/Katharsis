@@ -6,8 +6,75 @@ on:
       - 'v*'  # Τρέχει όταν δημιουργηθεί tag που αρχίζει με 'v' (π.χ. v1.0.0)
 
 jobs:
+  build-executables:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-20.04
+            asset_name: eeg-cleaner-linux
+            asset_path: dist/eeg-cleaner-linux
+          - os: windows-latest
+            asset_name: eeg-cleaner-windows.exe
+            asset_path: dist/eeg-cleaner-windows.exe
+          - os: macos-13
+            asset_name: eeg-cleaner-macos-intel.zip
+            asset_path: dist/EEGCleanerApp-Intel.zip
+          - os: macos-latest
+            asset_name: eeg-cleaner-macos-arm64.zip
+            asset_path: dist/EEGCleanerApp-ARM64.zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.8.0
+          
+      - name: Build executable
+        shell: bash
+        run: |
+          # PyInstaller command with necessary configuration
+          PYINSTALLER_CMD="pyinstaller --noconfirm --onefile --windowed \
+            --collect-all mne \
+            --collect-all scipy \
+            --copy-metadata mne \
+            --hidden-import=sklearn.utils._typedefs \
+            --hidden-import=scipy.signal \
+            --hidden-import=backend \
+            --hidden-import=components \
+            --add-data backend:backend \
+            --add-data components:components \
+            eeg_gui_app.py"
+
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            $PYINSTALLER_CMD --name "eeg-cleaner-windows"
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            $PYINSTALLER_CMD --name "eeg-cleaner-linux"
+          elif [[ "${{ matrix.os }}" == "macos-13" ]]; then
+            $PYINSTALLER_CMD --name "EEGCleanerApp-Intel"
+            cd dist && zip -r EEGCleanerApp-Intel.zip EEGCleanerApp-Intel.app
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            $PYINSTALLER_CMD --name "EEGCleanerApp-ARM64"
+            cd dist && zip -r EEGCleanerApp-ARM64.zip EEGCleanerApp-ARM64.app
+          fi
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_path }}
+
   create-release:
     runs-on: ubuntu-latest
+    needs: build-executables
     permissions:
       contents: write
       
@@ -34,6 +101,11 @@ jobs:
     - name: Extract version from tag
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: executables
       
     - name: Generate changelog
       id: changelog
@@ -52,6 +124,16 @@ jobs:
         echo "$CHANGELOG" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
         echo "## Εγκατάσταση" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "### Εκτελέσιμα αρχεία (Recommended)" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "Κατεβάστε το κατάλληλο εκτελέσιμο αρχείο για το λειτουργικό σας σύστημα:" >> CHANGELOG.md
+        echo "- **Windows**: \`eeg-cleaner-windows.exe\`" >> CHANGELOG.md
+        echo "- **Linux**: \`eeg-cleaner-linux\`" >> CHANGELOG.md
+        echo "- **macOS Intel**: \`eeg-cleaner-macos-intel.zip\`" >> CHANGELOG.md
+        echo "- **macOS Apple Silicon**: \`eeg-cleaner-macos-arm64.zip\`" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "### Από πηγαίο κώδικα" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
         echo "1. Κατεβάστε τον πηγαίο κώδικα" >> CHANGELOG.md
         echo "2. Εγκαταστήστε τις εξαρτήσεις: \`pip install -r requirements.txt\`" >> CHANGELOG.md
@@ -124,6 +206,28 @@ jobs:
         cd portable
         zip -r ../katharsis-v${{ steps.get_version.outputs.VERSION }}-portable.zip katharsis/
         cd ..
+
+    - name: Prepare executable files
+      run: |
+        echo "Downloaded artifacts:"
+        find executables -type f -ls
+        
+        # Create executables directory for release
+        mkdir -p release-executables
+        
+        # Copy executable files to release directory
+        find executables -type f -name 'eeg-cleaner-windows.exe' -exec cp {} release-executables/eeg-cleaner-windows.exe \;
+        find executables -type f -name 'eeg-cleaner-linux' -exec cp {} release-executables/eeg-cleaner-linux \;
+        find executables -type f -name 'eeg-cleaner-macos-intel.zip' -exec cp {} release-executables/eeg-cleaner-macos-intel.zip \;
+        find executables -type f -name 'eeg-cleaner-macos-arm64.zip' -exec cp {} release-executables/eeg-cleaner-macos-arm64.zip \;
+        
+        # Make Linux executable executable
+        if [ -f "release-executables/eeg-cleaner-linux" ]; then
+          chmod +x "release-executables/eeg-cleaner-linux"
+        fi
+        
+        echo "Executables prepared for release:"
+        ls -la release-executables/
         
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -138,6 +242,10 @@ jobs:
         files: |
           katharsis-v${{ steps.get_version.outputs.VERSION }}-source.zip
           katharsis-v${{ steps.get_version.outputs.VERSION }}-portable.zip
+          release-executables/eeg-cleaner-windows.exe
+          release-executables/eeg-cleaner-linux
+          release-executables/eeg-cleaner-macos-intel.zip
+          release-executables/eeg-cleaner-macos-arm64.zip
 
   update-github-pages:
     runs-on: ubuntu-latest
