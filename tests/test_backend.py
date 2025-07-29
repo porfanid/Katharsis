@@ -56,7 +56,7 @@ class TestEEGDataManager(unittest.TestCase):
         """Έλεγχος επιτυχούς φόρτωσης EDF"""
         raw, channels = self.data_manager.load_edf_file(self.temp_edf_path)
         
-        self.assertIsInstance(raw, mne.io.Raw)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
         self.assertEqual(channels, self.ch_names)
         self.assertEqual(len(raw.ch_names), len(self.ch_names))
         
@@ -119,7 +119,7 @@ class TestEEGPreprocessor(unittest.TestCase):
             self.test_raw, low_freq=1.0, high_freq=40.0
         )
         
-        self.assertIsInstance(filtered_raw, mne.io.Raw)
+        self.assertIsInstance(filtered_raw, mne.io.BaseRaw)
         self.assertEqual(len(filtered_raw.ch_names), len(self.test_raw.ch_names))
         
         # Δεδομένα δεν πρέπει να είναι ίδια μετά το φιλτράρισμα
@@ -215,7 +215,7 @@ class TestICAProcessor(unittest.TestCase):
         # Remove first component
         cleaned_raw = self.ica_processor.apply_artifact_removal([0])
         
-        self.assertIsInstance(cleaned_raw, mne.io.Raw)
+        self.assertIsInstance(cleaned_raw, mne.io.BaseRaw)
         self.assertEqual(len(cleaned_raw.ch_names), len(self.test_raw.ch_names))
         
         # Data should be different after artifact removal

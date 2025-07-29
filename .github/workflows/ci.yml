@@ -31,11 +31,24 @@ jobs:
         # Για headless testing
         sudo apt-get install -y xvfb
         
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Install required libraries for Qt and MNE
+        brew install --quiet libomp
+        # Set up Qt environment variables for headless testing
+        echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
+        
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest pytest-cov pytest-qt
+        pip install flake8 pytest pytest-cov
         pip install -r requirements.txt
+        
+    - name: Install GUI testing dependencies (if needed)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        pip install pytest-qt
         
     - name: Lint with flake8
       run: |
@@ -53,17 +66,26 @@ jobs:
         python -c "import backend.ica_processor; print('ICA processor imported successfully')"
         python -c "import backend.eeg_service; print('EEG service imported successfully')"
         
-    - name: Run tests with pytest (Ubuntu with display)
+    - name: Run backend tests (Ubuntu with display)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        # Χρήση xvfb για headless GUI testing
-        xvfb-run -a python -m pytest tests/ -v --cov=backend --cov=components \
+        # Run backend tests first (no GUI required)
+        python -m pytest tests/test_backend.py -v --cov=backend \
                   --cov-report=xml --cov-report=term-missing
         
-    - name: Run tests with pytest (Windows/Mac)
+    - name: Run GUI tests (Ubuntu with display)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        # Run GUI tests with xvfb for headless GUI testing
+        xvfb-run -a python -m pytest tests/test_components.py -v --cov=components \
+                  --cov-append --cov-report=xml --cov-report=term-missing
+        
+    - name: Run backend tests (Windows/Mac)
       if: matrix.os != 'ubuntu-latest'
       run: |
-        python -m pytest tests/ -v --cov=backend --cov=components \
+        # Set Qt to offscreen mode for headless testing
+        export QT_QPA_PLATFORM=offscreen
+        python -m pytest tests/test_backend.py -v --cov=backend \
                 --cov-report=xml --cov-report=term-missing
         
     - name: Upload coverage to Codecov

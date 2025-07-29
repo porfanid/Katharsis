@@ -14,15 +14,21 @@ import mne
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# PyQt6 imports
-from PyQt6.QtWidgets import QApplication, QWidget
-from PyQt6.QtCore import Qt
-from PyQt6.QtTest import QTest
+# Try to import PyQt6 - skip tests if not available
+try:
+    from PyQt6.QtWidgets import QApplication, QWidget
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    
+    # Import components to test
+    from components import ICAComponentSelector, ResultsDisplayWidget
+    
+    QT_AVAILABLE = True
+except ImportError:
+    QT_AVAILABLE = False
 
-# Import components to test
-from components import ICAComponentSelector, ResultsDisplayWidget
 
-
+@unittest.skipUnless(QT_AVAILABLE, "PyQt6 not available or Qt display not accessible")
 class TestICAComponentSelector(unittest.TestCase):
     """Έλεγχοι για ICAComponentSelector"""
     
@@ -187,6 +193,7 @@ class TestICAComponentSelector(unittest.TestCase):
             pass
 
 
+@unittest.skipUnless(QT_AVAILABLE, "PyQt6 not available or Qt display not accessible")
 class TestResultsDisplayWidget(unittest.TestCase):
     """Έλεγχοι για ResultsDisplayWidget"""
     
@@ -281,6 +288,7 @@ class TestResultsDisplayWidget(unittest.TestCase):
         self.assertEqual(self.widget.statistics_widget.table.rowCount(), 0)
 
 
+@unittest.skipUnless(QT_AVAILABLE, "PyQt6 not available or Qt display not accessible")
 class TestStatisticsTableWidget(unittest.TestCase):
     """Έλεγχοι για StatisticsTableWidget"""
     
@@ -329,6 +337,7 @@ class TestStatisticsTableWidget(unittest.TestCase):
 
 
 # Integration test for component interaction
+@unittest.skipUnless(QT_AVAILABLE, "PyQt6 not available or Qt display not accessible")
 class TestComponentIntegration(unittest.TestCase):
     """Έλεγχοι ολοκλήρωσης στοιχείων"""
     

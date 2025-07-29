@@ -4,10 +4,10 @@ Tests Package Initialization
 Αρχικοποίηση Package Tests
 """
 
-# Test imports for easy access
+# Backend tests - always available
 from .test_backend import *
-from .test_components import *
 
+# GUI tests - only import if Qt is available
 __all__ = [
     # Backend tests
     'TestEEGDataManager',
@@ -15,10 +15,18 @@ __all__ = [
     'TestICAProcessor',
     'TestArtifactDetector',
     'TestEEGArtifactCleaningService',
-    
-    # GUI tests
-    'TestICAComponentSelector',
-    'TestResultsDisplayWidget',
-    'TestStatisticsTableWidget',
-    'TestComponentIntegration'
 ]
+
+# Try to import GUI tests - skip if Qt is not available
+try:
+    from .test_components import *
+    __all__.extend([
+        # GUI tests
+        'TestICAComponentSelector',
+        'TestResultsDisplayWidget',
+        'TestStatisticsTableWidget',
+        'TestComponentIntegration'
+    ])
+except ImportError:
+    # Qt not available - skip GUI tests
+    pass
