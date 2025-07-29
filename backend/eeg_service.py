@@ -15,7 +15,7 @@ class EEGArtifactCleaningService:
     """Κεντρική υπηρεσία για EEG artifact cleaning"""
     
     def __init__(self, 
-                 n_components: int = 5,
+                 n_components: int = None,
                  variance_threshold: float = 2.0,
                  kurtosis_threshold: float = 2.0,
                  range_threshold: float = 3.0):
@@ -23,7 +23,7 @@ class EEGArtifactCleaningService:
         Αρχικοποίηση service
         
         Args:
-            n_components: Αριθμός ICA συνιστωσών
+            n_components: Αριθμός ICA συνιστωσών (None για αυτόματη ανίχνευση)
             variance_threshold: Κατώφλι διακύμανσης
             kurtosis_threshold: Κατώφλι κύρτωσης
             range_threshold: Κατώφλι εύρους
@@ -65,12 +65,13 @@ class EEGArtifactCleaningService:
         if self.status_callback:
             self.status_callback(status)
     
-    def load_and_prepare_file(self, file_path: str) -> Dict[str, Any]:
+    def load_and_prepare_file(self, file_path: str, selected_channels: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Φόρτωση και προετοιμασία αρχείου για επεξεργασία
         
         Args:
             file_path: Διαδρομή αρχείου
+            selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
             
         Returns:
             Dictionary με αποτελέσματα φόρτωσης
@@ -83,12 +84,16 @@ class EEGArtifactCleaningService:
             self._update_status("Φόρτωση δεδομένων...")
             self._update_progress(10)
             
-            # Φόρτωση αρχείου
-            result = self.backend_core.load_file(file_path)
+            # Φόρτωση αρχείου με επιλεγμένα κανάλια
+            result = self.backend_core.load_file(file_path, selected_channels)
             
             if not result['success']:
                 self.is_processing = False
                 return result
+            
+            # Ενημερώνουμε τον ICA processor με τον αριθμό καναλιών
+            n_channels = len(result['channels'])
+            self.ica_processor = ICAProcessor(n_components=None)  # Αυτόματη ανίχνευση
             
             self._update_progress(30)
             self._update_status("Αρχείο φορτώθηκε επιτυχώς")
@@ -101,6 +106,18 @@ class EEGArtifactCleaningService:
                 'success': False,
                 'error': f"Σφάλμα φόρτωσης: {str(e)}"
             }
+    
+    def get_file_info(self, file_path: str) -> Dict[str, Any]:
+        """
+        Λήψη πληροφοριών αρχείου για επιλογή καναλιών
+        
+        Args:
+            file_path: Διαδρομή αρχείου
+            
+        Returns:
+            Dictionary με πληροφορίες αρχείου
+        """
+        return self.backend_core.get_file_info(file_path)
     
     def fit_ica_analysis(self) -> Dict[str, Any]:
         """
@@ -288,7 +305,7 @@ class EEGArtifactCleaningService:
         
         # Reset backend components
         self.backend_core = EEGBackendCore()
-        self.ica_processor = ICAProcessor(n_components=self.ica_processor.n_components)
+        self.ica_processor = ICAProcessor(n_components=None)  # Use automatic detection
     
     def get_processing_summary(self) -> Dict[str, Any]:
         """
