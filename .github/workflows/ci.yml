@@ -26,8 +26,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgl1 libegl1 libxrandr2 libxss1 \
-                                libxcursor1 libxcomposite1 libasound2t64 libxi6 libxtst6
+        sudo apt-get install -y libgl1 libegl1 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2t64 libxi6 libxtst6
         # Για headless testing
         sudo apt-get install -y xvfb
         
@@ -70,23 +69,20 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         # Run backend tests first (no GUI required)
-        python -m pytest tests/test_backend.py -v --cov=backend \
-                  --cov-report=xml --cov-report=term-missing
+        python -m pytest tests/test_backend.py -v --cov=backend --cov-report=xml --cov-report=term-missing
         
     - name: Run GUI tests (Ubuntu with display)
       if: matrix.os == 'ubuntu-latest'
       run: |
         # Run GUI tests with xvfb for headless GUI testing
-        xvfb-run -a python -m pytest tests/test_components.py -v --cov=components \
-                  --cov-append --cov-report=xml --cov-report=term-missing
+        xvfb-run -a python -m pytest tests/test_components.py -v --cov=components --cov-append --cov-report=xml --cov-report=term-missing
         
     - name: Run backend tests (Windows/Mac)
       if: matrix.os != 'ubuntu-latest'
       run: |
         # Set Qt to offscreen mode for headless testing
         export QT_QPA_PLATFORM=offscreen
-        python -m pytest tests/test_backend.py -v --cov=backend \
-                --cov-report=xml --cov-report=term-missing
+        python -m pytest tests/test_backend.py -v --cov=backend --cov-report=xml --cov-report=term-missing
         
     - name: Upload coverage to Codecov
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
