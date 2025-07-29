@@ -7,8 +7,11 @@ GUI Components Package Initialization
 from .channel_selector import ChannelSelectorWidget
 from .comparison_screen import ComparisonScreen
 from .ica_selector import ComponentDisplayWidget, ICAComponentSelector
-from .results_display import (ComparisonPlotWidget, ResultsDisplayWidget,
-                              StatisticsTableWidget)
+from .results_display import (
+    ComparisonPlotWidget,
+    ResultsDisplayWidget,
+    StatisticsTableWidget,
+)
 
 __all__ = [
     "ICAComponentSelector",

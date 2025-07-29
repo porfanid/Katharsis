@@ -25,10 +25,20 @@ from pathlib import Path
 
 from PyQt6.QtCore import QSize, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
-from PyQt6.QtWidgets import (QApplication, QFileDialog, QLabel, QMainWindow,
-                             QMessageBox, QProgressBar, QPushButton,
-                             QSplashScreen, QStackedWidget, QStatusBar,
-                             QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSplashScreen,
+    QStackedWidget,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class BackendInitializationThread(QThread):
@@ -411,8 +421,11 @@ class EEGArtifactCleanerGUI(QMainWindow):
             self.splash.set_progress(90)
 
             # Import and create component selector in main thread
-            from components import (ChannelSelectorWidget, ComparisonScreen,
-                                    ICAComponentSelector)
+            from components import (
+                ChannelSelectorWidget,
+                ComparisonScreen,
+                ICAComponentSelector,
+            )
 
             theme = {
                 "background": "#FFFFFF",

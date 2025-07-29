@@ -9,9 +9,17 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PyQt6.QtCore import QEvent, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QWheelEvent
-from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QHBoxLayout,
-                             QLabel, QPushButton, QScrollArea, QVBoxLayout,
-                             QWidget)
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 # --- 1. ΔΗΜΙΟΥΡΓΟΥΜΕ ΕΝΑ CUSTOM CANVAS ---

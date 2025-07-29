@@ -9,10 +9,23 @@ from typing import Any, Dict, List, Optional
 import mne
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPixmap
-from PyQt6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QGroupBox,
-                             QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-                             QProgressBar, QPushButton, QScrollArea, QSplitter,
-                             QTextEdit, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class ChannelCheckBox(QCheckBox):

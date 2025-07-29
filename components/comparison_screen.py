@@ -9,8 +9,14 @@ from typing import Any, Dict, List, Optional
 import mne
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import (QHBoxLayout, QPushButton, QSizePolicy,
-                             QSpacerItem, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QPushButton,
+    QSizePolicy,
+    QSpacerItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .results_display import ResultsDisplayWidget
 

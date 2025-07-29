@@ -16,9 +16,14 @@ import numpy as np
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend import (ArtifactDetector, EEGArtifactCleaningService,
-                     EEGBackendCore, EEGDataManager, EEGPreprocessor,
-                     ICAProcessor)
+from backend import (
+    ArtifactDetector,
+    EEGArtifactCleaningService,
+    EEGBackendCore,
+    EEGDataManager,
+    EEGPreprocessor,
+    ICAProcessor,
+)
 
 
 class TestEEGDataManager(unittest.TestCase):
