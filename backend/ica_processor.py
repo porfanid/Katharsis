@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
 ICA Processor - Independent Component Analysis για EEG artifact cleaning
-Επεξεργαστής ICA - Ανάλυση Ανεξάρτητων Συνιστωσών για καθαρισμό EEG artifacts
+======================================================================
+
+Υλοποιεί τη μέθοδο Ανάλυσης Ανεξάρτητων Συνιστωσών (ICA) για:
+- Εκπαίδευση ICA μοντέλων σε EEG δεδομένα
+- Αναγνώριση artifacts (βλεφαρισμοί, κίνηση, μυικά)
+- Απομάκρυνση επιλεγμένων συνιστωσών
+- Αποκατάσταση καθαρών σημάτων
+
+Author: porfanid
+Version: 1.0
 """
 
 import numpy as np
@@ -15,15 +24,29 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 
 
 class ICAProcessor:
-    """Επεξεργαστής ICA για εντοπισμό και αφαίρεση artifacts"""
+    """
+    Επεξεργαστής ICA για εντοπισμό και αφαίρεση artifacts
+    
+    Χρησιμοποιεί την FastICA αλγόριθμο για την ανάλυση των EEG σημάτων σε
+    ανεξάρτητες συνιστώσες, επιτρέποντας τον εντοπισμό και την αφαίρεση
+    artifacts όπως βλεφαρισμοί, κίνηση και μυικά σήματα.
+    
+    Attributes:
+        n_components (int): Αριθμός ICA συνιστωσών
+        random_state (int): Seed για αναπαραγωγιμότητα
+        ica (mne.preprocessing.ICA): Το εκπαιδευμένο ICA μοντέλο
+        raw_data (mne.io.Raw): Τα δεδομένα εκπαίδευσης
+        components_info (dict): Πληροφορίες για τις συνιστώσες
+    """
     
     def __init__(self, n_components: int = None, random_state: int = 42):
         """
         Αρχικοποίηση ICA processor
         
         Args:
-            n_components: Αριθμός ICA συνιστωσών (None για αυτόματη ανίχνευση)
-            random_state: Seed για αναπαραγωγιμότητα
+            n_components (int, optional): Αριθμός ICA συνιστωσών. 
+                                        Αν None, καθορίζεται αυτόματα.
+            random_state (int): Seed για αναπαραγωγιμότητα
         """
         self.n_components = n_components
         self.random_state = random_state
@@ -35,11 +58,15 @@ class ICAProcessor:
         """
         Εκπαίδευση ICA μοντέλου
         
+        Εκπαιδεύει ένα ICA μοντέλο στα παρεχόμενα EEG δεδομένα χρησιμοποιώντας
+        τον FastICA αλγόριθμο. Το μοντέλο αναλύει τα σήματα σε ανεξάρτητες
+        συνιστώσες που αντιπροσωπεύουν διαφορετικές πηγές δραστηριότητας.
+        
         Args:
-            raw: Φιλτραρισμένα Raw EEG δεδομένα
+            raw (mne.io.Raw): Φιλτραρισμένα Raw EEG δεδομένα
             
         Returns:
-            bool: True εάν η εκπαίδευση ήταν επιτυχής
+            bool: True εάν η εκπαίδευση ήταν επιτυχής, False αλλιώς
         """
         try:
             self.raw_data = raw.copy()
@@ -72,7 +99,12 @@ class ICAProcessor:
             return False
     
     def _calculate_component_info(self):
-        """Υπολογισμός στατιστικών πληροφοριών για κάθε ICA συνιστώσα"""
+        """
+        Υπολογισμός στατιστικών πληροφοριών για κάθε ICA συνιστώσα
+        
+        Υπολογίζει βασικά στατιστικά για κάθε συνιστώσα όπως διακύμανση,
+        κύρτωση, εύρος, κλπ. που χρησιμοποιούνται για τον εντοπισμό artifacts.
+        """
         if self.ica is None or self.raw_data is None:
             return
             
@@ -96,26 +128,34 @@ class ICAProcessor:
         Επιστροφή πληροφοριών για συγκεκριμένη συνιστώσα
         
         Args:
-            component_idx: Δείκτης συνιστώσας
+            component_idx (int): Δείκτης συνιστώσας (0-based)
             
         Returns:
-            Dictionary με στατιστικές πληροφορίες
+            Dict[str, float]: Dictionary με στατιστικές πληροφορίες όπως
+                            variance, kurtosis, range, std, mean, rms, skewness
         """
         return self.components_info.get(component_idx, {})
     
     def get_all_components_info(self) -> Dict[int, Dict[str, float]]:
-        """Επιστροφή πληροφοριών όλων των συνιστωσών"""
+        """
+        Επιστροφή πληροφοριών όλων των συνιστωσών
+        
+        Returns:
+            Dict[int, Dict[str, float]]: Dictionary με πληροφορίες όλων των συνιστωσών
+        """
         return self.components_info
     
     def get_component_data(self, component_idx: int) -> Optional[np.ndarray]:
         """
         Επιστροφή δεδομένων συγκεκριμένης συνιστώσας
         
+        Εξάγει τη χρονοσειρά της επιλεγμένης ICA συνιστώσας.
+        
         Args:
-            component_idx: Δείκτης συνιστώσας
+            component_idx (int): Δείκτης συνιστώσας
             
         Returns:
-            Δεδομένα συνιστώσας ή None
+            Optional[np.ndarray]: Δεδομένα συνιστώσας ως 1D array ή None αν αποτύχει
         """
         if self.ica is None or self.raw_data is None:
             return None
@@ -131,11 +171,14 @@ class ICAProcessor:
         """
         Εφαρμογή αφαίρεσης artifacts
         
+        Αφαιρεί τις επιλεγμένες ICA συνιστώσες από τα αρχικά δεδομένα,
+        αποκαθιστώντας το καθαρό σήμα χωρίς τα artifacts.
+        
         Args:
-            components_to_remove: Λίστα με δείκτες συνιστωσών προς αφαίρεση
+            components_to_remove (List[int]): Λίστα με δείκτες συνιστωσών προς αφαίρεση
             
         Returns:
-            Καθαρισμένα Raw δεδομένα ή None
+            Optional[mne.io.Raw]: Καθαρισμένα Raw δεδομένα ή None αν αποτύχει
         """
         if self.ica is None or self.raw_data is None:
             return None
@@ -157,11 +200,23 @@ class ICAProcessor:
             return None
     
     def get_ica_object(self) -> Optional[mne.preprocessing.ICA]:
-        """Επιστροφή του ICA αντικειμένου"""
+        """
+        Επιστροφή του ICA αντικειμένου
+        
+        Returns:
+            Optional[mne.preprocessing.ICA]: Το εκπαιδευμένο ICA μοντέλο ή None
+        """
         return self.ica
     
     def get_sources_data(self) -> Optional[np.ndarray]:
-        """Επιστροφή όλων των ICA sources"""
+        """
+        Επιστροφή όλων των ICA sources
+        
+        Εξάγει όλες τις ICA συνιστώσες ως πίνακα δεδομένων.
+        
+        Returns:
+            Optional[np.ndarray]: Πίνακας με shape (n_components, n_timepoints) ή None
+        """
         if self.ica is None or self.raw_data is None:
             return None
             

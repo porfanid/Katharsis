@@ -207,7 +207,14 @@ class EEGDataManager:
 
 
 class EEGPreprocessor:
-    """Προεπεξεργασία EEG δεδομένων - φιλτράρισμα, τυποποίηση"""
+    """
+    Προεπεξεργασία EEG δεδομένων - φιλτράρισμα, τυποποίηση
+    
+    Παρέχει στατικές μεθόδους για:
+    - Εφαρμογή ζωνοπερατών φίλτρων
+    - Υπολογισμό στατιστικών δεδομένων
+    - Προεπεξεργασία σημάτων
+    """
     
     @staticmethod
     def apply_bandpass_filter(raw: mne.io.Raw, 
@@ -263,9 +270,27 @@ class EEGPreprocessor:
 
 
 class EEGBackendCore:
-    """Κεντρικό Backend για EEG επεξεργασία"""
+    """
+    Κεντρικό Backend για EEG επεξεργασία
+    
+    Συνδυάζει τη διαχείριση δεδομένων και την προεπεξεργασία για να παρέχει
+    μια ενιαία διεπαφή για φόρτωση, επεξεργασία και αποθήκευση EEG δεδομένων.
+    
+    Attributes:
+        data_manager (EEGDataManager): Διαχειριστής δεδομένων
+        preprocessor (EEGPreprocessor): Προεπεξεργαστής δεδομένων
+        raw_data (mne.io.Raw): Αρχικά δεδομένα
+        filtered_data (mne.io.Raw): Φιλτραρισμένα δεδομένα
+        current_file (str): Τρέχον αρχείο που επεξεργάζεται
+    """
     
     def __init__(self):
+        """
+        Αρχικοποίηση του κεντρικού backend
+        
+        Δημιουργεί instances των data manager και preprocessor και
+        αρχικοποιεί τις μεταβλητές κατάστασης.
+        """
         self.data_manager = EEGDataManager()
         self.preprocessor = EEGPreprocessor()
         self.raw_data = None
@@ -327,13 +352,34 @@ class EEGBackendCore:
             }
     
     def save_cleaned_data(self, cleaned_raw: mne.io.Raw, output_path: str) -> bool:
-        """Αποθήκευση καθαρισμένων δεδομένων"""
+        """
+        Αποθήκευση καθαρισμένων δεδομένων
+        
+        Αποθηκεύει τα καθαρισμένα EEG δεδομένα σε EDF format.
+        
+        Args:
+            cleaned_raw (mne.io.Raw): Τα καθαρισμένα δεδομένα
+            output_path (str): Διαδρομή αρχείου εξόδου
+            
+        Returns:
+            bool: True εάν η αποθήκευση ήταν επιτυχής
+        """
         return self.data_manager.save_cleaned_data(cleaned_raw, output_path)
     
     def get_filtered_data(self) -> Optional[mne.io.Raw]:
-        """Επιστροφή φιλτραρισμένων δεδομένων"""
+        """
+        Επιστροφή φιλτραρισμένων δεδομένων
+        
+        Returns:
+            Optional[mne.io.Raw]: Τα φιλτραρισμένα δεδομένα ή None αν δεν υπάρχουν
+        """
         return self.filtered_data
     
     def get_original_data(self) -> Optional[mne.io.Raw]:
-        """Επιστροφή αρχικών δεδομένων"""
+        """
+        Επιστροφή αρχικών δεδομένων
+        
+        Returns:
+            Optional[mne.io.Raw]: Τα αρχικά δεδομένα ή None αν δεν υπάρχουν
+        """
         return self.raw_data
