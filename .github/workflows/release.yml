@@ -6,8 +6,75 @@ on:
       - 'v*'  # Τρέχει όταν δημιουργηθεί tag που αρχίζει με 'v' (π.χ. v1.0.0)
 
 jobs:
+  build-executables:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_name: eeg-cleaner-linux
+            asset_path: dist/eeg-cleaner-linux
+          - os: windows-latest
+            asset_name: eeg-cleaner-windows.exe
+            asset_path: dist/eeg-cleaner-windows.exe
+          - os: macos-13
+            asset_name: eeg-cleaner-macos-intel.zip
+            asset_path: dist/EEGCleanerApp-Intel.zip
+          - os: macos-latest
+            asset_name: eeg-cleaner-macos-arm64.zip
+            asset_path: dist/EEGCleanerApp-ARM64.zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller==6.8.0
+          
+      - name: Build executable
+        shell: bash
+        run: |
+          # PyInstaller command with necessary configuration
+          PYINSTALLER_CMD="pyinstaller --noconfirm --onefile --windowed \
+            --collect-all mne \
+            --collect-all scipy \
+            --copy-metadata mne \
+            --hidden-import=sklearn.utils._typedefs \
+            --hidden-import=scipy.signal \
+            --hidden-import=backend \
+            --hidden-import=components \
+            --add-data backend:backend \
+            --add-data components:components \
+            eeg_gui_app.py"
+
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            $PYINSTALLER_CMD --name "eeg-cleaner-windows"
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            $PYINSTALLER_CMD --name "eeg-cleaner-linux"
+          elif [[ "${{ matrix.os }}" == "macos-13" ]]; then
+            $PYINSTALLER_CMD --name "EEGCleanerApp-Intel"
+            cd dist && zip -r EEGCleanerApp-Intel.zip EEGCleanerApp-Intel.app
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            $PYINSTALLER_CMD --name "EEGCleanerApp-ARM64"
+            cd dist && zip -r EEGCleanerApp-ARM64.zip EEGCleanerApp-ARM64.app
+          fi
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_path }}
+
   create-release:
     runs-on: ubuntu-latest
+    needs: build-executables
     permissions:
       contents: write
       
@@ -18,7 +85,7 @@ jobs:
         fetch-depth: 0  # Fetch full history for changelog generation
         
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
         
@@ -34,6 +101,11 @@ jobs:
     - name: Extract version from tag
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: executables
       
     - name: Generate changelog
       id: changelog
@@ -53,9 +125,11 @@ jobs:
         echo "" >> CHANGELOG.md
         echo "## Εγκατάσταση" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
-        echo "1. Κατεβάστε τον πηγαίο κώδικα" >> CHANGELOG.md
-        echo "2. Εγκαταστήστε τις εξαρτήσεις: \`pip install -r requirements.txt\`" >> CHANGELOG.md
-        echo "3. Εκτελέστε την εφαρμογή: \`python eeg_gui_app.py\`" >> CHANGELOG.md
+        echo "Κατεβάστε το κατάλληλο εκτελέσιμο αρχείο για το λειτουργικό σας σύστημα:" >> CHANGELOG.md
+        echo "- **Windows**: \`eeg-cleaner-windows.exe\`" >> CHANGELOG.md
+        echo "- **Linux**: \`eeg-cleaner-linux\`" >> CHANGELOG.md
+        echo "- **macOS Intel**: \`eeg-cleaner-macos-intel.zip\`" >> CHANGELOG.md
+        echo "- **macOS Apple Silicon**: \`eeg-cleaner-macos-arm64.zip\`" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
         echo "## Συστήματα" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
@@ -68,94 +142,45 @@ jobs:
         echo "- Python 3.8+" >> CHANGELOG.md
         echo "- Δείτε το \`requirements.txt\` για λεπτομερείς εξαρτήσεις" >> CHANGELOG.md
         
-    - name: Create source distribution
+
+
+    - name: Prepare executable files
       run: |
-        # Δημιουργία zip αρχείου με τον πηγαίο κώδικα
-        zip -r katharsis-v${{ steps.get_version.outputs.VERSION }}-source.zip . \
-          -x "*.git*" "*/__pycache__/*" "*.pyc" "*/.pytest_cache/*" \
-             "*/node_modules/*" "*.DS_Store" "*/.vscode/*" "*/.idea/*"
-             
-    - name: Create portable package
-      run: |
-        # Δημιουργία φακέλου για portable έκδοση
-        mkdir -p portable/katharsis
+        echo "Downloaded artifacts:"
+        find executables -type f -ls
         
-        # Αντιγραφή αρχείων εφαρμογής
-        cp -r backend components tests *.py *.md requirements.txt portable/katharsis/
+        # Create executables directory for release
+        mkdir -p release-executables
         
-        # Δημιουργία startup script για Windows
-        cat > portable/katharsis/start_katharsis.bat << 'EOF'
-        @echo off
-        echo Starting Katharsis EEG Artifact Cleaner...
-        python eeg_gui_app.py
-        pause
-        EOF
+        # Copy executable files to release directory
+        find executables -type f -name 'eeg-cleaner-windows.exe' -exec cp {} release-executables/eeg-cleaner-windows.exe \;
+        find executables -type f -name 'eeg-cleaner-linux' -exec cp {} release-executables/eeg-cleaner-linux \;
+        find executables -type f -name 'EEGCleanerApp-Intel.zip' -exec cp {} release-executables/eeg-cleaner-macos-intel.zip \;
+        find executables -type f -name 'EEGCleanerApp-ARM64.zip' -exec cp {} release-executables/eeg-cleaner-macos-arm64.zip \;
         
-        # Δημιουργία startup script για Linux/Mac
-        cat > portable/katharsis/start_katharsis.sh << 'EOF'
-        #!/bin/bash
-        echo "Starting Katharsis EEG Artifact Cleaner..."
-        python3 eeg_gui_app.py
-        EOF
-        chmod +x portable/katharsis/start_katharsis.sh
+        # Make Linux executable executable
+        if [ -f "release-executables/eeg-cleaner-linux" ]; then
+          chmod +x "release-executables/eeg-cleaner-linux"
+        fi
         
-        # Δημιουργία README για την portable έκδοση
-        cat > portable/katharsis/PORTABLE_README.md << 'EOF'
-        # Katharsis EEG Artifact Cleaner - Portable Edition
-        
-        ## Quick Start
-        
-        1. Βεβαιωθείτε ότι έχετε εγκατεστημένη την Python 3.8+
-        2. Ανοίξτε terminal/command prompt σε αυτόν τον φάκελο
-        3. Εκτελέστε: `pip install -r requirements.txt`
-        4. Για Windows: Double-click το `start_katharsis.bat`
-        5. Για Linux/Mac: Εκτελέστε `./start_katharsis.sh`
-        
-        ## Manual Start
-        
-        ```bash
-        python eeg_gui_app.py
-        ```
-        
-        Για περισσότερες πληροφορίες, δείτε το κυρίως README.md
-        EOF
-        
-        # Δημιουργία zip για portable έκδοση
-        cd portable
-        zip -r ../katharsis-v${{ steps.get_version.outputs.VERSION }}-portable.zip katharsis/
-        cd ..
+        echo "Executables prepared for release:"
+        ls -la release-executables/
         
     - name: Create Release
-      uses: actions/create-release@v1
-      id: create_release
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref }}
-        release_name: Katharsis v${{ steps.get_version.outputs.VERSION }}
+        name: Katharsis v${{ steps.get_version.outputs.VERSION }}
         body_path: CHANGELOG.md
         draft: false
         prerelease: false
-        
-    - name: Upload Source Archive
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./katharsis-v${{ steps.get_version.outputs.VERSION }}-source.zip
-        asset_name: katharsis-v${{ steps.get_version.outputs.VERSION }}-source.zip
-        asset_content_type: application/zip
-        
-    - name: Upload Portable Package
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./katharsis-v${{ steps.get_version.outputs.VERSION }}-portable.zip
-        asset_name: katharsis-v${{ steps.get_version.outputs.VERSION }}-portable.zip
-        asset_content_type: application/zip
+        files: |
+          release-executables/eeg-cleaner-windows.exe
+          release-executables/eeg-cleaner-linux
+          release-executables/eeg-cleaner-macos-intel.zip
+          release-executables/eeg-cleaner-macos-arm64.zip
 
   update-github-pages:
     runs-on: ubuntu-latest
@@ -170,13 +195,13 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Setup Pages
-      uses: actions/configure-pages@v3
+      uses: actions/configure-pages@v5
       
     - name: Upload pages artifact
-      uses: actions/upload-pages-artifact@v2
+      uses: actions/upload-pages-artifact@v3
       with:
         path: './docs'
         
     - name: Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v2
+      uses: actions/deploy-pages@v4
