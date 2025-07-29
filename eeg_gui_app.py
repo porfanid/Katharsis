@@ -1,6 +1,23 @@
 #!/usr/bin/env python3
 """
-EEG Artifact Cleaner - v3.2 - Loading Screen Implementation
+Katharsis - EEG Artifact Cleaner GUI Application
+=====================================
+
+Το Katharsis είναι μια εφαρμογή για τον αυτόματο καθαρισμό artifacts από δεδομένα EEG.
+Χρησιμοποιεί τεχνικές Independent Component Analysis (ICA) για τον εντοπισμό και την 
+αφαίρεση artifacts που προέρχονται από βλεφαρισμούς και άλλες μυικές κινήσεις.
+
+Χαρακτηριστικά:
+- Γραφικό περιβάλλον χρήστη με PyQt6
+- Υποστήριξη αρχείων EDF από συσκευές EEG
+- Αυτόματος εντοπισμός και επιλογή καναλιών
+- ICA ανάλυση με οπτικοποίηση συνιστωσών
+- Σύγκριση πριν/μετά τον καθαρισμό
+- Εξαγωγή καθαρών δεδομένων
+
+Author: porfanid
+Version: 3.2
+License: MIT
 """
 
 import sys
@@ -15,15 +32,32 @@ from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor
 from PyQt6.QtCore import QSize
 
 class BackendInitializationThread(QThread):
-    """Thread για φόρτωση των heavy backend components"""
+    """
+    Thread για αρχικοποίηση των backend components
+    
+    Φορτώνει τις απαιτούμενες βιβλιοθήκες και αρχικοποιεί την υπηρεσία
+    καθαρισμού EEG σε ξεχωριστό thread για να μην μπλοκάρει το GUI.
+    
+    Signals:
+        progress_update (int): Ενημέρωση προόδου (0-100)
+        status_update (str): Ενημέρωση κατάστασης
+        initialization_complete (object): Ολοκλήρωση με την υπηρεσία
+    """
     progress_update = pyqtSignal(int)
     status_update = pyqtSignal(str)
     initialization_complete = pyqtSignal(object)  # service only
     
     def __init__(self):
+        """Αρχικοποίηση του thread"""
         super().__init__()
         
     def run(self):
+        """
+        Εκτέλεση της αρχικοποίησης του backend
+        
+        Φορτώνει τις βιβλιοθήκες και δημιουργεί την υπηρεσία καθαρισμού EEG.
+        Εμφανίζει ενημερώσεις προόδου στο splash screen.
+        """
         try:
             self.status_update.emit("Φόρτωση βιβλιοθηκών...")
             self.progress_update.emit(20)
@@ -45,7 +79,15 @@ class BackendInitializationThread(QThread):
             self.status_update.emit(f"Σφάλμα αρχικοποίησης: {str(e)}")
 
 def create_splash_pixmap():
-    """Δημιουργεί ένα pixmap για το splash screen"""
+    """
+    Δημιουργεί το pixmap για το splash screen της εφαρμογής
+    
+    Δημιουργεί ένα γραφικό splash screen με τον τίτλο της εφαρμογής
+    και υπότιτλο σε μπλε background.
+    
+    Returns:
+        QPixmap: Το pixmap για το splash screen
+    """
     pixmap = QPixmap(500, 300)
     pixmap.fill(QColor("#007AFF"))
     
@@ -73,9 +115,19 @@ def create_splash_pixmap():
     return pixmap
 
 class LoadingSplashScreen(QSplashScreen):
-    """Προσαρμοσμένο splash screen με progress bar"""
+    """
+    Προσαρμοσμένο splash screen με progress bar
+    
+    Εμφανίζει την πρόοδο φόρτωσης της εφαρμογής με progress bar
+    και status messages κατά την αρχικοποίηση.
+    
+    Attributes:
+        progress (int): Η τρέχουσα πρόοδος (0-100)
+        status_text (str): Το τρέχον μήνυμα κατάστασης
+    """
     
     def __init__(self):
+        """Αρχικοποίηση του splash screen"""
         pixmap = create_splash_pixmap()
         super().__init__(pixmap)
         self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
@@ -85,14 +137,34 @@ class LoadingSplashScreen(QSplashScreen):
         self.status_text = "Εκκίνηση εφαρμογής..."
         
     def set_progress(self, value):
+        """
+        Ορισμός της προόδου και επανασχεδίαση
+        
+        Args:
+            value (int): Η νέα τιμή προόδου (0-100)
+        """
         self.progress = value
         self.repaint()
         
     def set_status(self, text):
+        """
+        Ορισμός του status text και επανασχεδίαση
+        
+        Args:
+            text (str): Το νέο μήνυμα κατάστασης
+        """
         self.status_text = text
         self.repaint()
         
     def drawContents(self, painter):
+        """
+        Σχεδίαση των περιεχομένων του splash screen
+        
+        Σχεδιάζει το progress bar και το status text πάνω στο βασικό pixmap.
+        
+        Args:
+            painter (QPainter): Ο painter για σχεδίαση
+        """
         super().drawContents(painter)
         
         # Draw progress bar
@@ -113,18 +185,46 @@ class LoadingSplashScreen(QSplashScreen):
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop,
                         f"{self.status_text} ({self.progress}%)")
 
-# Οι κλάσεις EEGProcessingThread και CleaningThread παραμένουν ίδιες
+# Threads για επεξεργασία EEG δεδομένων
 class EEGProcessingThread(QThread):
+    """
+    Thread για επεξεργασία EEG δεδομένων σε background
+    
+    Εκτελεί τη φόρτωση, φιλτράρισμα, ICA ανάλυση και εντοπισμό artifacts
+    χωρίς να μπλοκάρει το GUI.
+    
+    Signals:
+        progress_update (int): Ενημέρωση προόδου (0-100)
+        status_update (str): Ενημέρωση κατάστασης
+        processing_complete (bool, str): Ολοκλήρωση επεξεργασίας (επιτυχία, μήνυμα)
+        ica_ready (dict): ICA δεδομένα έτοιμα για οπτικοποίηση
+    """
     progress_update = pyqtSignal(int)
     status_update = pyqtSignal(str)
     processing_complete = pyqtSignal(bool, str)
     ica_ready = pyqtSignal(dict)
+    
     def __init__(self, service, input_file, selected_channels=None):
+        """
+        Αρχικοποίηση του thread επεξεργασίας
+        
+        Args:
+            service: Η υπηρεσία καθαρισμού EEG
+            input_file (str): Διαδρομή του αρχείου εισόδου
+            selected_channels (List[str], optional): Επιλεγμένα κανάλια
+        """
         super().__init__()
         self.service = service
         self.input_file = input_file
         self.selected_channels = selected_channels
+        
     def run(self):
+        """
+        Εκτέλεση της επεξεργασίας EEG δεδομένων
+        
+        Φορτώνει το αρχείο, εκπαιδεύει το ICA μοντέλο, εντοπίζει artifacts
+        και προετοιμάζει τα δεδομένα για οπτικοποίηση.
+        """
         try:
             self.status_update.emit("Φόρτωση και προετοιμασία αρχείου...")
             load_result = self.service.load_and_prepare_file(self.input_file, self.selected_channels)
@@ -132,18 +232,21 @@ class EEGProcessingThread(QThread):
                 self.processing_complete.emit(False, f"Σφάλμα φόρτωσης: {load_result.get('error', 'Άγνωστο σφάλμα')}")
                 return
             self.progress_update.emit(30)
+            
             self.status_update.emit("Εκπαίδευση μοντέλου ICA...")
             ica_result = self.service.fit_ica_analysis()
             if not ica_result['success']:
                 self.processing_complete.emit(False, f"Σφάλμα ICA: {ica_result.get('error', 'Άγνωστο σφάλμα')}")
                 return
             self.progress_update.emit(70)
+            
             self.status_update.emit("Αυτόματος εντοπισμός artifacts...")
             detection_result = self.service.detect_artifacts()
             if not detection_result['success']:
                 self.processing_complete.emit(False, f"Σφάλμα εντοπισμού: {detection_result.get('error', 'Άγνωστο σφάλμα')}")
                 return
             self.progress_update.emit(90)
+            
             viz_data = self.service.get_component_visualization_data()
             if not viz_data:
                 self.processing_complete.emit(False, "Αποτυχία δημιουργίας δεδομένων οπτικοποίησης.")
@@ -155,13 +258,39 @@ class EEGProcessingThread(QThread):
             self.processing_complete.emit(False, f"Κρίσιμο σφάλμα: {str(e)}")
 
 class CleaningThread(QThread):
+    """
+    Thread για καθαρισμό artifacts σε background
+    
+    Εφαρμόζει την αφαίρεση των επιλεγμένων artifacts και αποθηκεύει
+    τα καθαρά δεδομένα.
+    
+    Signals:
+        cleaning_complete (bool, str, dict): Ολοκλήρωση καθαρισμού
+                                           (επιτυχία, μήνυμα, αποτελέσματα)
+    """
     cleaning_complete = pyqtSignal(bool, str, dict)
+    
     def __init__(self, service, components, output_file):
+        """
+        Αρχικοποίηση του thread καθαρισμού
+        
+        Args:
+            service: Η υπηρεσία καθαρισμού EEG
+            components (List[int]): Λίστα συνιστωσών προς αφαίρεση
+            output_file (str): Διαδρομή αρχείου εξόδου
+        """
         super().__init__()
         self.service = service
         self.components_to_remove = components
         self.output_file = output_file
+        
     def run(self):
+        """
+        Εκτέλεση του καθαρισμού artifacts
+        
+        Εφαρμόζει την αφαίρεση των επιλεγμένων συνιστωσών και αποθηκεύει
+        τα καθαρά δεδομένα σε αρχείο EDF.
+        """
         try:
             clean_result = self.service.apply_artifact_removal(self.components_to_remove)
             if not clean_result['success']:
@@ -187,7 +316,29 @@ class CleaningThread(QThread):
 
 
 class EEGArtifactCleanerGUI(QMainWindow):
+    """
+    Κύρια κλάση GUI για την εφαρμογή καθαρισμού EEG artifacts
+    
+    Διαχειρίζεται όλες τις οθόνες της εφαρμογής και την αλληλεπίδραση με τον χρήστη:
+    - Welcome screen για επιλογή αρχείου
+    - Channel selection για επιλογή καναλιών
+    - ICA component selector για επιλογή artifacts προς αφαίρεση
+    - Comparison screen για σύγκριση αποτελεσμάτων
+    
+    Attributes:
+        service: Η υπηρεσία backend για καθαρισμό EEG
+        ica_selector_screen: Η οθόνη επιλογής ICA συνιστωσών
+        current_input_file (str): Το τρέχον αρχείο εισόδου
+        splash: Το splash screen κατά την εκκίνηση
+    """
+    
     def __init__(self):
+        """
+        Αρχικοποίηση της κύριας εφαρμογής GUI
+        
+        Δημιουργεί το splash screen και αρχίζει την αρχικοποίηση του backend
+        σε ξεχωριστό thread.
+        """
         super().__init__()
         self.service = None
         self.ica_selector_screen = None
@@ -205,7 +356,14 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.init_thread.start()
 
     def on_initialization_complete(self, service):
-        """Called when backend initialization is complete"""
+        """
+        Καλείται όταν ολοκληρωθεί η αρχικοποίηση του backend
+        
+        Δημιουργεί τα στοιχεία του GUI και εμφανίζει το κύριο παράθυρο.
+        
+        Args:
+            service: Η αρχικοποιημένη υπηρεσία καθαρισμού EEG
+        """
         try:
             self.service = service
             
@@ -242,10 +400,21 @@ class EEGArtifactCleanerGUI(QMainWindow):
             sys.exit(1)
         
     def finish_loading(self):
+        """
+        Ολοκληρώνει τη διαδικασία φόρτωσης
+        
+        Κρύβει το splash screen και εμφανίζει το κύριο παράθυρο.
+        """
         self.splash.hide()
         self.show()
 
     def setup_ui(self):
+        """
+        Δημιουργία και διάταξη των στοιχείων του GUI
+        
+        Δημιουργεί το stacked widget για τις διάφορες οθόνες και ρυθμίζει
+        το γενικό στυλ της εφαρμογής.
+        """
         self.setWindowTitle("EEG Artifact Cleaner Pro")
         self.setGeometry(100, 100, 1100, 850)
         self.setMinimumSize(800, 600)
@@ -273,7 +442,15 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.status_bar.showMessage("Έτοιμο")
         
     def create_welcome_screen(self):
-        # ... (Η συνάρτηση παραμένει ίδια με πριν)
+        """
+        Δημιουργία της οθόνης καλωσορίσματος
+        
+        Δημιουργεί την αρχική οθόνη με τον τίτλο της εφαρμογής και
+        το κουμπί επιλογής αρχείου.
+        
+        Returns:
+            QWidget: Η οθόνη καλωσορίσματος
+        """
         screen = QWidget()
         layout = QVBoxLayout(screen)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -293,14 +470,28 @@ class EEGArtifactCleanerGUI(QMainWindow):
         return screen
         
     def setup_connections(self):
-        # ... (Η συνάρτηση παραμένει ίδια με πριν)
+        """
+        Ρύθμιση των συνδέσεων σημάτων μεταξύ των widgets
+        
+        Συνδέει τα σήματα των διάφορων οθονών με τις αντίστοιχες μεθόδους
+        για την επικοινωνία μεταξύ των components.
+        """
         self.select_input_btn.clicked.connect(self.select_input_file)
         self.channel_selector_screen.channels_selected.connect(self.on_channels_selected)
         self.ica_selector_screen.components_selected.connect(self.apply_cleaning)
         self.comparison_screen.return_to_home.connect(self.reset_ui)
         
     def show_message_box(self, icon, title, text):
-        """Βοηθητική συνάρτηση για εμφάνιση QMessageBox με το σωστό στυλ."""
+        """
+        Βοηθητική συνάρτηση για εμφάνιση QMessageBox με σωστό στυλ
+        
+        Δημιουργεί και εμφανίζει ένα message box με το theme της εφαρμογής.
+        
+        Args:
+            icon: Το εικονίδιο του message box (QMessageBox.Icon)
+            title (str): Ο τίτλος του παραθύρου
+            text (str): Το κείμενο του μηνύματος
+        """
         msg_box = QMessageBox(self)
         msg_box.setIcon(icon)
         msg_box.setText(text)
@@ -309,8 +500,13 @@ class EEGArtifactCleanerGUI(QMainWindow):
         msg_box.setStyleSheet(QApplication.instance().styleSheet())
         msg_box.exec()
 
-    # --- Οι υπόλοιπες συναρτήσεις παραμένουν ίδιες με πριν ---
     def select_input_file(self):
+        """
+        Επιλογή αρχείου EDF για επεξεργασία
+        
+        Ανοίγει file dialog για επιλογή αρχείου EDF και μεταβαίνει στην
+        οθόνη επιλογής καναλιών.
+        """
         file_path, _ = QFileDialog.getOpenFileName(self, "Επιλογή EDF", str(Path.home()), "*.edf", options=QFileDialog.Option.DontUseNativeDialog)
         if file_path:
             self.current_input_file = file_path
@@ -318,7 +514,12 @@ class EEGArtifactCleanerGUI(QMainWindow):
             self.show_channel_selection()
     
     def show_channel_selection(self):
-        """Show channel selection screen"""
+        """
+        Εμφάνιση της οθόνης επιλογής καναλιών
+        
+        Φορτώνει το επιλεγμένο αρχείο στην οθόνη επιλογής καναλιών και
+        μεταβαίνει σε αυτή την οθόνη.
+        """
         try:
             self.channel_selector_screen.set_edf_file(self.current_input_file)
             # Navigate to channel selection screen (index 1)
@@ -329,11 +530,24 @@ class EEGArtifactCleanerGUI(QMainWindow):
                                 f"Αδυναμία φόρτωσης αρχείου για επιλογή καναλιών:\n{str(e)}")
     
     def on_channels_selected(self, selected_channels):
-        """Handle channel selection and start processing"""
+        """
+        Χειρισμός επιλογής καναλιών και έναρξη επεξεργασίας
+        
+        Αποθηκεύει τα επιλεγμένα κανάλια και ξεκινά την επεξεργασία των δεδομένων.
+        
+        Args:
+            selected_channels (List[str]): Λίστα επιλεγμένων καναλιών
+        """
         self.selected_channels = selected_channels
         self.start_processing()
         
     def start_processing(self):
+        """
+        Έναρξη της επεξεργασίας των EEG δεδομένων
+        
+        Δημιουργεί και ξεκινά το thread επεξεργασίας για φόρτωση αρχείου,
+        ICA ανάλυση και εντοπισμό artifacts.
+        """
         self.select_input_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
         
@@ -346,11 +560,31 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.processing_thread.processing_complete.connect(self.on_processing_complete)
         self.processing_thread.ica_ready.connect(self.on_ica_ready)
         self.processing_thread.start()
+        
     def on_ica_ready(self, viz_data):
+        """
+        Χειρισμός ετοιμότητας των ICA δεδομένων
+        
+        Φορτώνει τα δεδομένα οπτικοποίησης στην οθόνη επιλογής συνιστωσών
+        και μεταβαίνει σε αυτή την οθόνη.
+        
+        Args:
+            viz_data (dict): Δεδομένα για οπτικοποίηση των ICA συνιστωσών
+        """
         self.ica_selector_screen.set_ica_data(**viz_data)
         # Navigate to ICA selector screen (index 2)
         self.stacked_widget.setCurrentIndex(2)
+        
     def apply_cleaning(self, selected_components):
+        """
+        Εφαρμογή καθαρισμού artifacts
+        
+        Ζητά από τον χρήστη να επιλέξει αρχείο εξόδου και ξεκινά τον
+        καθαρισμό των επιλεγμένων artifacts.
+        
+        Args:
+            selected_components (List[int]): Λίστα συνιστωσών προς αφαίρεση
+        """
         default_path = self.current_input_file.replace('.edf', '_clean.edf')
         output_file, _ = QFileDialog.getSaveFileName(self, "Αποθήκευση Καθαρού Αρχείου", default_path, "*.edf", options=QFileDialog.Option.DontUseNativeDialog)
         if not output_file:
@@ -360,11 +594,33 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.cleaning_thread.cleaning_complete.connect(self.on_cleaning_complete)
         self.cleaning_thread.start()
         self.status_bar.showMessage("Εφαρμογή καθαρισμού...")
+        
     def on_processing_complete(self, success, message):
+        """
+        Χειρισμός ολοκλήρωσης επεξεργασίας
+        
+        Εμφανίζει μήνυμα σφάλματος αν η επεξεργασία απέτυχε και επαναφέρει το UI.
+        
+        Args:
+            success (bool): Αν η επεξεργασία ήταν επιτυχής
+            message (str): Μήνυμα κατάστασης
+        """
         if not success:
             self.show_message_box(QMessageBox.Icon.Critical, "Σφάλμα", message)
             self.reset_ui()
+            
     def on_cleaning_complete(self, success, message, results):
+        """
+        Χειρισμός ολοκλήρωσης καθαρισμού
+        
+        Εμφανίζει την οθόνη σύγκρισης αποτελεσμάτων αν ο καθαρισμός ήταν επιτυχής,
+        ή μήνυμα σφάλματος αν απέτυχε.
+        
+        Args:
+            success (bool): Αν ο καθαρισμός ήταν επιτυχής
+            message (str): Μήνυμα κατάστασης
+            results (dict): Αποτελέσματα καθαρισμού για σύγκριση
+        """
         if success:
             # Navigate to comparison screen instead of showing QMessageBox
             try:
@@ -388,14 +644,33 @@ class EEGArtifactCleanerGUI(QMainWindow):
         else:
             self.show_message_box(QMessageBox.Icon.Critical, "Σφάλμα", message)
             self.reset_ui()
+            
     def reset_ui(self):
+        """
+        Επαναφορά του UI στην αρχική κατάσταση
+        
+        Επιστρέφει στην οθόνη καλωσορίσματος και επαναφέρει την κατάσταση
+        των στοιχείων ελέγχου.
+        """
         self.stacked_widget.setCurrentIndex(0)
         self.select_input_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.status_bar.showMessage("Έτοιμο")
 
 def get_global_stylesheet(theme):
-    """Δημιουργεί το κεντρικό, ολοκληρωμένο stylesheet για ΟΛΗ την εφαρμογή."""
+    """
+    Δημιουργεί το κεντρικό stylesheet για ολόκληρη την εφαρμογή
+    
+    Δημιουργεί ένα ολοκληρωμένο CSS stylesheet που καλύπτει όλα τα widgets
+    της εφαρμογής, χρησιμοποιώντας τα χρώματα του theme.
+    
+    Args:
+        theme (dict): Dictionary με τα χρώματα του theme
+                     (background, primary, success, text, κλπ.)
+    
+    Returns:
+        str: Το CSS stylesheet για την εφαρμογή
+    """
     return f"""
         /* --- Γενικό Στυλ --- */
         QWidget {{
@@ -541,6 +816,12 @@ def get_global_stylesheet(theme):
     """
 
 def main():
+    """
+    Κύρια συνάρτηση εκκίνησης της εφαρμογής
+    
+    Αρχικοποιεί την εφαρμογή PyQt6, εφαρμόζει το global stylesheet
+    και εκκινεί το κύριο παράθυρο της εφαρμογής.
+    """
     app = QApplication(sys.argv)
     
     # Default theme for initial styling
