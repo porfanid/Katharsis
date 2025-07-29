@@ -102,7 +102,7 @@ def create_splash_pixmap():
     title_font = QFont("Arial", 24, QFont.Weight.Bold)
     painter.setFont(title_font)
     painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop, 
-                    "🧠 EEG Artifact Cleaner Pro")
+                    "🧠 Katharsis - EEG Artifact Cleaner Pro")
     
     # Subtitle
     subtitle_font = QFont("Arial", 12)
@@ -415,7 +415,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
         Δημιουργεί το stacked widget για τις διάφορες οθόνες και ρυθμίζει
         το γενικό στυλ της εφαρμογής.
         """
-        self.setWindowTitle("EEG Artifact Cleaner Pro")
+        self.setWindowTitle("Katharsis - EEG Artifact Cleaner Pro")
         self.setGeometry(100, 100, 1100, 850)
         self.setMinimumSize(800, 600)
 
@@ -455,7 +455,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
         layout = QVBoxLayout(screen)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(25)
-        title = QLabel("🧠 EEG Artifact Cleaner")
+        title = QLabel("🧠 Katharsis - EEG Artifact Cleaner")
         title.setFont(QFont("Arial", 36, QFont.Weight.Bold))
         layout.addWidget(title, 0, Qt.AlignmentFlag.AlignCenter)
         self.select_input_btn = QPushButton("🔍 Επιλογή Αρχείου EDF για Ανάλυση")
