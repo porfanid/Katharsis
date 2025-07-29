@@ -30,7 +30,7 @@ def pytest_configure(config):
 def setup_test_environment():
     """Set up the test environment before running tests."""
     # Add project root to Python path
-    project_root = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
     
@@ -42,6 +42,24 @@ def setup_test_environment():
     
     # Cleanup after all tests
     pass
+
+
+@pytest.fixture(scope='session')
+def qapp():
+    """Create a QApplication instance for GUI testing."""
+    try:
+        from PyQt6.QtWidgets import QApplication
+        
+        # Check if QApplication already exists
+        app = QApplication.instance()
+        if app is None:
+            app = QApplication([])
+            
+        yield app
+        
+        # Don't quit the app as it might be shared
+    except ImportError:
+        pytest.skip("PyQt6 not available")
 
 
 @pytest.fixture

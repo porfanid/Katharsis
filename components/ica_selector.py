@@ -378,6 +378,8 @@ class ICAComponentSelector(QWidget):
         self.suggested_artifacts = []
         self.checkboxes = {}
         self.component_widgets = {}
+        self.components_info = {}
+        self.explanations = {}
         
         # Preview functionality
         self.preview_timer = QTimer()
@@ -552,6 +554,22 @@ class ICAComponentSelector(QWidget):
         selected = [i for i, cb in self.checkboxes.items() if cb.isChecked()]
         self.components_selected.emit(selected)
     
+    def get_selected_components(self):
+        """Return list of selected component indices"""
+        return [i for i, cb in self.checkboxes.items() if cb.isChecked()]
+    
+    def select_all_components(self):
+        """Select all components"""
+        self.set_all_checkboxes(True)
+    
+    def select_no_components(self):
+        """Deselect all components"""
+        self.set_all_checkboxes(False)
+    
+    def select_suggested_components(self):
+        """Select only the suggested artifact components"""
+        self.select_suggested()
+    
     def _on_checkbox_toggled(self):
         """Called when any checkbox is toggled - starts the preview update timer"""
         if self.ica and self.raw:
@@ -578,11 +596,14 @@ class ICAComponentSelector(QWidget):
         self.preview_thread.preview_ready.connect(self.preview_widget.update_preview)
         self.preview_thread.start()
     
-    def set_ica_data(self, ica, raw, suggested_artifacts, **kwargs):
+    def set_ica_data(self, ica, raw, suggested_artifacts, components_info=None, explanations=None, **kwargs):
         # ... (Η συνάρτηση παραμένει ίδια με προσθήκη αρχικού preview)
         self.ica = ica
         self.raw = raw
         self.suggested_artifacts = suggested_artifacts
+        self.components_info = components_info or {}
+        self.explanations = explanations or {}
+        
         while self.components_layout.count():
             item = self.components_layout.takeAt(0)
             if item.widget():

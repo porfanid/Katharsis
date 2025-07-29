@@ -10,6 +10,7 @@ import os
 from unittest.mock import Mock, MagicMock, patch
 import numpy as np
 import mne
+import pytest
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,23 +25,16 @@ try:
     from components import ICAComponentSelector, ResultsDisplayWidget
     
     QT_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"PyQt6 import failed: {e}")
     QT_AVAILABLE = False
 
 
-@unittest.skipUnless(QT_AVAILABLE, "PyQt6 not available or Qt display not accessible")
-class TestICAComponentSelector(unittest.TestCase):
+@pytest.mark.skipif(not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible")
+class TestICAComponentSelector:
     """Έλεγχοι για ICAComponentSelector"""
     
-    @classmethod
-    def setUpClass(cls):
-        """Δημιουργία QApplication για tests"""
-        if not QApplication.instance():
-            cls.app = QApplication([])
-        else:
-            cls.app = QApplication.instance()
-            
-    def setUp(self):
+    def setup_method(self):
         """Προετοιμασία test δεδομένων"""
         # Create a mock theme
         self.theme = {
@@ -51,16 +45,19 @@ class TestICAComponentSelector(unittest.TestCase):
             'success_hover': '#2ecc71',
             'danger': '#e74c3c'
         }
+        
+        # Create widget
         self.widget = ICAComponentSelector(self.theme)
         
         # Create mock ICA and raw data
         self.mock_ica = Mock()
-        self.mock_ica.n_components = 3
+        self.mock_ica.n_components_ = 3
         
         # Mock raw data
         self.mock_raw = Mock()
         self.mock_raw.info = {'sfreq': 128.0}
         self.mock_raw.times = np.linspace(0, 10, 1280)
+        self.mock_raw.ch_names = ['AF3', 'T7', 'Pz', 'T8', 'AF4']
         
         # Mock ICA sources
         mock_sources = Mock()
@@ -80,12 +77,12 @@ class TestICAComponentSelector(unittest.TestCase):
             2: "Πιθανό artifact: Μυϊκή δραστηριότητα"
         }
         
-    def test_widget_creation(self):
+    def test_widget_creation(self, qapp):
         """Έλεγχος δημιουργίας widget"""
-        self.assertIsInstance(self.widget, QWidget)
-        self.assertIsInstance(self.widget, ICAComponentSelector)
+        assert isinstance(self.widget, QWidget)
+        assert isinstance(self.widget, ICAComponentSelector)
         
-    def test_set_ica_data(self):
+    def test_set_ica_data(self, qapp):
         """Έλεγχος ορισμού ICA δεδομένων"""
         self.widget.set_ica_data(
             ica=self.mock_ica,
@@ -95,18 +92,18 @@ class TestICAComponentSelector(unittest.TestCase):
             explanations=self.explanations
         )
         
-        self.assertEqual(self.widget.ica, self.mock_ica)
-        self.assertEqual(self.widget.raw, self.mock_raw)
-        self.assertEqual(self.widget.suggested_artifacts, self.suggested_components)
-        self.assertEqual(self.widget.components_info, self.components_info)
-        self.assertEqual(self.widget.explanations, self.explanations)
+        assert self.widget.ica == self.mock_ica
+        assert self.widget.raw == self.mock_raw
+        assert self.widget.suggested_artifacts == self.suggested_components
+        assert self.widget.components_info == self.components_info
+        assert self.widget.explanations == self.explanations
         
-    def test_get_selected_components_empty(self):
+    def test_get_selected_components_empty(self, qapp):
         """Έλεγχος λήψης επιλεγμένων συνιστωσών όταν δεν υπάρχουν"""
         selected = self.widget.get_selected_components()
-        self.assertEqual(selected, [])
+        assert selected == []
         
-    def test_select_all_components(self):
+    def test_select_all_components(self, qapp):
         """Έλεγχος επιλογής όλων των συνιστωσών"""
         # First set some data
         self.widget.set_ica_data(
@@ -122,9 +119,9 @@ class TestICAComponentSelector(unittest.TestCase):
         
         # Check all are selected
         for checkbox in self.widget.checkboxes.values():
-            self.assertTrue(checkbox.isChecked())
+            assert checkbox.isChecked()
             
-    def test_select_no_components(self):
+    def test_select_no_components(self, qapp):
         """Έλεγχος αποεπιλογής όλων των συνιστωσών"""
         # First set some data and select all
         self.widget.set_ica_data(
@@ -141,9 +138,9 @@ class TestICAComponentSelector(unittest.TestCase):
         
         # Check none are selected
         for checkbox in self.widget.checkboxes.values():
-            self.assertFalse(checkbox.isChecked())
+            assert not checkbox.isChecked()
             
-    def test_select_suggested_components(self):
+    def test_select_suggested_components(self, qapp):
         """Έλεγχος επιλογής προτεινόμενων συνιστωσών"""
         # Set data
         self.widget.set_ica_data(
@@ -160,17 +157,17 @@ class TestICAComponentSelector(unittest.TestCase):
         # Check only suggested are selected
         for comp_idx, checkbox in self.widget.checkboxes.items():
             if comp_idx in self.suggested_components:
-                self.assertTrue(checkbox.isChecked())
+                assert checkbox.isChecked()
             else:
-                self.assertFalse(checkbox.isChecked())
+                assert not checkbox.isChecked()
 
-    def test_show_component_properties_method_exists(self):
+    def test_show_component_properties_method_exists(self, qapp):
         """Έλεγχος ύπαρξης της νέας συνάρτησης show_component_properties"""
         # Check that the method exists
-        self.assertTrue(hasattr(self.widget, 'show_component_properties'))
-        self.assertTrue(callable(getattr(self.widget, 'show_component_properties')))
+        assert hasattr(self.widget, 'show_component_properties')
+        assert callable(getattr(self.widget, 'show_component_properties'))
 
-    def test_details_button_creation(self):
+    def test_details_button_creation(self, qapp):
         """Έλεγχος δημιουργίας κουμπιού λεπτομερειών"""
         # Set data to create components
         self.widget.set_ica_data(
@@ -193,19 +190,11 @@ class TestICAComponentSelector(unittest.TestCase):
             pass
 
 
-@unittest.skipUnless(QT_AVAILABLE, "PyQt6 not available or Qt display not accessible")
-class TestResultsDisplayWidget(unittest.TestCase):
+@pytest.mark.skipif(not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible")
+class TestResultsDisplayWidget:
     """Έλεγχοι για ResultsDisplayWidget"""
-    
-    @classmethod
-    def setUpClass(cls):
-        """Δημιουργία QApplication για tests"""
-        if not QApplication.instance():
-            cls.app = QApplication([])
-        else:
-            cls.app = QApplication.instance()
             
-    def setUp(self):
+    def setup_method(self):
         """Προετοιμασία test δεδομένων"""
         self.widget = ResultsDisplayWidget()
         
@@ -245,12 +234,12 @@ class TestResultsDisplayWidget(unittest.TestCase):
         
         self.components_removed = [0, 2]
         
-    def test_widget_creation(self):
+    def test_widget_creation(self, qapp):
         """Έλεγχος δημιουργίας widget"""
-        self.assertIsInstance(self.widget, QWidget)
-        self.assertIsInstance(self.widget, ResultsDisplayWidget)
+        assert isinstance(self.widget, QWidget)
+        assert isinstance(self.widget, ResultsDisplayWidget)
         
-    def test_update_results(self):
+    def test_update_results(self, qapp):
         """Έλεγχος ενημέρωσης αποτελεσμάτων"""
         # This test mainly checks that the method runs without errors
         try:
@@ -268,9 +257,9 @@ class TestResultsDisplayWidget(unittest.TestCase):
             success = False
             print(f"Error in update_results: {e}")
             
-        self.assertTrue(success)
+        assert success
         
-    def test_clear_results(self):
+    def test_clear_results(self, qapp):
         """Έλεγχος καθαρισμού αποτελεσμάτων"""
         # First update with some results
         self.widget.update_results(
@@ -285,22 +274,14 @@ class TestResultsDisplayWidget(unittest.TestCase):
         self.widget.clear_results()
         
         # Check that table is empty
-        self.assertEqual(self.widget.statistics_widget.table.rowCount(), 0)
+        assert self.widget.statistics_widget.table.rowCount() == 0
 
 
-@unittest.skipUnless(QT_AVAILABLE, "PyQt6 not available or Qt display not accessible")
-class TestStatisticsTableWidget(unittest.TestCase):
+@pytest.mark.skipif(not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible")
+class TestStatisticsTableWidget:
     """Έλεγχοι για StatisticsTableWidget"""
-    
-    @classmethod
-    def setUpClass(cls):
-        """Δημιουργία QApplication για tests"""
-        if not QApplication.instance():
-            cls.app = QApplication([])
-        else:
-            cls.app = QApplication.instance()
             
-    def setUp(self):
+    def setup_method(self):
         """Προετοιμασία test δεδομένων"""
         from components.results_display import StatisticsTableWidget
         self.widget = StatisticsTableWidget()
@@ -318,38 +299,30 @@ class TestStatisticsTableWidget(unittest.TestCase):
             'Pz': {'rms': 15.0, 'range': 60.0}
         }
         
-    def test_update_statistics(self):
+    def test_update_statistics(self, qapp):
         """Έλεγχος ενημέρωσης στατιστικών"""
         self.widget.update_statistics(self.original_stats, self.cleaned_stats)
         
         # Check table has correct number of rows
-        self.assertEqual(self.widget.table.rowCount(), 3)
+        assert self.widget.table.rowCount() == 3
         
         # Check table has correct number of columns
-        self.assertEqual(self.widget.table.columnCount(), 6)
+        assert self.widget.table.columnCount() == 6
         
         # Check that data is populated
         for row in range(self.widget.table.rowCount()):
             for col in range(self.widget.table.columnCount()):
                 item = self.widget.table.item(row, col)
-                self.assertIsNotNone(item)
-                self.assertGreater(len(item.text()), 0)
+                assert item is not None
+                assert len(item.text()) > 0
 
 
 # Integration test for component interaction
-@unittest.skipUnless(QT_AVAILABLE, "PyQt6 not available or Qt display not accessible")
-class TestComponentIntegration(unittest.TestCase):
+@pytest.mark.skipif(not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible")
+class TestComponentIntegration:
     """Έλεγχοι ολοκλήρωσης στοιχείων"""
-    
-    @classmethod
-    def setUpClass(cls):
-        """Δημιουργία QApplication για tests"""
-        if not QApplication.instance():
-            cls.app = QApplication([])
-        else:
-            cls.app = QApplication.instance()
             
-    def test_signal_emission(self):
+    def test_signal_emission(self, qapp):
         """Έλεγχος εκπομπής σημάτων"""
         # Create a mock theme
         theme = {
@@ -372,11 +345,12 @@ class TestComponentIntegration(unittest.TestCase):
         
         # Create mock data
         mock_ica = Mock()
-        mock_ica.n_components = 2
+        mock_ica.n_components_ = 2
         
         mock_raw = Mock()
         mock_raw.info = {'sfreq': 128.0}
         mock_raw.times = np.linspace(0, 10, 1280)
+        mock_raw.ch_names = ['AF3', 'AF4', 'T7', 'T8', 'Pz']
         
         mock_sources = Mock()
         mock_sources.get_data.return_value = np.random.randn(2, 1280)
@@ -397,9 +371,9 @@ class TestComponentIntegration(unittest.TestCase):
         selector.emit_selected_components()
         
         # Check signal was received
-        self.assertEqual(received_components, [0])
+        assert received_components == [0]
 
 
 if __name__ == '__main__':
-    # Run tests
-    unittest.main(verbosity=2)
+    # Run tests with pytest
+    pytest.main([__file__, '-v'])
