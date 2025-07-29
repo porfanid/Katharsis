@@ -58,9 +58,10 @@ jobs:
         
     - name: Test imports (Ubuntu headless)
       if: matrix.os == 'ubuntu-latest'
+      env:
+        QT_QPA_PLATFORM: offscreen
       run: |
         # Έλεγχος ότι τα modules μπορούν να εισαχθούν σε headless περιβάλλον
-        export QT_QPA_PLATFORM=offscreen
         python -c "import backend.eeg_backend; print('Backend imported successfully')"
         python -c "import backend.ica_processor; print('ICA processor imported successfully')"
         python -c "import backend.eeg_service; print('EEG service imported successfully')"
@@ -79,9 +80,10 @@ jobs:
         
     - name: Run backend tests (Windows/Mac)
       if: matrix.os != 'ubuntu-latest'
+      env:
+        QT_QPA_PLATFORM: offscreen
       run: |
-        # Set Qt to offscreen mode for headless testing
-        export QT_QPA_PLATFORM=offscreen
+        # Set Qt to offscreen mode for headless testing (done via env above)
         python -m pytest tests/test_backend.py -v --cov=backend --cov-report=xml --cov-report=term-missing
         
     - name: Upload coverage to Codecov
@@ -188,8 +190,9 @@ jobs:
         pip install -r requirements.txt
         
     - name: Memory usage check
+      env:
+        QT_QPA_PLATFORM: offscreen
       run: |
-        export QT_QPA_PLATFORM=offscreen
         python -c "
         import psutil
         import os
