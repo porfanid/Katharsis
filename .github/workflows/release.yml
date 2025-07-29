@@ -125,19 +125,11 @@ jobs:
         echo "" >> CHANGELOG.md
         echo "## Εγκατάσταση" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
-        echo "### Εκτελέσιμα αρχεία (Recommended)" >> CHANGELOG.md
-        echo "" >> CHANGELOG.md
         echo "Κατεβάστε το κατάλληλο εκτελέσιμο αρχείο για το λειτουργικό σας σύστημα:" >> CHANGELOG.md
         echo "- **Windows**: \`eeg-cleaner-windows.exe\`" >> CHANGELOG.md
         echo "- **Linux**: \`eeg-cleaner-linux\`" >> CHANGELOG.md
         echo "- **macOS Intel**: \`eeg-cleaner-macos-intel.zip\`" >> CHANGELOG.md
         echo "- **macOS Apple Silicon**: \`eeg-cleaner-macos-arm64.zip\`" >> CHANGELOG.md
-        echo "" >> CHANGELOG.md
-        echo "### Από πηγαίο κώδικα" >> CHANGELOG.md
-        echo "" >> CHANGELOG.md
-        echo "1. Κατεβάστε τον πηγαίο κώδικα" >> CHANGELOG.md
-        echo "2. Εγκαταστήστε τις εξαρτήσεις: \`pip install -r requirements.txt\`" >> CHANGELOG.md
-        echo "3. Εκτελέστε την εφαρμογή: \`python eeg_gui_app.py\`" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
         echo "## Συστήματα" >> CHANGELOG.md
         echo "" >> CHANGELOG.md
@@ -150,62 +142,7 @@ jobs:
         echo "- Python 3.8+" >> CHANGELOG.md
         echo "- Δείτε το \`requirements.txt\` για λεπτομερείς εξαρτήσεις" >> CHANGELOG.md
         
-    - name: Create source distribution
-      run: |
-        # Δημιουργία zip αρχείου με τον πηγαίο κώδικα
-        zip -r katharsis-v${{ steps.get_version.outputs.VERSION }}-source.zip . \
-          -x "*.git*" "*/__pycache__/*" "*.pyc" "*/.pytest_cache/*" \
-             "*/node_modules/*" "*.DS_Store" "*/.vscode/*" "*/.idea/*"
-             
-    - name: Create portable package
-      run: |
-        # Δημιουργία φακέλου για portable έκδοση
-        mkdir -p portable/katharsis
-        
-        # Αντιγραφή αρχείων εφαρμογής
-        cp -r backend components tests *.py *.md requirements.txt portable/katharsis/
-        
-        # Δημιουργία startup script για Windows
-        cat > portable/katharsis/start_katharsis.bat << 'EOF'
-        @echo off
-        echo Starting Katharsis EEG Artifact Cleaner...
-        python eeg_gui_app.py
-        pause
-        EOF
-        
-        # Δημιουργία startup script για Linux/Mac
-        cat > portable/katharsis/start_katharsis.sh << 'EOF'
-        #!/bin/bash
-        echo "Starting Katharsis EEG Artifact Cleaner..."
-        python3 eeg_gui_app.py
-        EOF
-        chmod +x portable/katharsis/start_katharsis.sh
-        
-        # Δημιουργία README για την portable έκδοση
-        cat > portable/katharsis/PORTABLE_README.md << 'EOF'
-        # Katharsis EEG Artifact Cleaner - Portable Edition
-        
-        ## Quick Start
-        
-        1. Βεβαιωθείτε ότι έχετε εγκατεστημένη την Python 3.8+
-        2. Ανοίξτε terminal/command prompt σε αυτόν τον φάκελο
-        3. Εκτελέστε: `pip install -r requirements.txt`
-        4. Για Windows: Double-click το `start_katharsis.bat`
-        5. Για Linux/Mac: Εκτελέστε `./start_katharsis.sh`
-        
-        ## Manual Start
-        
-        ```bash
-        python eeg_gui_app.py
-        ```
-        
-        Για περισσότερες πληροφορίες, δείτε το κυρίως README.md
-        EOF
-        
-        # Δημιουργία zip για portable έκδοση
-        cd portable
-        zip -r ../katharsis-v${{ steps.get_version.outputs.VERSION }}-portable.zip katharsis/
-        cd ..
+
 
     - name: Prepare executable files
       run: |
@@ -240,8 +177,6 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          katharsis-v${{ steps.get_version.outputs.VERSION }}-source.zip
-          katharsis-v${{ steps.get_version.outputs.VERSION }}-portable.zip
           release-executables/eeg-cleaner-windows.exe
           release-executables/eeg-cleaner-linux
           release-executables/eeg-cleaner-macos-intel.zip
