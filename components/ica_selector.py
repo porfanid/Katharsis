@@ -731,9 +731,102 @@ class ICAComponentSelector(QWidget):
         if suggested_artifacts:
             self._start_preview_update()
 
+    def _create_spectrogram_plot(self, component_idx):
+        """
+        Δημιουργεί spectrogram γράφημα για τη συγκεκριμένη ICA συνιστώσα.
+        Το spectrogram είναι ιδανικό για τον εντοπισμό μυϊκών artifacts που
+        εμφανίζονται ως σύντομες εκρήξεις ενέργειας σε ευρύ φάσμα συχνοτήτων.
+        """
+        try:
+            from scipy import signal
+
+            # Λήψη των ICA sources
+            sources = self.ica.get_sources(self.raw).get_data()
+            component_data = sources[component_idx]
+
+            # Παράμετροι για το spectrogram
+            fs = self.raw.info["sfreq"]  # Συχνότητα δειγματολήψίας
+
+            # Υπολογισμός spectrogram
+            # Χρησιμοποιούμε παράθυρο που δίνει καλή ανάλυση χρόνου-συχνότητας
+            nperseg = min(1024, len(component_data) // 8)  # Μέγεθος παραθύρου
+            noverlap = nperseg // 2  # Επικάλυψη παραθύρων
+
+            frequencies, times, Sxx = signal.spectrogram(
+                component_data,
+                fs=fs,
+                nperseg=nperseg,
+                noverlap=noverlap,
+                scaling="density",
+            )
+
+            # Δημιουργία figure
+            fig = Figure(figsize=(10, 4), dpi=100)
+            ax = fig.add_subplot(111)
+
+            # Εμφάνιση spectrogram σε dB scale για καλύτερη οπτικοποίηση
+            Sxx_db = 10 * np.log10(
+                Sxx + 1e-12
+            )  # Προσθέτουμε μικρή τιμή για αποφυγή log(0)
+
+            # Δημιουργία του spectrogram plot
+            im = ax.pcolormesh(
+                times, frequencies, Sxx_db, shading="gouraud", cmap="viridis"
+            )
+
+            # Ρύθμιση αξόνων και ετικετών
+            ax.set_ylabel("Συχνότητα (Hz) / Frequency (Hz)", fontsize=10)
+            ax.set_xlabel("Χρόνος (s) / Time (s)", fontsize=10)
+            ax.set_title(
+                f"Spectrogram - IC {component_idx}\n(Ανάλυση Χρόνου-Συχνότητας για Εντοπισμό Μυϊκών Artifacts)",
+                fontsize=11,
+                color=self.theme.get("text", "#000000"),
+            )
+
+            # Περιορισμός συχνοτήτων στο ενδιαφέρον εύρος (0-100 Hz τυπικά για EEG)
+            ax.set_ylim(0, min(100, fs / 2))
+
+            # Προσθήκη colorbar
+            cbar = fig.colorbar(im, ax=ax, label="Ισχύς (dB) / Power (dB)")
+            cbar.ax.tick_params(labelsize=8)
+
+            # Grid για καλύτερη αναγνωσιμότητα
+            ax.grid(True, alpha=0.3)
+
+            # Τελική διαμόρφωση
+            fig.tight_layout(pad=2.0)
+
+            return fig
+
+        except Exception as e:
+            print(f"Σφάλμα στη δημιουργία spectrogram: {str(e)}")
+
+            # Σε περίπτωση σφάλματος, δημιουργούμε ένα figure με μήνυμα σφάλματος
+            fig = Figure(figsize=(10, 4), dpi=100)
+            ax = fig.add_subplot(111)
+            ax.text(
+                0.5,
+                0.5,
+                f"Σφάλμα στη δημιουργία Spectrogram:\n{str(e)}",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=12,
+                color="red",
+            )
+            ax.set_title(
+                f"Spectrogram - IC {component_idx} (Σφάλμα)",
+                color=self.theme.get("text", "#000000"),
+            )
+            ax.set_xticks([])
+            ax.set_yticks([])
+            fig.tight_layout()
+            return fig
+
     def show_component_properties(self, component_idx):
         """
         Δημιουργεί και εμφανίζει ένα νέο παράθυρο με τις ιδιότητες της συνιστώσας.
+        Περιλαμβάνει τοπογραφία, PSD και Spectrogram για πλήρη ανάλυση.
         """
         if not self.ica or not self.raw:
             return
@@ -742,17 +835,35 @@ class ICAComponentSelector(QWidget):
         # για να πάρουμε τα figures αντί να τα εμφανίσει μόνο του.
         figures = self.ica.plot_properties(self.raw, picks=component_idx, show=False)
 
+        # Δημιουργούμε το spectrogram γράφημα
+        spectrogram_fig = self._create_spectrogram_plot(component_idx)
+
         # Δημιουργούμε ένα νέο παράθυρο διαλόγου (pop-up)
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"Detailed Analysis of Component IC {component_idx}")
-        dialog.setMinimumSize(800, 600)
+        dialog.setWindowTitle(
+            f"Λεπτομερής Ανάλυση Συνιστώσας IC {component_idx} / Detailed Analysis of Component IC {component_idx}"
+        )
+        dialog.setMinimumSize(1000, 800)  # Μεγαλύτερο παράθυρο για το επιπλέον γράφημα
         dialog_layout = QVBoxLayout(dialog)
+
+        # Προσθήκη τίτλου
+        title_label = QLabel(f"🔬 Ανάλυση Συνιστώσας IC {component_idx}")
+        title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        title_label.setStyleSheet(
+            f"color: {self.theme['text']}; margin: 10px; text-align: center;"
+        )
+        dialog_layout.addWidget(title_label)
 
         # Για κάθε figure που έφτιαξε το MNE, δημιουργούμε έναν καμβά και τον
         # προσθέτουμε στο παράθυρο.
         for fig in figures:
             canvas = FigureCanvas(fig)
             dialog_layout.addWidget(canvas)
+
+        # Προσθήκη του spectrogram στο τέλος
+        if spectrogram_fig:
+            spectrogram_canvas = FigureCanvas(spectrogram_fig)
+            dialog_layout.addWidget(spectrogram_canvas)
 
         # Εμφανίζουμε το παράθυρο
         dialog.exec()
