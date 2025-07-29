@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+        
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-glx libegl1-mesa libxrandr2 libxss1 \
+                                libxcursor1 libxcomposite1 libasound2 libxi6 libxtst6
+        # Για headless testing
+        sudo apt-get install -y xvfb
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest pytest-cov pytest-qt
+        pip install -r requirements.txt
+        
+    - name: Lint with flake8
+      run: |
+        # Έλεγχος σύνταξης και style
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Προειδοποιήσεις για πολυπλοκότητα και style (μη αποτυχημένο)
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        
+    - name: Test imports (Ubuntu headless)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        # Έλεγχος ότι τα modules μπορούν να εισαχθούν σε headless περιβάλλον
+        export QT_QPA_PLATFORM=offscreen
+        python -c "import backend.eeg_backend; print('Backend imported successfully')"
+        python -c "import backend.ica_processor; print('ICA processor imported successfully')"
+        python -c "import backend.eeg_service; print('EEG service imported successfully')"
+        
+    - name: Run tests with pytest (Ubuntu with display)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        # Χρήση xvfb για headless GUI testing
+        xvfb-run -a python -m pytest tests/ -v --cov=backend --cov=components \
+                  --cov-report=xml --cov-report=term-missing
+        
+    - name: Run tests with pytest (Windows/Mac)
+      if: matrix.os != 'ubuntu-latest'
+      run: |
+        python -m pytest tests/ -v --cov=backend --cov=components \
+                --cov-report=xml --cov-report=term-missing
+        
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black isort mypy pylint bandit safety
+        pip install -r requirements.txt
+        
+    - name: Check code formatting with Black
+      run: |
+        black --check --diff .
+        
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only --diff .
+        
+    - name: Type checking with mypy
+      run: |
+        mypy backend/ --ignore-missing-imports --no-strict-optional
+        
+    - name: Security check with bandit
+      run: |
+        bandit -r backend/ -f txt
+        
+    - name: Check dependencies for known security vulnerabilities
+      run: |
+        safety check --json || echo "Safety check completed"
+        
+    - name: Advanced linting with pylint
+      run: |
+        pylint backend/ --exit-zero --score=yes --reports=yes
+        
+  documentation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pydocstyle
+        pip install -r requirements.txt
+        
+    - name: Check docstring compliance
+      run: |
+        pydocstyle backend/ --convention=pep257 --add-ignore=D100,D104 || echo "Docstring check completed"
+        
+    - name: Validate HTML in docs
+      run: |
+        # Βασικός έλεγχος HTML syntax
+        python -c "
+        import html.parser
+        class HTMLValidator(html.parser.HTMLParser):
+            def error(self, message):
+                raise ValueError(f'HTML Error: {message}')
+        
+        validator = HTMLValidator()
+        with open('docs/index.html', 'r', encoding='utf-8') as f:
+            validator.feed(f.read())
+        print('HTML validation passed')
+        "
+        
+  performance:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install memory-profiler psutil
+        pip install -r requirements.txt
+        
+    - name: Memory usage check
+      run: |
+        export QT_QPA_PLATFORM=offscreen
+        python -c "
+        import psutil
+        import os
+        from backend.eeg_backend import EEGBackendCore
+        
+        process = psutil.Process(os.getpid())
+        initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+        print(f'Initial memory usage: {initial_memory:.2f} MB')
+        
+        # Test backend initialization
+        backend = EEGBackendCore()
+        after_init_memory = process.memory_info().rss / 1024 / 1024
+        print(f'Memory after backend init: {after_init_memory:.2f} MB')
+        
+        memory_increase = after_init_memory - initial_memory
+        print(f'Memory increase: {memory_increase:.2f} MB')
+        
+        if memory_increase > 100:  # More than 100MB increase is concerning
+            print('WARNING: High memory usage detected')
+        else:
+            print('Memory usage is acceptable')
+        "

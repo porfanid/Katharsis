@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
 Artifact Detector - Εντοπισμός artifacts σε ICA συνιστώσες
-Ανιχνευτής Ατελειών - Αυτόματος εντοπισμός artifacts σε EEG δεδομένα
+========================================================
+
+Υλοποιεί αλγορίθμους για τον αυτόματο εντοπισμό artifacts σε EEG δεδομένα:
+- Εντοπισμός EOG artifacts (βλεφαρισμοί)
+- Στατιστική ανάλυση συνιστωσών
+- Πολλαπλές μέθοδοι εντοπισμού
+- Γενερικός εντοπισμός με fallback μεθόδους
+
+Author: porfanid
+Version: 1.0
 """
 
 import numpy as np
@@ -12,19 +21,31 @@ from .ica_processor import ICAProcessor
 
 
 class ArtifactDetector:
-    """Εντοπισμός artifacts σε ICA συνιστώσες με πολλαπλές μεθόδους"""
+    """
+    Εντοπισμός artifacts σε ICA συνιστώσες με πολλαπλές μεθόδους
+    
+    Χρησιμοποιεί διάφορους αλγορίθμους για τον εντοπισμό artifacts όπως:
+    - EOG artifacts (βλεφαρισμοί) μέσω frontal καναλιών
+    - Στατιστική ανάλυση (διακύμανση, κύρτωση, εύρος)
+    - Συνδυαστικούς αλγορίθμους εντοπισμού
+    
+    Attributes:
+        variance_threshold (float): Κατώφλι διακύμανσης για artifacts
+        kurtosis_threshold (float): Κατώφλι κύρτωσης για artifacts  
+        range_threshold (float): Κατώφλι εύρους για artifacts
+    """
     
     def __init__(self, 
                  variance_threshold: float = 2.0,
                  kurtosis_threshold: float = 2.0,
                  range_threshold: float = 3.0):
         """
-        Αρχικοποίηση detector
+        Αρχικοποίηση artifact detector
         
         Args:
-            variance_threshold: Κατώφλι διακύμανσης για artifacts
-            kurtosis_threshold: Κατώφλι κύρτωσης για artifacts
-            range_threshold: Κατώφλι εύρους για artifacts
+            variance_threshold (float): Κατώφλι διακύμανσης για artifacts
+            kurtosis_threshold (float): Κατώφλι κύρτωσης για artifacts
+            range_threshold (float): Κατώφλι εύρους για artifacts
         """
         self.variance_threshold = variance_threshold
         self.kurtosis_threshold = kurtosis_threshold
