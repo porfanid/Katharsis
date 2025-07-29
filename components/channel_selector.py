@@ -57,11 +57,6 @@ class ChannelCheckBox(QCheckBox):
                 background-color: #007AFF;
                 border-radius: 3px;
             }
-            QCheckBox::indicator:checked::after {
-                content: "✓";
-                color: white;
-                font-weight: bold;
-            }
         """)
 
 

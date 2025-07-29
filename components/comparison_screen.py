@@ -67,7 +67,6 @@ class ComparisonScreen(QWidget):
             }}
             QPushButton:pressed {{
                 background-color: {self.theme['primary']};
-                transform: translateY(1px);
             }}
         """)
         

@@ -110,7 +110,6 @@ class PreviewWidget(QWidget):
             QComboBox:hover {{
                 border-color: {self.theme.get('primary', '#007AFF')};
                 background-color: {self.theme.get('background', '#ffffff')};
-                box-shadow: 0 2px 4px rgba(0, 122, 255, 0.15);
             }}
             QComboBox:focus {{
                 border-color: {self.theme.get('primary', '#007AFF')};
