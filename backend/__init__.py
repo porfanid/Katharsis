@@ -10,10 +10,10 @@ from .artifact_detector import ArtifactDetector
 from .eeg_service import EEGArtifactCleaningService
 
 __all__ = [
-    'EEGBackendCore',
-    'EEGDataManager', 
-    'EEGPreprocessor',
-    'ICAProcessor',
-    'ArtifactDetector',
-    'EEGArtifactCleaningService'
+    "EEGBackendCore",
+    "EEGDataManager",
+    "EEGPreprocessor",
+    "ICAProcessor",
+    "ArtifactDetector",
+    "EEGArtifactCleaningService",
 ]
