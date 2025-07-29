@@ -841,14 +841,18 @@ class ICAComponentSelector(QWidget):
 
         # Δημιουργούμε ένα νέο παράθυρο διαλόγου (pop-up)
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"Λεπτομερής Ανάλυση Συνιστώσας IC {component_idx} / Detailed Analysis of Component IC {component_idx}")
+        dialog.setWindowTitle(
+            f"Λεπτομερής Ανάλυση Συνιστώσας IC {component_idx} / Detailed Analysis of Component IC {component_idx}"
+        )
         dialog.setMinimumSize(1000, 800)  # Μεγαλύτερο παράθυρο για το επιπλέον γράφημα
         dialog_layout = QVBoxLayout(dialog)
 
         # Προσθήκη τίτλου
         title_label = QLabel(f"🔬 Ανάλυση Συνιστώσας IC {component_idx}")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        title_label.setStyleSheet(f"color: {self.theme['text']}; margin: 10px; text-align: center;")
+        title_label.setStyleSheet(
+            f"color: {self.theme['text']}; margin: 10px; text-align: center;"
+        )
         dialog_layout.addWidget(title_label)
 
         # Για κάθε figure που έφτιαξε το MNE, δημιουργούμε έναν καμβά και τον
