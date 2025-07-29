@@ -51,9 +51,9 @@ class ICAProcessor:
         """
         self.n_components = n_components
         self.random_state = random_state
-        self.ica = None
-        self.raw_data = None
-        self.components_info = {}
+        self.ica: Optional[mne.preprocessing.ICA] = None
+        self.raw_data: Optional[mne.io.Raw] = None
+        self.components_info: Dict[int, Dict[str, float]] = {}
 
     def fit_ica(self, raw: mne.io.Raw) -> bool:
         """
@@ -88,7 +88,10 @@ class ICAProcessor:
                 verbose=False,
             )
 
-            self.ica.fit(raw, verbose=False)
+            if self.ica is not None:
+                self.ica.fit(raw, verbose=False)
+            else:
+                raise RuntimeError("ICA initialization failed")
 
             # Υπολογισμός πληροφοριών συνιστωσών
             self._calculate_component_info()
@@ -135,7 +138,8 @@ class ICAProcessor:
             Dict[str, float]: Dictionary με στατιστικές πληροφορίες όπως
                             variance, kurtosis, range, std, mean, rms, skewness
         """
-        return self.components_info.get(component_idx, {})
+        default_info: Dict[str, float] = {}
+        return self.components_info.get(component_idx, default_info)
 
     def get_all_components_info(self) -> Dict[int, Dict[str, float]]:
         """

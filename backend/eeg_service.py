@@ -73,11 +73,11 @@ class EEGArtifactCleaningService:
         self.status_callback: Optional[Callable[[str], None]] = None
 
         # State
-        self.current_file = None
+        self.current_file: Optional[str] = None
         self.is_processing = False
         self.ica_fitted = False
-        self.suggested_artifacts = []
-        self.detection_methods_results = {}
+        self.suggested_artifacts: List[int] = []
+        self.detection_methods_results: Dict[str, List[int]] = {}
 
     def set_progress_callback(self, callback: Callable[[int], None]):
         """Ορισμός callback για progress updates"""

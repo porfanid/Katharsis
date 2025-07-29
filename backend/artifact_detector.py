@@ -145,7 +145,7 @@ class ArtifactDetector:
         Returns:
             Λίστα με δείκτες muscle artifact συνιστωσών
         """
-        artifacts = []
+        artifacts: List[int] = []
 
         if ica_processor.raw_data is None:
             return []
@@ -189,7 +189,7 @@ class ArtifactDetector:
         Returns:
             Λίστα με δείκτες drift artifact συνιστωσών
         """
-        artifacts = []
+        artifacts: List[int] = []
 
         if ica_processor.raw_data is None:
             return []
