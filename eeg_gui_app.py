@@ -88,7 +88,7 @@ def create_splash_pixmap():
     Returns:
         QPixmap: Το pixmap για το splash screen
     """
-    pixmap = QPixmap(500, 300)
+    pixmap = QPixmap(700, 400)
     pixmap.fill(QColor("#007AFF"))
     
     painter = QPainter(pixmap)
@@ -101,13 +101,13 @@ def create_splash_pixmap():
     painter.setPen(QColor("white"))
     title_font = QFont("Arial", 24, QFont.Weight.Bold)
     painter.setFont(title_font)
-    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop, 
+    painter.drawText(pixmap.rect().adjusted(20, 50, -20, 0), Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop, 
                     "🧠 Katharsis - EEG Artifact Cleaner Pro")
     
     # Subtitle
-    subtitle_font = QFont("Arial", 12)
+    subtitle_font = QFont("Arial", 14)
     painter.setFont(subtitle_font)
-    painter.drawText(pixmap.rect().adjusted(0, 80, 0, 0), 
+    painter.drawText(pixmap.rect().adjusted(20, 120, -20, 0), 
                     Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop,
                     "Επαγγελματικός Καθαρισμός EEG Δεδομένων")
     
@@ -168,7 +168,7 @@ class LoadingSplashScreen(QSplashScreen):
         super().drawContents(painter)
         
         # Draw progress bar
-        progress_rect = self.rect().adjusted(50, 200, -50, -80)
+        progress_rect = self.rect().adjusted(100, 280, -100, -80)
         painter.setPen(QColor("white"))
         painter.drawRect(progress_rect)
         
@@ -180,8 +180,8 @@ class LoadingSplashScreen(QSplashScreen):
         
         # Draw progress text
         painter.setPen(QColor("white"))
-        painter.setFont(QFont("Arial", 10))
-        text_rect = self.rect().adjusted(0, 230, 0, 0)
+        painter.setFont(QFont("Arial", 12))
+        text_rect = self.rect().adjusted(0, 320, 0, 0)
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop,
                         f"{self.status_text} ({self.progress}%)")
 
