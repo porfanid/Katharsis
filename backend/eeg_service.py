@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 """
-Backend Service - Κεντρική υπηρεσία backend για EEG artifact cleaning
-Backend Service - Main backend service for EEG artifact cleaning
+EEG Artifact Cleaning Service - Κεντρική υπηρεσία backend
+========================================================
+
+Η κεντρική υπηρεσία που ενοποιεί όλες τις λειτουργίες καθαρισμού EEG:
+- Διαχείριση φόρτωσης και επεξεργασίας αρχείων
+- Εκτέλεση ICA ανάλυσης
+- Αυτόματος εντοπισμός artifacts
+- Καθαρισμός και αποθήκευση δεδομένων
+- Progress tracking και status updates
+
+Author: porfanid
+Version: 1.0
 """
 
 from typing import Dict, List, Any, Optional, Tuple, Callable
@@ -12,7 +22,24 @@ import mne
 
 
 class EEGArtifactCleaningService:
-    """Κεντρική υπηρεσία για EEG artifact cleaning"""
+    """
+    Κεντρική υπηρεσία για EEG artifact cleaning
+    
+    Συνδυάζει όλες τις λειτουργίες καθαρισμού EEG σε μια ενιαία υπηρεσία:
+    - Φόρτωση και προεπεξεργασία δεδομένων
+    - ICA ανάλυση και εκπαίδευση μοντέλου
+    - Αυτόματος εντοπισμός artifacts
+    - Καθαρισμός και αποθήκευση αποτελεσμάτων
+    - Progress tracking και callback system
+    
+    Attributes:
+        backend_core (EEGBackendCore): Κεντρικό backend για I/O και preprocessing
+        ica_processor (ICAProcessor): Επεξεργαστής ICA
+        artifact_detector (ArtifactDetector): Ανιχνευτής artifacts
+        current_file (str): Τρέχον αρχείο που επεξεργάζεται
+        is_processing (bool): Κατάσταση επεξεργασίας
+        ica_fitted (bool): Αν το ICA μοντέλο έχει εκπαιδευτεί
+    """
     
     def __init__(self, 
                  n_components: int = None,
@@ -20,13 +47,14 @@ class EEGArtifactCleaningService:
                  kurtosis_threshold: float = 2.0,
                  range_threshold: float = 3.0):
         """
-        Αρχικοποίηση service
+        Αρχικοποίηση της υπηρεσίας καθαρισμού EEG
         
         Args:
-            n_components: Αριθμός ICA συνιστωσών (None για αυτόματη ανίχνευση)
-            variance_threshold: Κατώφλι διακύμανσης
-            kurtosis_threshold: Κατώφλι κύρτωσης
-            range_threshold: Κατώφλι εύρους
+            n_components (int, optional): Αριθμός ICA συνιστωσών. 
+                                        Αν None, καθορίζεται αυτόματα.
+            variance_threshold (float): Κατώφλι διακύμανσης για artifact detection
+            kurtosis_threshold (float): Κατώφλι κύρτωσης για artifact detection
+            range_threshold (float): Κατώφλι εύρους για artifact detection
         """
         self.backend_core = EEGBackendCore()
         self.ica_processor = ICAProcessor(n_components=n_components)
