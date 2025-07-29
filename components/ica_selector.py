@@ -734,75 +734,91 @@ class ICAComponentSelector(QWidget):
     def _create_spectrogram_plot(self, component_idx):
         """
         Δημιουργεί spectrogram γράφημα για τη συγκεκριμένη ICA συνιστώσα.
-        Το spectrogram είναι ιδανικό για τον εντοπισμό μυϊκών artifacts που 
+        Το spectrogram είναι ιδανικό για τον εντοπισμό μυϊκών artifacts που
         εμφανίζονται ως σύντομες εκρήξεις ενέργειας σε ευρύ φάσμα συχνοτήτων.
         """
         try:
             from scipy import signal
             import numpy as np
-            
+
             # Λήψη των ICA sources
             sources = self.ica.get_sources(self.raw).get_data()
             component_data = sources[component_idx]
-            
+
             # Παράμετροι για το spectrogram
-            fs = self.raw.info['sfreq']  # Συχνότητα δειγματολήψίας
-            
+            fs = self.raw.info["sfreq"]  # Συχνότητα δειγματολήψίας
+
             # Υπολογισμός spectrogram
             # Χρησιμοποιούμε παράθυρο που δίνει καλή ανάλυση χρόνου-συχνότητας
             nperseg = min(1024, len(component_data) // 8)  # Μέγεθος παραθύρου
             noverlap = nperseg // 2  # Επικάλυψη παραθύρων
-            
+
             frequencies, times, Sxx = signal.spectrogram(
-                component_data, 
+                component_data,
                 fs=fs,
                 nperseg=nperseg,
                 noverlap=noverlap,
-                scaling='density'
+                scaling="density",
             )
-            
+
             # Δημιουργία figure
             fig = Figure(figsize=(10, 4), dpi=100)
             ax = fig.add_subplot(111)
-            
+
             # Εμφάνιση spectrogram σε dB scale για καλύτερη οπτικοποίηση
-            Sxx_db = 10 * np.log10(Sxx + 1e-12)  # Προσθέτουμε μικρή τιμή για αποφυγή log(0)
-            
+            Sxx_db = 10 * np.log10(
+                Sxx + 1e-12
+            )  # Προσθέτουμε μικρή τιμή για αποφυγή log(0)
+
             # Δημιουργία του spectrogram plot
-            im = ax.pcolormesh(times, frequencies, Sxx_db, shading='gouraud', cmap='viridis')
-            
+            im = ax.pcolormesh(
+                times, frequencies, Sxx_db, shading="gouraud", cmap="viridis"
+            )
+
             # Ρύθμιση αξόνων και ετικετών
-            ax.set_ylabel('Συχνότητα (Hz) / Frequency (Hz)', fontsize=10)
-            ax.set_xlabel('Χρόνος (s) / Time (s)', fontsize=10)
-            ax.set_title(f'Spectrogram - IC {component_idx}\n(Ανάλυση Χρόνου-Συχνότητας για Εντοπισμό Μυϊκών Artifacts)', 
-                        fontsize=11, color=self.theme.get('text', '#000000'))
-            
+            ax.set_ylabel("Συχνότητα (Hz) / Frequency (Hz)", fontsize=10)
+            ax.set_xlabel("Χρόνος (s) / Time (s)", fontsize=10)
+            ax.set_title(
+                f"Spectrogram - IC {component_idx}\n(Ανάλυση Χρόνου-Συχνότητας για Εντοπισμό Μυϊκών Artifacts)",
+                fontsize=11,
+                color=self.theme.get("text", "#000000"),
+            )
+
             # Περιορισμός συχνοτήτων στο ενδιαφέρον εύρος (0-100 Hz τυπικά για EEG)
-            ax.set_ylim(0, min(100, fs/2))
-            
+            ax.set_ylim(0, min(100, fs / 2))
+
             # Προσθήκη colorbar
-            cbar = fig.colorbar(im, ax=ax, label='Ισχύς (dB) / Power (dB)')
+            cbar = fig.colorbar(im, ax=ax, label="Ισχύς (dB) / Power (dB)")
             cbar.ax.tick_params(labelsize=8)
-            
+
             # Grid για καλύτερη αναγνωσιμότητα
             ax.grid(True, alpha=0.3)
-            
+
             # Τελική διαμόρφωση
             fig.tight_layout(pad=2.0)
-            
+
             return fig
-            
+
         except Exception as e:
             print(f"Σφάλμα στη δημιουργία spectrogram: {str(e)}")
-            
+
             # Σε περίπτωση σφάλματος, δημιουργούμε ένα figure με μήνυμα σφάλματος
             fig = Figure(figsize=(10, 4), dpi=100)
             ax = fig.add_subplot(111)
-            ax.text(0.5, 0.5, f'Σφάλμα στη δημιουργία Spectrogram:\n{str(e)}', 
-                   ha='center', va='center', transform=ax.transAxes,
-                   fontsize=12, color='red')
-            ax.set_title(f'Spectrogram - IC {component_idx} (Σφάλμα)', 
-                        color=self.theme.get('text', '#000000'))
+            ax.text(
+                0.5,
+                0.5,
+                f"Σφάλμα στη δημιουργία Spectrogram:\n{str(e)}",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=12,
+                color="red",
+            )
+            ax.set_title(
+                f"Spectrogram - IC {component_idx} (Σφάλμα)",
+                color=self.theme.get("text", "#000000"),
+            )
             ax.set_xticks([])
             ax.set_yticks([])
             fig.tight_layout()
