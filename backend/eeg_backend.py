@@ -185,9 +185,11 @@ class EEGDataManager:
         # Ορισμός montage για τοπογραφική απεικόνιση
         try:
             raw.set_montage("standard_1020", on_missing="warn")
-        except Exception:
+        except (ValueError, KeyError, RuntimeError) as e:
             # Αν αποτύχει το montage, συνεχίζουμε χωρίς αυτό
-            pass
+            import warnings
+
+            warnings.warn(f"Αδυναμία ορισμού montage: {str(e)}", UserWarning)
 
         return raw, available_channels
 
