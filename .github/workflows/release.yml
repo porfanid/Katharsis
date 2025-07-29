@@ -155,8 +155,8 @@ jobs:
         # Copy executable files to release directory
         find executables -type f -name 'eeg-cleaner-windows.exe' -exec cp {} release-executables/eeg-cleaner-windows.exe \;
         find executables -type f -name 'eeg-cleaner-linux' -exec cp {} release-executables/eeg-cleaner-linux \;
-        find executables -type f -name 'eeg-cleaner-macos-intel.zip' -exec cp {} release-executables/eeg-cleaner-macos-intel.zip \;
-        find executables -type f -name 'eeg-cleaner-macos-arm64.zip' -exec cp {} release-executables/eeg-cleaner-macos-arm64.zip \;
+        find executables -type f -name 'EEGCleanerApp-Intel.zip' -exec cp {} release-executables/eeg-cleaner-macos-intel.zip \;
+        find executables -type f -name 'EEGCleanerApp-ARM64.zip' -exec cp {} release-executables/eeg-cleaner-macos-arm64.zip \;
         
         # Make Linux executable executable
         if [ -f "release-executables/eeg-cleaner-linux" ]; then
