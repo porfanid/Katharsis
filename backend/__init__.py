@@ -15,6 +15,15 @@ from .referencing import EEGReferenceProcessor, ReferenceConfig, ReferencePreset
 from .channel_management import EEGChannelManager, BadChannelDetector, ChannelInterpolator, MontageManager
 from .preprocessing_pipeline import PreprocessingPipeline, PreprocessingConfig, PreprocessingPresets
 
+# Phase 2 - Enhanced ICA and Artifact Detection
+from .enhanced_ica_processor import EnhancedICAProcessor, ICAConfig, ICAMethod
+from .enhanced_artifact_detector import EnhancedArtifactDetector, ArtifactType, DetectionConfig
+
+# Phase 3 - Time-Domain Analysis & ERPs
+from .epoching_processor import EpochingProcessor, EpochingConfig, SegmentationConfig, BaselineCorrectionMethod, EpochRejectionCriteria
+from .erp_analyzer import ERPAnalyzer, ERPConfig, PeakDetectionMethod, ERPComponent, StatisticalTest
+from .time_domain_visualizer import TimeDomainVisualizer, PlotConfig, PlotType, LayoutType
+
 __all__ = [
     "EEGBackendCore",
     "EEGDataManager", 
@@ -36,4 +45,26 @@ __all__ = [
     "PreprocessingPipeline",
     "PreprocessingConfig",
     "PreprocessingPresets",
+    # Phase 2 - Enhanced ICA and Artifact Detection
+    "EnhancedICAProcessor",
+    "ICAConfig", 
+    "ICAMethod",
+    "EnhancedArtifactDetector",
+    "ArtifactType",
+    "DetectionConfig",
+    # Phase 3 - Time-Domain Analysis & ERPs
+    "EpochingProcessor",
+    "EpochingConfig",
+    "SegmentationConfig", 
+    "BaselineCorrectionMethod",
+    "EpochRejectionCriteria",
+    "ERPAnalyzer",
+    "ERPConfig",
+    "PeakDetectionMethod",
+    "ERPComponent", 
+    "StatisticalTest",
+    "TimeDomainVisualizer",
+    "PlotConfig",
+    "PlotType",
+    "LayoutType",
 ]

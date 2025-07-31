@@ -434,6 +434,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 ComparisonScreen,
                 ICAComponentSelector,
                 AdvancedPreprocessingWidget,
+                TimeDomainAnalysisWidget,
             )
 
             theme = {
@@ -452,6 +453,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
             self.channel_selector_screen = ChannelSelectorWidget(theme=theme)
             self.preprocessing_screen = AdvancedPreprocessingWidget(theme=theme)
             self.ica_selector_screen = ICAComponentSelector(theme=theme)
+            self.time_domain_screen = TimeDomainAnalysisWidget()
             self.comparison_screen = ComparisonScreen(theme=theme)
 
             # Setup UI now that components are ready
@@ -516,6 +518,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.stacked_widget.addWidget(self.channel_selector_screen)
         self.stacked_widget.addWidget(self.preprocessing_screen)
         self.stacked_widget.addWidget(self.ica_selector_screen)
+        self.stacked_widget.addWidget(self.time_domain_screen)
         self.stacked_widget.addWidget(self.comparison_screen)
         
         # Apply global custom styling to override system styles
@@ -532,6 +535,20 @@ class EEGArtifactCleanerGUI(QMainWindow):
         QMainWindow {
             background-color: #f8f9fa;
             color: #212529;
+            font-size: 14px;
+        }
+        
+        /* Global text styling */
+        QWidget {
+            color: #212529;
+            font-size: 14px;
+        }
+        
+        /* Label styling - ensure dark text on light backgrounds */
+        QLabel {
+            color: #212529;
+            font-size: 14px;
+            font-weight: normal;
         }
         
         /* Override all QTabWidget styling globally */
@@ -554,11 +571,11 @@ class EEGArtifactCleanerGUI(QMainWindow):
             border-top-left-radius: 8px;
             border-top-right-radius: 8px;
             min-width: 120px;
-            min-height: 35px;
-            padding: 8px 16px;
+            min-height: 38px;
+            padding: 10px 18px;
             margin-right: 2px;
             font-weight: bold;
-            font-size: 11px;
+            font-size: 14px;
             color: #495057;
         }
         
@@ -586,26 +603,28 @@ class EEGArtifactCleanerGUI(QMainWindow):
                                       stop: 0 #46b8da, stop: 1 #2e8ba8);
         }
         
-        /* Button styling */
+        /* Button styling - white text on blue background */
         QPushButton {
             background-color: #007bff;
             border: 2px solid #007bff;
             border-radius: 6px;
             color: white;
             font-weight: bold;
-            font-size: 11px;
-            padding: 8px 16px;
-            min-height: 20px;
+            font-size: 14px;
+            padding: 10px 18px;
+            min-height: 24px;
         }
         
         QPushButton:hover {
             background-color: #0056b3;
             border-color: #004085;
+            color: white;
         }
         
         QPushButton:pressed {
             background-color: #004085;
             border-color: #003d82;
+            color: white;
         }
         
         QPushButton:disabled {
@@ -614,14 +633,14 @@ class EEGArtifactCleanerGUI(QMainWindow):
             color: #ffffff;
         }
         
-        /* GroupBox styling */
+        /* GroupBox styling - dark text on light background */
         QGroupBox {
             font-weight: bold;
-            font-size: 12px;
+            font-size: 15px;
             border: 2px solid #dee2e6;
             border-radius: 8px;
             margin-top: 1ex;
-            padding-top: 12px;
+            padding-top: 15px;
             background-color: #ffffff;
             color: #495057;
         }
@@ -632,17 +651,18 @@ class EEGArtifactCleanerGUI(QMainWindow):
             padding: 0 8px 0 8px;
             color: #007bff;
             font-weight: bold;
+            font-size: 15px;
         }
         
-        /* ComboBox styling */
+        /* ComboBox styling - dark text on white background */
         QComboBox {
             border: 2px solid #ced4da;
             border-radius: 4px;
-            padding: 6px 12px;
-            font-size: 11px;
+            padding: 8px 14px;
+            font-size: 14px;
             background-color: white;
             color: #495057;
-            min-height: 20px;
+            min-height: 24px;
         }
         
         QComboBox:hover {
@@ -667,12 +687,65 @@ class EEGArtifactCleanerGUI(QMainWindow):
             margin-right: 5px;
         }
         
-        /* Progress Bar styling */
+        QComboBox QAbstractItemView {
+            background-color: white;
+            color: #495057;
+            font-size: 14px;
+            border: 1px solid #ced4da;
+            selection-background-color: #007bff;
+            selection-color: white;
+        }
+        
+        /* Spin box styling - dark text on white background */
+        QSpinBox, QDoubleSpinBox {
+            border: 2px solid #ced4da;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 14px;
+            background-color: white;
+            color: #495057;
+            min-height: 20px;
+        }
+        
+        QSpinBox:hover, QDoubleSpinBox:hover {
+            border-color: #80bdff;
+        }
+        
+        QSpinBox:focus, QDoubleSpinBox:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        
+        /* Checkbox styling - dark text on light background */
+        QCheckBox {
+            color: #495057;
+            font-size: 14px;
+            spacing: 8px;
+        }
+        
+        QCheckBox::indicator {
+            width: 18px;
+            height: 18px;
+        }
+        
+        QCheckBox::indicator:unchecked {
+            border: 2px solid #6c757d;
+            background-color: white;
+            border-radius: 3px;
+        }
+        
+        QCheckBox::indicator:checked {
+            border: 2px solid #007bff;
+            background-color: #007bff;
+            border-radius: 3px;
+        }
+        
+        /* Progress Bar styling - dark text */
         QProgressBar {
             border: 2px solid #dee2e6;
             border-radius: 4px;
             text-align: center;
-            font-size: 11px;
+            font-size: 14px;
             font-weight: bold;
             color: #495057;
             background-color: #f8f9fa;
@@ -681,6 +754,40 @@ class EEGArtifactCleanerGUI(QMainWindow):
         QProgressBar::chunk {
             background-color: #28a745;
             border-radius: 2px;
+        }
+        
+        /* List widget styling - dark text on white background */
+        QListWidget {
+            background-color: white;
+            color: #495057;
+            font-size: 14px;
+            border: 2px solid #dee2e6;
+            border-radius: 4px;
+        }
+        
+        QListWidget::item {
+            padding: 6px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        QListWidget::item:selected {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        QListWidget::item:hover {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        
+        /* Text edit styling - dark text on white background */
+        QTextEdit {
+            background-color: white;
+            color: #495057;
+            font-size: 13px;
+            border: 2px solid #dee2e6;
+            border-radius: 4px;
+            padding: 8px;
         }
         """
         
@@ -729,6 +836,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
             self.on_preprocessing_complete
         )
         self.ica_selector_screen.components_selected.connect(self.apply_cleaning)
+        self.time_domain_screen.analysis_complete.connect(self.on_time_domain_complete)
         self.comparison_screen.return_to_home.connect(self.reset_ui)
 
     def show_message_box(self, icon, title, text):
@@ -821,15 +929,39 @@ class EEGArtifactCleanerGUI(QMainWindow):
     
     def on_preprocessing_complete(self, preprocessed_raw):
         """
-        Χειρισμός ολοκλήρωσης preprocessing και έναρξη ICA
+        Χειρισμός ολοκλήρωσης preprocessing και επιλογή επόμενου βήματος
         
-        Αποθηκεύει τα preprocessed δεδομένα και ξεκινά την ICA ανάλυση.
+        Δίνει στον χρήστη επιλογή μεταξύ ICA analysis και Time-domain analysis.
         
         Args:
             preprocessed_raw: Τα preprocessed EEG δεδομένα
         """
         self.preprocessed_raw = preprocessed_raw
-        self.start_processing()
+        
+        # Ask user what to do next
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Επιλογή Επόμενου Βήματος")
+        msg_box.setText("Το preprocessing ολοκληρώθηκε επιτυχώς!")
+        msg_box.setInformativeText("Τι θα θέλατε να κάνετε στη συνέχεια;")
+        
+        ica_btn = msg_box.addButton("🔍 ICA Analysis", QMessageBox.ButtonRole.ActionRole)
+        time_domain_btn = msg_box.addButton("📊 Time-Domain Analysis", QMessageBox.ButtonRole.ActionRole)
+        both_btn = msg_box.addButton("🔄 Both Analyses", QMessageBox.ButtonRole.ActionRole)
+        
+        msg_box.setStyleSheet(QApplication.instance().styleSheet())
+        msg_box.exec()
+        
+        clicked_button = msg_box.clickedButton()
+        
+        if clicked_button == time_domain_btn:
+            # Go to time-domain analysis
+            self.go_to_time_domain_analysis()
+        elif clicked_button == both_btn:
+            # Start with time-domain, then can go to ICA
+            self.go_to_time_domain_analysis()
+        else:
+            # Default: go to ICA analysis
+            self.start_processing()
 
     def start_processing(self):
         """
@@ -870,6 +1002,67 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.ica_selector_screen.set_ica_data(**viz_data)
         # Navigate to ICA selector screen (index 3)
         self.stacked_widget.setCurrentIndex(3)
+    
+    def go_to_time_domain_analysis(self):
+        """
+        Μετάβαση στην οθόνη time-domain analysis
+        
+        Φορτώνει τα preprocessed δεδομένα και μεταβαίνει στην οθόνη ανάλυσης.
+        """
+        try:
+            # Set the preprocessed data
+            raw_data = getattr(self, "preprocessed_raw", None)
+            if raw_data is None:
+                # Fallback to loading from file if no preprocessed data
+                import mne
+                raw_data = mne.io.read_raw_edf(self.current_input_file, preload=True)
+                if hasattr(self, "selected_channels") and self.selected_channels:
+                    raw_data.pick_channels(self.selected_channels)
+            
+            self.time_domain_screen.set_data(raw_data)
+            
+            # Navigate to time-domain analysis screen (index 4)
+            self.stacked_widget.setCurrentIndex(4)
+            self.status_bar.showMessage("Εκτελέστε time-domain analysis")
+            
+        except Exception as e:
+            self.show_message_box(
+                QMessageBox.Icon.Critical,
+                "Σφάλμα",
+                f"Αποτυχία φόρτωσης δεδομένων για time-domain analysis:\n{str(e)}"
+            )
+    
+    def on_time_domain_complete(self, results):
+        """
+        Χειρισμός ολοκλήρωσης time-domain analysis
+        
+        Args:
+            results (dict): Αποτελέσματα της ανάλυσης
+        """
+        self.status_bar.showMessage("Time-domain analysis ολοκληρώθηκε επιτυχώς!")
+        
+        # Ask user what to do next
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Ανάλυση Ολοκληρώθηκε")
+        msg_box.setText("Η time-domain analysis ολοκληρώθηκε επιτυχώς!")
+        msg_box.setInformativeText("Τι θα θέλατε να κάνετε στη συνέχεια;")
+        
+        ica_btn = msg_box.addButton("🔍 ICA Analysis", QMessageBox.ButtonRole.ActionRole)
+        home_btn = msg_box.addButton("🏠 Επιστροφή στην Αρχή", QMessageBox.ButtonRole.ActionRole)
+        stay_btn = msg_box.addButton("📊 Παραμονή εδώ", QMessageBox.ButtonRole.ActionRole)
+        
+        msg_box.setStyleSheet(QApplication.instance().styleSheet()) 
+        msg_box.exec()
+        
+        clicked_button = msg_box.clickedButton()
+        
+        if clicked_button == ica_btn:
+            # Go to ICA analysis
+            self.start_processing()
+        elif clicked_button == home_btn:
+            # Return to home
+            self.reset_ui()
+        # else stay on current screen
 
     def apply_cleaning(self, selected_components):
         """
@@ -937,8 +1130,8 @@ class EEGArtifactCleanerGUI(QMainWindow):
                     input_file=results["input_file"],
                     output_file=results["output_file"],
                 )
-                # Navigate to comparison screen (index 3)
-                self.stacked_widget.setCurrentIndex(3)
+                # Navigate to comparison screen (index 5)
+                self.stacked_widget.setCurrentIndex(5)
                 self.status_bar.showMessage(
                     "Σύγκριση αποτελεσμάτων - Επιτυχής καθαρισμός!"
                 )

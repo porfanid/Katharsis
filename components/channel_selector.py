@@ -35,21 +35,23 @@ class ChannelCheckBox(QCheckBox):
         super().__init__(channel_name)
         self.channel_name = channel_name
         self.channel_info = channel_info
-        self.setFont(QFont("Arial", 11))
+        self.setFont(QFont("Arial", 14))
 
         # Style the checkbox
         self.setStyleSheet(
             """
             QCheckBox {
-                padding: 8px;
+                padding: 10px;
                 border-radius: 4px;
                 background-color: #f8f9fa;
                 border: 1px solid #dee2e6;
                 color: #212529;
+                font-size: 14px;
             }
             QCheckBox:hover {
                 background-color: #e9ecef;
                 border-color: #007AFF;
+                color: #212529;
             }
             QCheckBox:checked {
                 background-color: #d4e6f1;
@@ -58,8 +60,8 @@ class ChannelCheckBox(QCheckBox):
                 color: #212529;
             }
             QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
+                width: 20px;
+                height: 20px;
             }
             QCheckBox::indicator:unchecked {
                 border: 2px solid #6c757d;

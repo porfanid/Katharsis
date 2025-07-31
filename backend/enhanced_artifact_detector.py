@@ -16,7 +16,7 @@ Version: 2.0
 import warnings
 from typing import Dict, List, Optional, Tuple, Union, Any
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import mne
 import numpy as np
@@ -73,7 +73,7 @@ class DetectionConfig:
     
     # Frequency band thresholds (Hz)
     muscle_freq_range: Tuple[float, float] = (30.0, 100.0)
-    line_noise_freqs: List[float] = [50.0, 60.0]
+    line_noise_freqs: List[float] = field(default_factory=lambda: [50.0, 60.0])
     heart_freq_range: Tuple[float, float] = (0.8, 2.0)
     
     # Detection windows (samples)
