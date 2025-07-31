@@ -76,6 +76,9 @@ class ICAConfig:
     enable_stability_analysis: bool = False
     n_stability_runs: int = 5
     stability_threshold: float = 0.8
+    
+    # Additional processing options
+    compute_sources: bool = True
 
 
 class EnhancedICAProcessor:
@@ -94,6 +97,7 @@ class EnhancedICAProcessor:
         self.config = config or ICAConfig()
         self.ica: Optional[mne.preprocessing.ICA] = None
         self.raw_data: Optional[mne.io.Raw] = None
+        self.fitted: bool = False
         self.components_: Optional[np.ndarray] = None
         self.mixing_matrix_: Optional[np.ndarray] = None
         
@@ -140,17 +144,23 @@ class EnhancedICAProcessor:
             # Initialize ICA with specified method
             n_components = self.config.n_components
             if n_components is None:
-                n_components = min(len(picks), raw.get_data().shape[1] // 10)
-                n_components = max(n_components, 10)  # At least 10 components
+                # Use number of channels, not time points
+                n_components = min(len(picks), raw.get_data(picks=picks).shape[0])
+                n_components = max(n_components, min(10, len(picks)))  # At least 10 components or number of channels
             
             # Create ICA object based on method
+            fit_params = self.config.fit_params or {}
+            
             if self.config.method == ICAMethod.FASTICA:
+                # Add tolerance parameter for better convergence
+                if 'tol' not in fit_params:
+                    fit_params['tol'] = 1e-3  # More lenient tolerance
                 self.ica = mne.preprocessing.ICA(
                     n_components=n_components,
                     method='fastica',
                     random_state=self.config.random_state,
                     max_iter=self.config.max_iter,
-                    fit_params=self.config.fit_params or {'extended': True}
+                    fit_params=fit_params
                 )
             elif self.config.method == ICAMethod.EXTENDED_INFOMAX:
                 self.ica = mne.preprocessing.ICA(
@@ -178,26 +188,51 @@ class EnhancedICAProcessor:
             # Fit ICA
             self.ica.fit(raw, picks=picks)
             
-            # Extract components and mixing matrix
-            self.components_ = self.ica.components_
-            self.mixing_matrix_ = self.ica.mixing_
-            
-            # Perform automated classification if enabled
-            if self.config.enable_auto_classification:
-                self._classify_components()
-            
-            # Perform stability analysis if enabled
-            if self.config.enable_stability_analysis:
-                self._analyze_stability(raw, picks)
-            
-            return {
-                'success': True,
-                'n_components': self.ica.n_components_,
-                'method': self.config.method.value,
-                'explained_variance': self._calculate_explained_variance(),
-                'auto_classifications': len(self.component_classifications),
-                'auto_reject_count': len(self.auto_reject_indices)
-            }
+            # Check if ICA was fitted properly - handle different MNE versions
+            try:
+                # Try to get components using the method (newer MNE versions)
+                components = self.ica.get_components()
+                if components is not None and components.size > 0:
+                    self.components_ = components
+                    # Get mixing matrix
+                    if hasattr(self.ica, 'mixing_matrix_'):
+                        self.mixing_matrix_ = self.ica.mixing_matrix_
+                    else:
+                        # Calculate mixing matrix from components
+                        self.mixing_matrix_ = np.linalg.pinv(components)
+                    
+                    self.fitted = True
+                    
+                    return {
+                        'success': True,
+                        'n_components': self.ica.n_components_,
+                        'method': self.config.method.value,
+                        'explained_variance': self._calculate_explained_variance(),
+                        'auto_classifications': len(self.component_classifications),
+                        'auto_reject_count': len(self.auto_reject_indices),
+                        'fitted': True
+                    }
+                else:
+                    raise RuntimeError("ICA fitting failed - no components extracted.")
+                    
+            except Exception as get_error:
+                # Fallback: try direct attribute access (older MNE versions)
+                if hasattr(self.ica, 'components_') and self.ica.components_ is not None:
+                    self.components_ = self.ica.components_
+                    self.mixing_matrix_ = getattr(self.ica, 'mixing_', None)
+                    self.fitted = True
+                    
+                    return {
+                        'success': True,
+                        'n_components': self.ica.n_components_,
+                        'method': self.config.method.value,
+                        'explained_variance': self._calculate_explained_variance(),
+                        'auto_classifications': len(self.component_classifications),
+                        'auto_reject_count': len(self.auto_reject_indices),
+                        'fitted': True
+                    }
+                else:
+                    raise RuntimeError(f"ICA fitting failed - could not access components: {str(get_error)}")
             
         except Exception as e:
             return {
@@ -532,6 +567,82 @@ class EnhancedICAProcessor:
                 'mean_stability': float(np.mean(self.stability_scores)),
                 'min_stability': float(np.min(self.stability_scores)),
                 'stable_components': int(np.sum(self.stability_scores > self.config.stability_threshold))
+            }
+        
+        return summary
+    
+    def run_ica_analysis(self, raw: mne.io.Raw, picks: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Complete ICA analysis workflow - fits ICA, classifies components, and provides results
+        
+        Args:
+            raw: Raw EEG data
+            picks: Channels to use for ICA (None for all EEG channels)
+            
+        Returns:
+            Dictionary with complete ICA analysis results including:
+            - ica: Fitted ICA object
+            - component_classification: List of component classifications
+            - auto_reject_indices: Components recommended for removal
+            - summary: Processing summary
+        """
+        try:
+            # Step 1: Fit ICA model
+            fitting_results = self.fit_ica(raw, picks)
+            
+            if not fitting_results.get('success', False) or self.ica is None:
+                error_msg = fitting_results.get('error', 'Unknown ICA fitting error')
+                return {
+                    'error': error_msg,
+                    'status': 'failed',
+                    'ica': None,
+                    'component_classification': [],
+                    'auto_reject_indices': [],
+                    'summary': {'status': 'failed', 'error': error_msg}
+                }
+            
+            # Step 2: Classify components (only if enabled and ICA fitted successfully)
+            if self.config.enable_auto_classification and self.fitted:
+                try:
+                    self._classify_components()
+                except Exception as e:
+                    print(f"Warning: Component classification failed: {e}")
+            
+            # Step 3: Analyze stability if configured
+            if self.config.enable_stability_analysis and self.fitted:
+                try:
+                    self._analyze_stability(raw, picks)
+                except Exception as e:
+                    print(f"Warning: Stability analysis failed: {e}")
+            
+            # Step 4: Compile results
+            results = {
+                'ica': self.ica,
+                'component_classification': self.component_classifications,
+                'auto_reject_indices': self.auto_reject_indices,
+                'fitting_results': fitting_results,
+                'summary': self.get_processing_summary(),
+                'status': 'success'
+            }
+            
+            # Add sources if requested
+            if self.config.compute_sources and self.fitted:
+                try:
+                    sources = self.ica.get_sources(raw)
+                    results['sources'] = sources
+                except Exception as e:
+                    print(f"Warning: Could not compute sources: {e}")
+            
+            return results
+            
+        except Exception as e:
+            return {
+                'error': str(e),
+                'status': 'failed',
+                'ica': None,
+                'component_classification': [],
+                'auto_reject_indices': [],
+                'summary': {'status': 'failed', 'error': str(e)}
             }
         
         return summary

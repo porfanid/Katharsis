@@ -235,20 +235,38 @@ class EpochingProcessor:
         except Exception as e:
             raise RuntimeError(f"Failed to create fixed-length epochs: {str(e)}")
     
-    def find_events_from_raw(self, raw: mne.io.Raw, stim_channel: str = 'STI 014',
+    def find_events_from_raw(self, raw: mne.io.Raw, stim_channel: Optional[str] = None,
                            min_duration: float = 0.002) -> np.ndarray:
         """
-        Find events from stimulus channel in raw data.
+        Find events from stimulus channel in raw data with smart channel detection.
         
         Args:
             raw: MNE Raw object
-            stim_channel: Name of stimulus channel
+            stim_channel: Name of stimulus channel (None for auto-detection)
             min_duration: Minimum event duration
             
         Returns:
             Event array (n_events, 3)
         """
         try:
+            # Auto-detect stimulus channel if not specified
+            if stim_channel is None:
+                stim_channel = self._find_stimulus_channel(raw)
+            
+            # Verify the channel exists
+            if stim_channel not in raw.ch_names:
+                available_stim = self._get_available_stimulus_channels(raw)
+                if available_stim:
+                    stim_channel = available_stim[0]  # Use first available
+                else:
+                    # No stimulus channels found - try to create events from annotations
+                    if raw.annotations:
+                        events, _ = self.create_events_from_annotations(raw)
+                        return events
+                    else:
+                        raise RuntimeError(f"No stimulus channels found and no annotations available. "
+                                         f"Available channels: {raw.ch_names[:10]}...")
+            
             events = mne.find_events(
                 raw=raw,
                 stim_channel=stim_channel,
@@ -259,7 +277,50 @@ class EpochingProcessor:
             return events
             
         except Exception as e:
-            raise RuntimeError(f"Failed to find events: {str(e)}")
+            # Try alternative approaches if direct event finding fails
+            try:
+                if raw.annotations:
+                    events, _ = self.create_events_from_annotations(raw)
+                    return events
+                else:
+                    raise RuntimeError(f"Failed to find events and no annotations available: {str(e)}")
+            except:
+                raise RuntimeError(f"Failed to find events: {str(e)}")
+    
+    def _find_stimulus_channel(self, raw: mne.io.Raw) -> str:
+        """Find the most likely stimulus channel in the data"""
+        # Common stimulus channel names to check in order of preference
+        common_stim_names = [
+            'STI 014', 'STI014', 'STI',  # Standard EEGLAB/MNE
+            'TRIGGER', 'TRIG', 'Trigger',  # Common alternatives
+            'STATUS', 'Event', 'Events',   # Other naming conventions
+            'Stimulus', 'STIM'             # Generic names
+        ]
+        
+        for name in common_stim_names:
+            if name in raw.ch_names:
+                return name
+        
+        # If no exact match, look for channels containing stimulus-like terms
+        for ch_name in raw.ch_names:
+            ch_upper = ch_name.upper()
+            if any(term in ch_upper for term in ['STI', 'TRIG', 'EVENT', 'STIM']):
+                return ch_name
+        
+        # Return default if nothing found (will be handled by caller)
+        return 'STI 014'
+    
+    def _get_available_stimulus_channels(self, raw: mne.io.Raw) -> List[str]:
+        """Get list of available stimulus-like channels"""
+        stimulus_channels = []
+        
+        for ch_name in raw.ch_names:
+            ch_upper = ch_name.upper()
+            # Check if channel name suggests it's a stimulus channel
+            if any(term in ch_upper for term in ['STI', 'TRIG', 'EVENT', 'STIM', 'STATUS']):
+                stimulus_channels.append(ch_name)
+        
+        return stimulus_channels
     
     def create_events_from_annotations(self, raw: mne.io.Raw) -> Tuple[np.ndarray, Dict[str, int]]:
         """
