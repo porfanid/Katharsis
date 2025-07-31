@@ -517,10 +517,174 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.stacked_widget.addWidget(self.preprocessing_screen)
         self.stacked_widget.addWidget(self.ica_selector_screen)
         self.stacked_widget.addWidget(self.comparison_screen)
+        
+        # Apply global custom styling to override system styles
+        self.apply_global_styling()
 
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Έτοιμο")
+    
+    def apply_global_styling(self):
+        """Apply global custom styling to override system styles completely"""
+        global_style = """
+        /* Main Application Window */
+        QMainWindow {
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        
+        /* Override all QTabWidget styling globally */
+        QTabWidget::pane {
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            background-color: #ffffff;
+            margin-top: -1px;
+        }
+        
+        QTabWidget::tab-bar {
+            alignment: center;
+        }
+        
+        QTabBar::tab {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #e8ecef, stop: 1 #dee2e6);
+            border: 2px solid #adb5bd;
+            border-bottom: none;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            min-width: 120px;
+            min-height: 35px;
+            padding: 8px 16px;
+            margin-right: 2px;
+            font-weight: bold;
+            font-size: 11px;
+            color: #495057;
+        }
+        
+        QTabBar::tab:hover {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #d1ecf1, stop: 1 #bee5eb);
+            border-color: #6ea8ba;
+            color: #0c5460;
+        }
+        
+        QTabBar::tab:selected {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #5bc0de, stop: 1 #31b0d5);
+            border-color: #2e8ba8;
+            color: white;
+            font-weight: bold;
+        }
+        
+        QTabBar::tab:!selected {
+            margin-top: 4px;
+        }
+        
+        QTabBar::tab:selected:hover {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #46b8da, stop: 1 #2e8ba8);
+        }
+        
+        /* Button styling */
+        QPushButton {
+            background-color: #007bff;
+            border: 2px solid #007bff;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 8px 16px;
+            min-height: 20px;
+        }
+        
+        QPushButton:hover {
+            background-color: #0056b3;
+            border-color: #004085;
+        }
+        
+        QPushButton:pressed {
+            background-color: #004085;
+            border-color: #003d82;
+        }
+        
+        QPushButton:disabled {
+            background-color: #6c757d;
+            border-color: #6c757d;
+            color: #ffffff;
+        }
+        
+        /* GroupBox styling */
+        QGroupBox {
+            font-weight: bold;
+            font-size: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            margin-top: 1ex;
+            padding-top: 12px;
+            background-color: #ffffff;
+            color: #495057;
+        }
+        
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 8px 0 8px;
+            color: #007bff;
+            font-weight: bold;
+        }
+        
+        /* ComboBox styling */
+        QComboBox {
+            border: 2px solid #ced4da;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 11px;
+            background-color: white;
+            color: #495057;
+            min-height: 20px;
+        }
+        
+        QComboBox:hover {
+            border-color: #80bdff;
+        }
+        
+        QComboBox:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        
+        QComboBox::drop-down {
+            border: none;
+            width: 20px;
+        }
+        
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #6c757d;
+            margin-right: 5px;
+        }
+        
+        /* Progress Bar styling */
+        QProgressBar {
+            border: 2px solid #dee2e6;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            color: #495057;
+            background-color: #f8f9fa;
+        }
+        
+        QProgressBar::chunk {
+            background-color: #28a745;
+            border-radius: 2px;
+        }
+        """
+        
+        self.setStyleSheet(global_style)
 
     def create_welcome_screen(self):
         """

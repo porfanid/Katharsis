@@ -163,8 +163,9 @@ class AdvancedPreprocessingWidget(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
         
-        # Main content in tabs
+        # Main content in tabs with custom styling
         self.tab_widget = QTabWidget()
+        self.setup_custom_tab_styling()
         layout.addWidget(self.tab_widget)
         
         # Tab 1: Channel Analysis
@@ -394,6 +395,81 @@ class AdvancedPreprocessingWidget(QWidget):
         layout.addStretch()
         
         self.tab_widget.addTab(tab, "⚙️ Pipeline")
+    
+    def setup_custom_tab_styling(self):
+        """Apply custom styling to override system tab appearance"""
+        custom_style = """
+        QTabWidget::pane {
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            background-color: #ffffff;
+            margin-top: -1px;
+        }
+        
+        QTabWidget::tab-bar {
+            alignment: center;
+        }
+        
+        QTabBar::tab {
+            background-color: #ecf0f1;
+            border: 2px solid #bdc3c7;
+            border-bottom: none;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            min-width: 120px;
+            min-height: 35px;
+            padding: 8px 16px;
+            margin-right: 2px;
+            font-weight: bold;
+            font-size: 11px;
+            color: #2c3e50;
+        }
+        
+        QTabBar::tab:hover {
+            background-color: #d5dbdb;
+            border-color: #95a5a6;
+            color: #2c3e50;
+        }
+        
+        QTabBar::tab:selected {
+            background-color: #3498db;
+            border-color: #2980b9;
+            color: white;
+            font-weight: bold;
+        }
+        
+        QTabBar::tab:!selected {
+            margin-top: 4px;
+        }
+        
+        QTabBar::tab:selected:hover {
+            background-color: #2980b9;
+        }
+        
+        /* Custom styling for tab content */
+        QTabWidget QWidget {
+            background-color: #ffffff;
+        }
+        
+        QTabWidget QGroupBox {
+            font-weight: bold;
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            margin-top: 1ex;
+            padding-top: 8px;
+            background-color: #fafafa;
+        }
+        
+        QTabWidget QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 8px 0 8px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        """
+        
+        self.tab_widget.setStyleSheet(custom_style)
     
     def create_bottom_section(self, parent_layout):
         """Create bottom section with progress and controls"""
