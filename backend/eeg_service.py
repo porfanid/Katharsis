@@ -97,6 +97,48 @@ class EEGArtifactCleaningService:
         if self.status_callback:
             self.status_callback(status)
 
+    def load_preprocessed_data(self, raw_data: mne.io.Raw) -> Dict[str, Any]:
+        """
+        Set preprocessed raw data for ICA analysis
+        
+        Args:
+            raw_data: Preprocessed MNE Raw object
+            
+        Returns:
+            Dictionary with success status
+        """
+        self.is_processing = True
+        self.ica_fitted = False
+        
+        try:
+            self._update_status("Accepting preprocessed data...")
+            self._update_progress(10)
+            
+            # Set the preprocessed data in backend core
+            self.backend_core.raw_data = raw_data
+            self.backend_core.data = raw_data.get_data()
+            self.backend_core.info = raw_data.info
+            self.backend_core.sfreq = raw_data.info['sfreq']
+            self.backend_core.channels = raw_data.ch_names
+            
+            # Update ICA processor with channel count
+            n_channels = len(raw_data.ch_names)
+            self.ica_processor = ICAProcessor(n_components=None)  # Auto-detect
+            
+            self._update_progress(30)
+            self._update_status("Preprocessed data loaded successfully")
+            
+            return {
+                "success": True,
+                "channels": raw_data.ch_names,
+                "sampling_rate": raw_data.info['sfreq'],
+                "n_samples": raw_data.n_times
+            }
+            
+        except Exception as e:
+            self.is_processing = False
+            return {"success": False, "error": f"Failed to load preprocessed data: {str(e)}"}
+
     def load_and_prepare_file(
         self, file_path: str, selected_channels: Optional[List[str]] = None
     ) -> Dict[str, Any]:

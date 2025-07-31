@@ -232,32 +232,40 @@ class EEGProcessingThread(QThread):
     processing_complete = pyqtSignal(bool, str)
     ica_ready = pyqtSignal(dict)
 
-    def __init__(self, service, input_file, selected_channels=None):
+    def __init__(self, service, input_file=None, selected_channels=None, preprocessed_raw=None):
         """
         Αρχικοποίηση του thread επεξεργασίας
 
         Args:
             service: Η υπηρεσία καθαρισμού EEG
-            input_file (str): Διαδρομή του αρχείου εισόδου
+            input_file (str, optional): Διαδρομή του αρχείου εισόδου
             selected_channels (List[str], optional): Επιλεγμένα κανάλια
+            preprocessed_raw (mne.io.Raw, optional): Preprocessed data
         """
         super().__init__()
         self.service = service
         self.input_file = input_file
         self.selected_channels = selected_channels
+        self.preprocessed_raw = preprocessed_raw
 
     def run(self):
         """
         Εκτέλεση της επεξεργασίας EEG δεδομένων
 
-        Φορτώνει το αρχείο, εκπαιδεύει το ICA μοντέλο, εντοπίζει artifacts
-        και προετοιμάζει τα δεδομένα για οπτικοποίηση.
+        Φορτώνει τα δεδομένα (από αρχείο ή preprocessed), εκπαιδεύει το ICA μοντέλο, 
+        εντοπίζει artifacts και προετοιμάζει τα δεδομένα για οπτικοποίηση.
         """
         try:
-            self.status_update.emit("Φόρτωση και προετοιμασία αρχείου...")
-            load_result = self.service.load_and_prepare_file(
-                self.input_file, self.selected_channels
-            )
+            # Load data (either from file or use preprocessed data)
+            if self.preprocessed_raw is not None:
+                self.status_update.emit("Χρήση preprocessed δεδομένων...")
+                load_result = self.service.load_preprocessed_data(self.preprocessed_raw)
+            else:
+                self.status_update.emit("Φόρτωση και προετοιμασία αρχείου...")
+                load_result = self.service.load_and_prepare_file(
+                    self.input_file, self.selected_channels
+                )
+                
             if not load_result["success"]:
                 self.processing_complete.emit(
                     False,
@@ -425,6 +433,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 ChannelSelectorWidget,
                 ComparisonScreen,
                 ICAComponentSelector,
+                AdvancedPreprocessingWidget,
             )
 
             theme = {
@@ -441,6 +450,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 "border": "#dee2e6",
             }
             self.channel_selector_screen = ChannelSelectorWidget(theme=theme)
+            self.preprocessing_screen = AdvancedPreprocessingWidget(theme=theme)
             self.ica_selector_screen = ICAComponentSelector(theme=theme)
             self.comparison_screen = ComparisonScreen(theme=theme)
 
@@ -504,6 +514,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
         self.stacked_widget.addWidget(self.welcome_screen)
         self.stacked_widget.addWidget(self.channel_selector_screen)
+        self.stacked_widget.addWidget(self.preprocessing_screen)
         self.stacked_widget.addWidget(self.ica_selector_screen)
         self.stacked_widget.addWidget(self.comparison_screen)
 
@@ -549,6 +560,9 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.select_input_btn.clicked.connect(self.select_input_file)
         self.channel_selector_screen.channels_selected.connect(
             self.on_channels_selected
+        )
+        self.preprocessing_screen.preprocessing_complete.connect(
+            self.on_preprocessing_complete
         )
         self.ica_selector_screen.components_selected.connect(self.apply_cleaning)
         self.comparison_screen.return_to_home.connect(self.reset_ui)
@@ -612,14 +626,45 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
     def on_channels_selected(self, selected_channels):
         """
-        Χειρισμός επιλογής καναλιών και έναρξη επεξεργασίας
-
-        Αποθηκεύει τα επιλεγμένα κανάλια και ξεκινά την επεξεργασία των δεδομένων.
-
+        Χειρισμός επιλογής καναλιών και μετάβαση στο preprocessing
+        
+        Αποθηκεύει τα επιλεγμένα κανάλια και μεταβαίνει στην οθόνη preprocessing.
+        
         Args:
             selected_channels (List[str]): Λίστα επιλεγμένων καναλιών
         """
         self.selected_channels = selected_channels
+        self.show_preprocessing_screen()
+    
+    def show_preprocessing_screen(self):
+        """
+        Εμφάνιση της οθόνης advanced preprocessing
+        
+        Φορτώνει το επιλεγμένο αρχείο και τα κανάλια στην οθόνη preprocessing.
+        """
+        try:
+            # Load the file with selected channels for preprocessing
+            self.preprocessing_screen.load_data(self.current_input_file, self.selected_channels)
+            # Navigate to preprocessing screen (index 2)
+            self.stacked_widget.setCurrentIndex(2)
+            self.status_bar.showMessage("Παραμετροποιήστε το preprocessing και εκτελέστε το")
+        except Exception as e:
+            self.show_message_box(
+                QMessageBox.Icon.Critical,
+                "Σφάλμα",
+                f"Αδυναμία φόρτωσης δεδομένων για preprocessing:\n{str(e)}",
+            )
+    
+    def on_preprocessing_complete(self, preprocessed_raw):
+        """
+        Χειρισμός ολοκλήρωσης preprocessing και έναρξη ICA
+        
+        Αποθηκεύει τα preprocessed δεδομένα και ξεκινά την ICA ανάλυση.
+        
+        Args:
+            preprocessed_raw: Τα preprocessed EEG δεδομένα
+        """
+        self.preprocessed_raw = preprocessed_raw
         self.start_processing()
 
     def start_processing(self):
@@ -632,11 +677,15 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.select_input_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
 
-        # Use selected channels if available
+        # Use preprocessed data if available, otherwise use file and channels
+        preprocessed_raw = getattr(self, "preprocessed_raw", None)
         channels_to_use = getattr(self, "selected_channels", None)
 
         self.processing_thread = EEGProcessingThread(
-            self.service, self.current_input_file, channels_to_use
+            self.service, 
+            input_file=self.current_input_file if preprocessed_raw is None else None,
+            selected_channels=channels_to_use if preprocessed_raw is None else None,
+            preprocessed_raw=preprocessed_raw
         )
         self.processing_thread.progress_update.connect(self.progress_bar.setValue)
         self.processing_thread.status_update.connect(self.status_bar.showMessage)
@@ -655,8 +704,8 @@ class EEGArtifactCleanerGUI(QMainWindow):
             viz_data (dict): Δεδομένα για οπτικοποίηση των ICA συνιστωσών
         """
         self.ica_selector_screen.set_ica_data(**viz_data)
-        # Navigate to ICA selector screen (index 2)
-        self.stacked_widget.setCurrentIndex(2)
+        # Navigate to ICA selector screen (index 3)
+        self.stacked_widget.setCurrentIndex(3)
 
     def apply_cleaning(self, selected_components):
         """

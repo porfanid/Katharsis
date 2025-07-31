@@ -14,6 +14,7 @@ Version: 1.0
 """
 
 from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (
@@ -40,7 +41,7 @@ class PreprocessingWorkerThread(QThread):
     
     progress_update = pyqtSignal(int)
     status_update = pyqtSignal(str)
-    preprocessing_complete = pyqtSignal(bool, str, dict)
+    preprocessing_complete = pyqtSignal(bool, str, dict, object)  # success, message, results, processed_raw
     
     def __init__(self, raw, config):
         super().__init__()
@@ -57,10 +58,10 @@ class PreprocessingWorkerThread(QThread):
             processed_raw, results = self.pipeline.run_pipeline(self.raw, self.config)
             
             self.progress_update.emit(100)
-            self.preprocessing_complete.emit(True, "Preprocessing completed successfully!", results)
+            self.preprocessing_complete.emit(True, "Preprocessing completed successfully!", results, processed_raw)
             
         except Exception as e:
-            self.preprocessing_complete.emit(False, f"Preprocessing failed: {str(e)}", {})
+            self.preprocessing_complete.emit(False, f"Preprocessing failed: {str(e)}", {}, None)
 
 
 class FilterConfigWidget(QWidget):
@@ -448,6 +449,32 @@ class AdvancedPreprocessingWidget(QWidget):
         self.reset_btn.clicked.connect(self.reset_settings)
         self.run_preprocessing_btn.clicked.connect(self.run_preprocessing)
     
+    def load_data(self, file_path: str, selected_channels: List[str] = None):
+        """Load EEG data from file path with optional channel selection"""
+        try:
+            self.status_label.setText("Loading EEG data...")
+            
+            # Load raw data using mne
+            if file_path.endswith('.edf'):
+                raw = mne.io.read_raw_edf(file_path, preload=True)
+            elif file_path.endswith('.bdf'):
+                raw = mne.io.read_raw_bdf(file_path, preload=True)
+            elif file_path.endswith('.fif'):
+                raw = mne.io.read_raw_fif(file_path, preload=True)
+            else:
+                raise ValueError(f"Unsupported file format: {file_path}")
+            
+            # Select specific channels if provided
+            if selected_channels:
+                raw = raw.pick_channels(selected_channels)
+            
+            self.set_raw_data(raw)
+            self.status_label.setText(f"Loaded {len(raw.ch_names)} channels from {Path(file_path).name}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Loading Error", f"Failed to load EEG data:\n{str(e)}")
+            self.status_label.setText("Loading failed")
+
     def set_raw_data(self, raw: mne.io.Raw):
         """Set the raw EEG data for preprocessing"""
         self.raw_data = raw
@@ -768,7 +795,7 @@ class AdvancedPreprocessingWidget(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Preprocessing Error", f"Failed to start preprocessing:\n{str(e)}")
     
-    def on_preprocessing_complete(self, success: bool, message: str, results: Dict):
+    def on_preprocessing_complete(self, success: bool, message: str, results: Dict, processed_raw):
         """Handle preprocessing completion"""
         # Re-enable controls
         self.run_preprocessing_btn.setEnabled(True)
@@ -778,9 +805,8 @@ class AdvancedPreprocessingWidget(QWidget):
         if success:
             QMessageBox.information(self, "Success", message)
             
-            # Extract processed data from results (this would need to be implemented)
-            # processed_raw = results.get('processed_raw')
-            # self.preprocessing_complete.emit(processed_raw, results)
+            # Emit the processed data to parent
+            self.preprocessing_complete.emit(processed_raw, results)
             
         else:
             QMessageBox.critical(self, "Error", message)
