@@ -12,6 +12,7 @@ from .results_display import (
     ResultsDisplayWidget,
     StatisticsTableWidget,
 )
+from .advanced_preprocessing_widget import AdvancedPreprocessingWidget
 
 __all__ = [
     "ICAComponentSelector",
@@ -21,4 +22,5 @@ __all__ = [
     "ComparisonPlotWidget",
     "ComparisonScreen",
     "ChannelSelectorWidget",
+    "AdvancedPreprocessingWidget",
 ]
