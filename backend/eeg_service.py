@@ -116,6 +116,8 @@ class EEGArtifactCleaningService:
             
             # Set the preprocessed data in backend core
             self.backend_core.raw_data = raw_data
+            # Since the data is already preprocessed (filtered), set it as filtered_data too
+            self.backend_core.filtered_data = raw_data
             self.backend_core.data = raw_data.get_data()
             self.backend_core.info = raw_data.info
             self.backend_core.sfreq = raw_data.info['sfreq']
