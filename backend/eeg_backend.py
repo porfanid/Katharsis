@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import mne
 import numpy as np
-import pandas as pd
 from scipy import stats
 
 # Suppress MNE warnings for cleaner output
@@ -195,192 +194,6 @@ class EEGDataManager:
         return raw, available_channels
 
     @staticmethod
-    def detect_file_format(file_path: str) -> str:
-        """
-        Αυτόματος εντοπισμός τύπου αρχείου από την επέκταση
-        
-        Args:
-            file_path: Διαδρομή αρχείου
-            
-        Returns:
-            str: Τύπος αρχείου ('edf', 'bdf', 'fif', 'csv', 'set')
-            
-        Raises:
-            ValueError: Εάν ο τύπος αρχείου δεν υποστηρίζεται
-        """
-        extension = Path(file_path).suffix.lower()
-        format_map = {
-            '.edf': 'edf',
-            '.bdf': 'bdf', 
-            '.fif': 'fif',
-            '.csv': 'csv',
-            '.set': 'set'
-        }
-        
-        if extension not in format_map:
-            raise ValueError(f"Μη υποστηριζόμενος τύπος αρχείου: {extension}")
-            
-        return format_map[extension]
-
-    @staticmethod
-    def load_raw_file(
-        file_path: str, selected_channels: Optional[List[str]] = None
-    ) -> Tuple[mne.io.Raw, List[str]]:
-        """
-        Φόρτωση EEG αρχείου οποιουδήποτε υποστηριζόμενου τύπου
-        
-        Args:
-            file_path: Διαδρομή αρχείου (.edf, .bdf, .fif, .csv, .set)
-            selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
-            
-        Returns:
-            Tuple[mne.io.Raw, List[str]]: Raw δεδομένα και λίστα καναλιών
-            
-        Raises:
-            FileNotFoundError: Εάν το αρχείο δεν βρεθεί
-            ValueError: Εάν το αρχείο δεν είναι έγκυρο ή δεν υποστηρίζεται
-        """
-        if not Path(file_path).exists():
-            raise FileNotFoundError(f"Το αρχείο {file_path} δεν βρέθηκε")
-            
-        file_format = EEGDataManager.detect_file_format(file_path)
-        
-        try:
-            # Φόρτωση βάσει τύπου αρχείου
-            if file_format == 'edf':
-                raw = mne.io.read_raw_edf(file_path, preload=True, verbose=False)
-            elif file_format == 'bdf':
-                raw = mne.io.read_raw_bdf(file_path, preload=True, verbose=False)
-            elif file_format == 'fif':
-                raw = mne.io.read_raw_fif(file_path, preload=True, verbose=False)
-            elif file_format == 'set':
-                raw = mne.io.read_raw_eeglab(file_path, preload=True, verbose=False)
-            elif file_format == 'csv':
-                raw = EEGDataManager._load_csv_file(file_path)
-            else:
-                raise ValueError(f"Μη υποστηριζόμενος τύπος αρχείου: {file_format}")
-                
-        except Exception as e:
-            raise ValueError(f"Σφάλμα φόρτωσης αρχείου {file_format.upper()}: {str(e)}")
-
-        if selected_channels is None:
-            # Αυτόματος εντοπισμός EEG καναλιών
-            available_channels = EEGDataManager.detect_eeg_channels(raw)
-            
-            if not available_channels:
-                raise ValueError("Δεν βρέθηκαν έγκυρα EEG κανάλια στο αρχείο")
-        else:
-            # Χρήση επιλεγμένων καναλιών
-            available_channels = []
-            for ch in selected_channels:
-                if ch in raw.ch_names:
-                    available_channels.append(ch)
-                else:
-                    raise ValueError(f"Το κανάλι '{ch}' δεν υπάρχει στο αρχείο")
-                    
-            if len(available_channels) < 3:
-                raise ValueError("Χρειάζονται τουλάχιστον 3 κανάλια για την ανάλυση")
-
-        # Κρατάμε μόνο τα επιλεγμένα κανάλια
-        raw.pick_channels(available_channels)
-        
-        # Ορισμός montage για τοπογραφική απεικόνιση  
-        try:
-            raw.set_montage("standard_1020", on_missing="warn")
-        except (ValueError, KeyError, RuntimeError) as e:
-            # Αν αποτύχει το montage, συνεχίζουμε χωρίς αυτό
-            import warnings
-            warnings.warn(f"Αδυναμία ορισμού montage: {str(e)}", UserWarning)
-            
-        return raw, available_channels
-
-    @staticmethod
-    def _load_csv_file(file_path: str) -> mne.io.Raw:
-        """
-        Φόρτωση CSV αρχείου με EEG δεδομένα
-        
-        Αναμένει CSV με:
-        - Πρώτη γραμμή: ονόματα καναλιών
-        - Στήλες: κανάλια EEG
-        - Γραμμές: χρονικά δείγματα
-        - Προεπιλεγμένη συχνότητα δειγματοληψίας: 256 Hz
-        
-        Args:
-            file_path: Διαδρομή CSV αρχείου
-            
-        Returns:
-            mne.io.Raw: Raw αντικείμενο
-        """
-        import pandas as pd
-        
-        try:
-            # Φόρτωση CSV
-            df = pd.read_csv(file_path)
-            
-            # Μετατροπή σε numpy array
-            data = df.values.T  # Transpose: (channels, times)
-            ch_names = df.columns.tolist()
-            
-            # Δημιουργία info object
-            sfreq = 256.0  # Προεπιλεγμένη συχνότητα δειγματοληψίας
-            info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types='eeg')
-            
-            # Δημιουργία Raw object
-            raw = mne.io.RawArray(data, info, verbose=False)
-            
-            return raw
-            
-        except Exception as e:
-            raise ValueError(f"Σφάλμα φόρτωσης CSV αρχείου: {str(e)}")
-
-    @staticmethod
-    def get_file_info(file_path: str) -> Dict[str, Any]:
-        """
-        Φόρτωση πληροφοριών αρχείου οποιουδήποτε υποστηριζόμενου τύπου
-        
-        Args:
-            file_path: Διαδρομή αρχείου
-            
-        Returns:
-            Dict με πληροφορίες αρχείου
-        """
-        if not Path(file_path).exists():
-            return {"success": False, "error": "Το αρχείο δεν βρέθηκε"}
-            
-        try:
-            file_format = EEGDataManager.detect_file_format(file_path)
-            
-            # Φόρτωση αρχείου χωρίς preload για γρήγορη ανάλυση
-            if file_format == 'edf':
-                raw = mne.io.read_raw_edf(file_path, preload=False, verbose=False)
-            elif file_format == 'bdf':
-                raw = mne.io.read_raw_bdf(file_path, preload=False, verbose=False)
-            elif file_format == 'fif':
-                raw = mne.io.read_raw_fif(file_path, preload=False, verbose=False)
-            elif file_format == 'set':
-                raw = mne.io.read_raw_eeglab(file_path, preload=False, verbose=False)
-            elif file_format == 'csv':
-                # Για CSV χρειάζεται preload για ανάλυση
-                raw = EEGDataManager._load_csv_file(file_path)
-            else:
-                return {"success": False, "error": f"Μη υποστηριζόμενος τύπος: {file_format}"}
-            
-            return {
-                "success": True,
-                "format": file_format,
-                "channels": raw.ch_names,
-                "sampling_rate": raw.info["sfreq"],
-                "n_channels": len(raw.ch_names),
-                "n_times": raw.n_times,
-                "duration": raw.times[-1] if raw.n_times > 0 else 0,
-                "detected_eeg": EEGDataManager.detect_eeg_channels(raw),
-                "annotations": len(raw.annotations)
-            }
-            
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    @staticmethod
     def load_edf_file_info(file_path: str) -> Dict[str, Any]:
         """
         Φόρτωση πληροφοριών EDF αρχείου χωρίς επεξεργασία
@@ -407,37 +220,19 @@ class EEGDataManager:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    def save_cleaned_data(raw: mne.io.Raw, output_path: str, output_format: str = None) -> bool:
+    def save_cleaned_data(raw: mne.io.Raw, output_path: str) -> bool:
         """
-        Αποθήκευση καθαρισμένων δεδομένων σε διάφορα formats
-        
+        Αποθήκευση καθαρισμένων δεδομένων σε EDF format
+
         Args:
             raw: Καθαρισμένα Raw δεδομένα
             output_path: Διαδρομή εξόδου
-            output_format: Format εξόδου ('edf', 'fif', 'csv') - αν None, αυτόματη ανίχνευση από extension
-            
+
         Returns:
             bool: True εάν η αποθήκευση ήταν επιτυχής
         """
         try:
-            # Αυτόματη ανίχνευση format αν δεν δοθεί 
-            if output_format is None:
-                extension = Path(output_path).suffix.lower()
-                format_map = {'.edf': 'edf', '.fif': 'fif', '.csv': 'csv'}
-                output_format = format_map.get(extension, 'edf')  # Default to EDF
-                
-            if output_format == 'edf':
-                raw.export(output_path, fmt="edf", overwrite=True, verbose=False)
-            elif output_format == 'fif':
-                raw.save(output_path, overwrite=True, verbose=False)
-            elif output_format == 'csv':
-                # Αποθήκευση ως CSV
-                data = raw.get_data().T  # (times, channels)
-                df = pd.DataFrame(data, columns=raw.ch_names)
-                df.to_csv(output_path, index=False)
-            else:
-                raise ValueError(f"Μη υποστηριζόμενο format εξόδου: {output_format}")
-                
+            raw.export(output_path, fmt="edf", overwrite=True, verbose=False)
             return True
         except Exception as e:
             print(f"Σφάλμα αποθήκευσης: {str(e)}")
@@ -564,18 +359,18 @@ class EEGBackendCore:
         self, file_path: str, selected_channels: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Φόρτωση και αρχική επεξεργασία αρχείου (υποστηρίζει πολλαπλά formats)
+        Φόρτωση και αρχική επεξεργασία αρχείου
 
         Args:
-            file_path: Διαδρομή αρχείου (.edf, .bdf, .fif, .csv, .set)
+            file_path: Διαδρομή αρχείου
             selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
 
         Returns:
             Dictionary με πληροφορίες φόρτωσης
         """
         try:
-            # Φόρτωση δεδομένων με τη νέα ενοποιημένη διεπαφή
-            self.raw_data, channels = self.data_manager.load_raw_file(
+            # Φόρτωση δεδομένων
+            self.raw_data, channels = self.data_manager.load_edf_file(
                 file_path, selected_channels
             )
             self.current_file = file_path
@@ -601,34 +396,33 @@ class EEGBackendCore:
 
     def get_file_info(self, file_path: str) -> Dict[str, Any]:
         """
-        Λήψη πληροφοριών αρχείου χωρίς φόρτωση δεδομένων (υποστηρίζει πολλαπλά formats)
+        Λήψη πληροφοριών αρχείου χωρίς φόρτωση δεδομένων
 
         Args:
-            file_path: Διαδρομή αρχείου (.edf, .bdf, .fif, .csv, .set)
+            file_path: Διαδρομή αρχείου
 
         Returns:
             Dictionary με πληροφορίες αρχείου
         """
         try:
-            return self.data_manager.get_file_info(file_path)
+            return self.data_manager.load_edf_file_info(file_path)
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def save_cleaned_data(self, cleaned_raw: mne.io.Raw, output_path: str, output_format: str = None) -> bool:
+    def save_cleaned_data(self, cleaned_raw: mne.io.Raw, output_path: str) -> bool:
         """
-        Αποθήκευση καθαρισμένων δεδομένων (υποστηρίζει πολλαπλά formats)
+        Αποθήκευση καθαρισμένων δεδομένων
 
-        Αποθηκεύει τα καθαρισμένα EEG δεδομένα σε διάφορα formats.
+        Αποθηκεύει τα καθαρισμένα EEG δεδομένα σε EDF format.
 
         Args:
             cleaned_raw (mne.io.Raw): Τα καθαρισμένα δεδομένα
             output_path (str): Διαδρομή αρχείου εξόδου
-            output_format (str): Format εξόδου ('edf', 'fif', 'csv') - αν None, αυτόματη ανίχνευση
 
         Returns:
             bool: True εάν η αποθήκευση ήταν επιτυχής
         """
-        return self.data_manager.save_cleaned_data(cleaned_raw, output_path, output_format)
+        return self.data_manager.save_cleaned_data(cleaned_raw, output_path)
 
     def get_filtered_data(self) -> Optional[mne.io.Raw]:
         """

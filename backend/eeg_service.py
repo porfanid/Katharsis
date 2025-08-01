@@ -21,7 +21,6 @@ import mne
 from .artifact_detector import ArtifactDetector
 from .eeg_backend import EEGBackendCore
 from .ica_processor import ICAProcessor
-from .data_consistency_utils import validate_raw_consistency, fix_raw_consistency, diagnose_ica_data_issues
 
 
 class EEGArtifactCleaningService:
@@ -98,84 +97,6 @@ class EEGArtifactCleaningService:
         if self.status_callback:
             self.status_callback(status)
 
-    def load_preprocessed_data(self, raw_data: mne.io.Raw) -> Dict[str, Any]:
-        """
-        Set preprocessed raw data for ICA analysis with data consistency validation
-        
-        Args:
-            raw_data: Preprocessed MNE Raw object
-            
-        Returns:
-            Dictionary with success status and any fixes applied
-        """
-        self.is_processing = True
-        self.ica_fitted = False
-        
-        try:
-            self._update_status("Validating preprocessed data...")
-            self._update_progress(10)
-            
-            # Critical: Validate and fix data consistency before using
-            consistency_check = validate_raw_consistency(raw_data)
-            fix_info = {'applied_fixes': []}
-            
-            if not consistency_check['valid']:
-                self._update_status(f"Fixing data consistency issue: {consistency_check['error']}")
-                raw_data, fix_result = fix_raw_consistency(raw_data, strategy='auto')
-                fix_info = fix_result
-                
-                if fix_result['status'] != 'fixed':
-                    return {
-                        "success": False, 
-                        "error": f"Could not fix data consistency: {fix_result.get('error', 'Unknown error')}\n💡 Try reloading your data or using different preprocessing settings"
-                    }
-                
-                # Re-validate after fix
-                final_check = validate_raw_consistency(raw_data)
-                if not final_check['valid']:
-                    return {
-                        "success": False,
-                        "error": f"Data consistency fix failed: {final_check['error']}\n💡 Data may be corrupted - try reloading from original file"
-                    }
-            
-            self._update_status("Accepting preprocessed data...")
-            self._update_progress(20)
-            
-            # Set the preprocessed data in backend core
-            self.backend_core.raw_data = raw_data
-            # Since the data is already preprocessed (filtered), set it as filtered_data too
-            self.backend_core.filtered_data = raw_data
-            self.backend_core.data = raw_data.get_data()
-            self.backend_core.info = raw_data.info
-            self.backend_core.sfreq = raw_data.info['sfreq']
-            self.backend_core.channels = raw_data.ch_names
-            
-            # Update ICA processor with channel count
-            n_channels = len(raw_data.ch_names)
-            self.ica_processor = ICAProcessor(n_components=None)  # Auto-detect
-            
-            self._update_progress(30)
-            self._update_status("Preprocessed data loaded successfully")
-            
-            result = {
-                "success": True,
-                "channels": raw_data.ch_names,
-                "sampling_rate": raw_data.info['sfreq'],
-                "n_samples": raw_data.n_times,
-                "consistency_check": consistency_check
-            }
-            
-            # Add fix information if any fixes were applied
-            if fix_info.get('applied_fixes') or fix_info.get('changes'):
-                result['fixes_applied'] = fix_info
-                result['message'] = f"Data loaded with {len(fix_info.get('changes', []))} consistency fixes applied"
-            
-            return result
-            
-        except Exception as e:
-            self.is_processing = False
-            return {"success": False, "error": f"Failed to load preprocessed data: {str(e)}"}
-
     def load_and_prepare_file(
         self, file_path: str, selected_channels: Optional[List[str]] = None
     ) -> Dict[str, Any]:
@@ -231,8 +152,8 @@ class EEGArtifactCleaningService:
 
     def fit_ica_analysis(self) -> Dict[str, Any]:
         """
-        Εκτέλεση ICA ανάλυσης με ενισχυμένο χειρισμό σφαλμάτων και data consistency checks
-        
+        Εκτέλεση ICA ανάλυσης
+
         Returns:
             Dictionary με αποτελέσματα ICA
         """
@@ -251,87 +172,23 @@ class EEGArtifactCleaningService:
                     "error": "Δεν υπάρχουν φιλτραρισμένα δεδομένα",
                 }
 
-            # Enhanced: Run comprehensive data diagnosis before ICA
-            self._update_status("Διάγνωση δεδομένων για ICA...")
-            diagnosis = diagnose_ica_data_issues(filtered_data)
-            
-            if not diagnosis['can_proceed_with_ica']:
-                error_msg = "Τα δεδομένα δεν είναι κατάλληλα για ICA:\n"
-                for rec in diagnosis['recommendations']:
-                    error_msg += f"• {rec}\n"
-                
-                # Add specific consistency information
-                if not diagnosis['consistency']['valid']:
-                    error_msg += f"\n🚫 Πρόβλημα συνέπειας: {diagnosis['consistency']['error']}"
-                
-                return {"success": False, "error": error_msg}
+            # Εκπαίδευση ICA
+            success = self.ica_processor.fit_ica(filtered_data)
 
-            # Use Enhanced ICA Processor instead of basic one
-            from .enhanced_ica_processor import EnhancedICAProcessor, ICAConfig, ICAMethod
-            
-            # Configure enhanced ICA with better parameters
-            ica_config = ICAConfig(
-                method=ICAMethod.FASTICA,  # Use FastICA as default
-                n_components=None,  # Auto-detect
-                max_iter=2000,  # Increase iterations for better convergence
-                enable_auto_classification=True,
-                random_state=42
-            )
-            
-            enhanced_ica = EnhancedICAProcessor(ica_config)
-            
-            # Fit ICA with enhanced processor
-            self._update_status("Εκπαίδευση Enhanced ICA...")
-            results = enhanced_ica.fit_ica(filtered_data)
-            
-            if not results.get('success', False):
-                return {
-                    "success": False,
-                    "error": results.get('error', 'Άγνωστο σφάλμα Enhanced ICA')
-                }
+            if not success:
+                return {"success": False, "error": "Αποτυχία εκπαίδευσης ICA"}
 
-            # Store the enhanced ICA processor for later use
-            self.enhanced_ica_processor = enhanced_ica
             self.ica_fitted = True
-            
             self._update_progress(70)
-            self._update_status("✅ Enhanced ICA εκπαίδευση επιτυχής")
 
             return {
                 "success": True,
-                "n_components": results['n_components'],
-                "method": results['method'],
-                "explained_variance": results.get('explained_variance', 0.0),
-                "components_info": {}, # Enhanced ICA handles this differently
-                "data_info": {
-                    "n_channels": diagnosis['data_quality']['shape'][0],
-                    "n_samples": diagnosis['data_quality']['shape'][1],
-                    "duration": diagnosis['data_quality']['shape'][1] / filtered_data.info['sfreq'],
-                    "sampling_rate": filtered_data.info['sfreq']
-                },
-                "diagnosis": diagnosis,
-                "auto_classifications": results.get('auto_classifications', 0),
-                "auto_reject_count": results.get('auto_reject_count', 0)
+                "n_components": self.ica_processor.n_components,
+                "components_info": self.ica_processor.get_all_components_info(),
             }
 
         except Exception as e:
-            error_msg = str(e)
-            
-            # Enhanced error handling with specific solutions
-            if "Number of channels" in error_msg and "do not match" in error_msg:
-                enhanced_error = f"Σφάλμα συνέπειας δεδομένων: {error_msg}\n\n💡 Λύση: Τα δεδομένα έχουν πρόβλημα συνέπειας μεταξύ info και data array\n🔧 Δοκιμάστε να επαναφορτώσετε τα δεδομένα ή να χρησιμοποιήσετε διαφορετικές ρυθμίσεις προεπεξεργασίας"
-            elif "component" in error_msg.lower() and "1" in error_msg:
-                enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Προσθέστε περισσότερα κανάλια EEG"
-            elif "nan" in error_msg.lower():
-                enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Τα δεδομένα περιέχουν NaN τιμές - εφαρμόστε καλύτερο φιλτράρισμα"
-            elif "inf" in error_msg.lower():
-                enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Τα δεδομένα περιέχουν άπειρες τιμές - ελέγξτε το φιλτράρισμα"
-            elif "converge" in error_msg.lower():
-                enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Προβλήματα σύγκλισης - εφαρμόστε καλύτερο προεπεξεργασία"
-            else:
-                enhanced_error = f"Σφάλμα ICA: {error_msg}"
-            
-            return {"success": False, "error": enhanced_error}
+            return {"success": False, "error": f"Σφάλμα ICA: {str(e)}"}
 
     def detect_artifacts(self, max_components: int = 3) -> Dict[str, Any]:
         """
@@ -350,13 +207,6 @@ class EEGArtifactCleaningService:
             self._update_status("Εντοπισμός artifacts...")
             self._update_progress(80)
 
-            # Validate ICA processor state before artifact detection
-            if self.ica_processor.n_components is None:
-                return {
-                    "success": False, 
-                    "error": "Σφάλμα ICA: Το ICA δεν έχει εκπαιδευτεί σωστά - n_components είναι None\n💡 Δοκιμάστε να επαναλάβετε την εκπαίδευση ICA"
-                }
-
             # Λήψη φιλτραρισμένων δεδομένων
             filtered_data = self.backend_core.get_filtered_data()
 
@@ -370,13 +220,12 @@ class EEGArtifactCleaningService:
             self.suggested_artifacts = suggested_artifacts
             self.detection_methods_results = methods_results
 
-            # Δημιουργία επεξηγήσεων - με έλεγχο για n_components
+            # Δημιουργία επεξηγήσεων
             explanations = {}
-            if self.ica_processor.n_components is not None:
-                for i in range(self.ica_processor.n_components):
-                    explanations[i] = self.artifact_detector.get_artifact_explanation(
-                        i, methods_results
-                    )
+            for i in range(self.ica_processor.n_components):
+                explanations[i] = self.artifact_detector.get_artifact_explanation(
+                    i, methods_results
+                )
 
             self._update_progress(90)
 
