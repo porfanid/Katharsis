@@ -497,6 +497,13 @@ class KatharsisBackend:
                         "suggestion": "💡 Δοκιμάστε να επαναλάβετε την εκπαίδευση ICA με διαφορετικές παραμέτρους ή περισσότερα δεδομένα"
                     }
                 
+                # CRITICAL: Synchronize state with old cleaning service to prevent n_components errors
+                # This ensures compatibility between new backend and old service methods
+                self.cleaning_service.ica_fitted = True
+                if hasattr(self.cleaning_service, 'ica_processor'):
+                    self.cleaning_service.ica_processor.n_components = self.ica_data["n_components"]
+                    self.cleaning_service.ica_processor.ica = self.enhanced_ica.ica
+                
                 # Perform automatic artifact detection if we have the enhanced detector
                 try:
                     artifact_result = self.enhanced_artifact_detector.detect_artifacts(
@@ -651,10 +658,13 @@ class KatharsisBackend:
                     events, event_dict = self.epoching_processor.create_events_from_annotations(data_to_use)
                     
                     if len(events) == 0:
+                        # Provide specific guidance for data without events/annotations
                         return {
                             "success": False,
-                            "error": "Δεν βρέθηκαν events για epoching",
-                            "suggestion": "💡 Ελέγξτε αν το αρχείο περιέχει stimulus channels ή annotations. Δοκιμάστε διαφορετικές παραμέτρους threshold."
+                            "error": "Δεν βρέθηκαν γεγονότα ή σημειώσεις",
+                            "suggestion": "💡 Για ανάλυση χρονικού τομέα χρειάζονται γεγονότα ή σημειώσεις",
+                            "level": "error",
+                            "details": None
                         }
                 
             except Exception as e:
