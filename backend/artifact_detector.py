@@ -237,6 +237,11 @@ class ArtifactDetector:
         if ica is None:
             return [], {}
 
+        # Validate n_components to prevent NoneType error
+        if ica_processor.n_components is None:
+            print("⚠️ Προειδοποίηση: ICA n_components είναι None - δεν είναι δυνατός ο εντοπισμός artifacts")
+            return [], {}
+
         # Εφαρμογή όλων των μεθόδων
         methods_results = {
             "eog": self.detect_eog_artifacts(ica, raw),

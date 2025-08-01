@@ -350,6 +350,13 @@ class EEGArtifactCleaningService:
             self._update_status("Εντοπισμός artifacts...")
             self._update_progress(80)
 
+            # Validate ICA processor state before artifact detection
+            if self.ica_processor.n_components is None:
+                return {
+                    "success": False, 
+                    "error": "Σφάλμα ICA: Το ICA δεν έχει εκπαιδευτεί σωστά - n_components είναι None\n💡 Δοκιμάστε να επαναλάβετε την εκπαίδευση ICA"
+                }
+
             # Λήψη φιλτραρισμένων δεδομένων
             filtered_data = self.backend_core.get_filtered_data()
 
@@ -363,12 +370,13 @@ class EEGArtifactCleaningService:
             self.suggested_artifacts = suggested_artifacts
             self.detection_methods_results = methods_results
 
-            # Δημιουργία επεξηγήσεων
+            # Δημιουργία επεξηγήσεων - με έλεγχο για n_components
             explanations = {}
-            for i in range(self.ica_processor.n_components):
-                explanations[i] = self.artifact_detector.get_artifact_explanation(
-                    i, methods_results
-                )
+            if self.ica_processor.n_components is not None:
+                for i in range(self.ica_processor.n_components):
+                    explanations[i] = self.artifact_detector.get_artifact_explanation(
+                        i, methods_results
+                    )
 
             self._update_progress(90)
 
