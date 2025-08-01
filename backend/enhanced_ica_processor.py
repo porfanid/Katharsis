@@ -144,17 +144,51 @@ class EnhancedICAProcessor:
                     'n_components': 0
                 }
             
+            # Create a copy and ensure data/info consistency
             self.raw_data = raw.copy()
             
-            # Prepare data
+            # Critical fix: Ensure info and data are consistent
+            # This prevents "Number of channels in the info object (X) and the data array (Y) do not match"
+            data_shape = self.raw_data.get_data().shape
+            info_n_channels = len(self.raw_data.ch_names)
+            
+            if data_shape[0] != info_n_channels:
+                return {
+                    'success': False,
+                    'error': f"Inconsistent data: {info_n_channels} channels in info vs {data_shape[0]} in data array\n💡 This indicates a preprocessing error - please reload the data",
+                    'n_components': 0
+                }
+            
+            # Prepare channel picks safely
             if picks is None:
-                picks = mne.pick_types(raw.info, eeg=True, exclude='bads')
+                # Use safe channel picking that handles mismatches
+                try:
+                    picks = mne.pick_types(self.raw_data.info, eeg=True, exclude='bads')
+                except Exception as e:
+                    # Fallback: use all available channels that exist in both info and data
+                    available_channels = list(range(min(len(self.raw_data.ch_names), data_shape[0])))
+                    picks = [i for i in available_channels if 'EEG' in self.raw_data.ch_names[i].upper() or 
+                            any(marker in self.raw_data.ch_names[i].upper() for marker in ['FP', 'F', 'C', 'T', 'P', 'O'])]
+                    if not picks:
+                        picks = available_channels  # Use all if no EEG channels detected
+            else:
+                # Convert channel names to indices if picks are strings
+                if isinstance(picks, list) and picks and isinstance(picks[0], str):
+                    pick_indices = []
+                    for ch_name in picks:
+                        if ch_name in self.raw_data.ch_names:
+                            pick_indices.append(self.raw_data.ch_names.index(ch_name))
+                    picks = pick_indices
+            
+            # Ensure picks are valid indices within the data array bounds
+            max_channel_idx = data_shape[0] - 1
+            picks = [p for p in picks if 0 <= p <= max_channel_idx]
             
             # Validate picks
             if len(picks) < 2:
                 return {
                     'success': False,
-                    'error': f"Insufficient EEG channels: {len(picks)} (minimum 2 required)",
+                    'error': f"Insufficient EEG channels: {len(picks)} (minimum 2 required)\n💡 Available channels: {len(self.raw_data.ch_names)}, Data shape: {data_shape}",
                     'n_components': 0
                 }
             
@@ -677,59 +711,75 @@ class EnhancedICAProcessor:
         try:
             data = raw.get_data()
             
-            # Check minimum requirements
-            n_channels, n_samples = data.shape
+            # Critical: Check for info/data consistency first
+            n_channels_data, n_samples = data.shape
+            n_channels_info = len(raw.ch_names)
             
-            if n_channels < 2:
+            if n_channels_data != n_channels_info:
+                return {
+                    "valid": False,
+                    "error": f"Data/info mismatch: {n_channels_info} channels in info vs {n_channels_data} in data\n💡 This indicates corrupted preprocessing - try reloading your data"
+                }
+            
+            # Check minimum requirements
+            if n_channels_data < 2:
                 return {
                     "valid": False, 
-                    "error": f"Insufficient channels: {n_channels} (minimum 2 required)"
+                    "error": f"Ανεπαρκή κανάλια για ICA: {n_channels_data} (απαιτούνται ≥2)\n💡 Επιλέξτε περισσότερα κανάλια EEG"
                 }
             
-            if n_samples < 1000:  # At least 4 seconds at 250Hz
+            # Check data duration
+            duration = n_samples / raw.info['sfreq']
+            if duration < 4.0:  # At least 4 seconds
                 return {
                     "valid": False,
-                    "error": f"Insufficient data: {n_samples} samples (minimum 1000 required)"
+                    "error": f"Ανεπαρκή δεδομένα για ICA: {duration:.1f}s (απαιτούνται ≥4s)\n💡 Χρησιμοποιήστε μεγαλύτερο αρχείο δεδομένων"
                 }
             
-            # Check for NaN or infinite values
-            if np.any(np.isnan(data)):
+            # Check for NaN or infinite values with specific channel identification
+            nan_channels = []
+            inf_channels = []
+            for i, ch_name in enumerate(raw.ch_names):
+                if np.any(np.isnan(data[i, :])):
+                    nan_channels.append(ch_name)
+                if np.any(np.isinf(data[i, :])):
+                    inf_channels.append(ch_name)
+            
+            if nan_channels:
                 return {
                     "valid": False,
-                    "error": "Data contains NaN values"
+                    "error": f"Δεδομένα περιέχουν NaN τιμές στα κανάλια: {nan_channels}\n💡 Εφαρμόστε καλύτερο φιλτράρισμα ή αφαιρέστε αυτά τα κανάλια"
                 }
                 
-            if np.any(np.isinf(data)):
+            if inf_channels:
                 return {
                     "valid": False,
-                    "error": "Data contains infinite values"
+                    "error": f"Δεδομένα περιέχουν άπειρες τιμές στα κανάλια: {inf_channels}\n💡 Ελέγξτε το φιλτράρισμα ή αφαιρέστε αυτά τα κανάλια"
                 }
             
             # Check for channels with zero variance (constant channels)
             variances = np.var(data, axis=1)
             zero_var_channels = np.where(variances < 1e-12)[0]
             if len(zero_var_channels) > 0:
-                channel_names = [raw.ch_names[i] for i in zero_var_channels]
-                print(f"Warning: Channels with zero variance: {channel_names}")
-                # Don't fail, just warn - ICA can handle this
+                channel_names = [raw.ch_names[i] for i in zero_var_channels if i < len(raw.ch_names)]
+                print(f"⚠️  Προειδοποίηση: Κανάλια με μηδενική διακύμανση: {channel_names}")
+                # Don't fail, just warn - ICA can handle this by excluding these channels
             
             # Check data range (should be reasonable for EEG)
             data_range = np.ptp(data)
-            if data_range < 1e-6:
+            if data_range < 1e-12:
                 return {
                     "valid": False,
-                    "error": "Data has very small range"
+                    "error": "Δεδομένα έχουν πολύ μικρό εύρος\n💡 Τα δεδομένα μπορεί να είναι κατεστραμμένα ή να χρειάζονται διαφορετική κλιμάκωση"
                 }
             
-            if data_range > 1e6:
-                print("Warning: Data has very large range - may need normalization")
+            if data_range > 1e3:  # Very large range for EEG
+                print(f"⚠️  Προειδοποίηση: Δεδομένα έχουν πολύ μεγάλο εύρος ({data_range:.2e}) - μπορεί να χρειάζεται κανονικοποίηση")
             
             return {"valid": True, "error": None}
             
         except Exception as e:
             return {
                 "valid": False,
-                "error": f"Validation error: {str(e)}"
+                "error": f"Σφάλμα επικύρωσης δεδομένων: {str(e)}\n💡 Ελέγξτε αν τα δεδομένα έχουν φορτωθεί σωστά"
             }
-        
-        return summary

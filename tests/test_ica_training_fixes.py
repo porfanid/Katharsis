@@ -120,6 +120,58 @@ class TestICATrainingFailureFixes(unittest.TestCase):
         self.assertIsNotNone(service.backend_core.filtered_data)
         # Check that both raw_data and filtered_data are set to the same preprocessed data
         self.assertIsNotNone(service.backend_core.raw_data)
+        
+    def test_channel_info_mismatch_handling(self):
+        """Test channel/info mismatch error handling (NEW)"""
+        # Create data with consistent channels
+        ch_names = ['EEG1', 'EEG2', 'EEG3', 'EEG4']
+        info = mne.create_info(ch_names=ch_names, sfreq=250, ch_types='eeg')
+        data = np.random.randn(len(ch_names), 15000)
+        raw = mne.io.RawArray(data, info)
+        
+        # Create artificial mismatch by reducing data channels
+        raw._data = raw._data[:-1, :]  # Remove last channel from data array
+        
+        service = EEGArtifactCleaningService()
+        load_result = service.load_preprocessed_data(raw)
+        
+        # Should either fix the issue or provide clear error message
+        if load_result["success"]:
+            # If successful, should have applied fixes
+            self.assertIn('fixes_applied', load_result, "Should report fixes applied")
+            
+            # Try ICA to ensure it works after fix
+            ica_result = service.fit_ica_analysis()
+            if not ica_result["success"]:
+                # If ICA fails, should have helpful error message
+                self.assertIn("💡", ica_result["error"])
+        else:
+            # If load fails, should have helpful error about consistency
+            self.assertTrue(
+                "consistency" in load_result["error"] or 
+                "mismatch" in load_result["error"] or
+                "💡" in load_result["error"]
+            )
+            
+    def test_data_consistency_validation(self):
+        """Test that data consistency validation works correctly"""
+        from backend.data_consistency_utils import validate_raw_consistency
+        
+        # Create consistent data
+        ch_names = ['EEG1', 'EEG2', 'EEG3']
+        info = mne.create_info(ch_names=ch_names, sfreq=250, ch_types='eeg')
+        data = np.random.randn(len(ch_names), 1000)
+        raw = mne.io.RawArray(data, info)
+        
+        validation = validate_raw_consistency(raw)
+        self.assertTrue(validation['valid'], "Consistent data should pass validation")
+        self.assertEqual(validation['data_channels'], validation['info_channels'])
+        
+        # Test inconsistent data
+        raw._data = raw._data[:-1, :]  # Remove last channel from data
+        validation = validate_raw_consistency(raw)
+        self.assertFalse(validation['valid'], "Inconsistent data should fail validation")
+        self.assertIsNotNone(validation['error'])
 
 if __name__ == '__main__':
     unittest.main()

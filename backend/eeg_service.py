@@ -21,6 +21,7 @@ import mne
 from .artifact_detector import ArtifactDetector
 from .eeg_backend import EEGBackendCore
 from .ica_processor import ICAProcessor
+from .data_consistency_utils import validate_raw_consistency, fix_raw_consistency, diagnose_ica_data_issues
 
 
 class EEGArtifactCleaningService:
@@ -99,20 +100,46 @@ class EEGArtifactCleaningService:
 
     def load_preprocessed_data(self, raw_data: mne.io.Raw) -> Dict[str, Any]:
         """
-        Set preprocessed raw data for ICA analysis
+        Set preprocessed raw data for ICA analysis with data consistency validation
         
         Args:
             raw_data: Preprocessed MNE Raw object
             
         Returns:
-            Dictionary with success status
+            Dictionary with success status and any fixes applied
         """
         self.is_processing = True
         self.ica_fitted = False
         
         try:
-            self._update_status("Accepting preprocessed data...")
+            self._update_status("Validating preprocessed data...")
             self._update_progress(10)
+            
+            # Critical: Validate and fix data consistency before using
+            consistency_check = validate_raw_consistency(raw_data)
+            fix_info = {'applied_fixes': []}
+            
+            if not consistency_check['valid']:
+                self._update_status(f"Fixing data consistency issue: {consistency_check['error']}")
+                raw_data, fix_result = fix_raw_consistency(raw_data, strategy='auto')
+                fix_info = fix_result
+                
+                if fix_result['status'] != 'fixed':
+                    return {
+                        "success": False, 
+                        "error": f"Could not fix data consistency: {fix_result.get('error', 'Unknown error')}\n💡 Try reloading your data or using different preprocessing settings"
+                    }
+                
+                # Re-validate after fix
+                final_check = validate_raw_consistency(raw_data)
+                if not final_check['valid']:
+                    return {
+                        "success": False,
+                        "error": f"Data consistency fix failed: {final_check['error']}\n💡 Data may be corrupted - try reloading from original file"
+                    }
+            
+            self._update_status("Accepting preprocessed data...")
+            self._update_progress(20)
             
             # Set the preprocessed data in backend core
             self.backend_core.raw_data = raw_data
@@ -130,12 +157,20 @@ class EEGArtifactCleaningService:
             self._update_progress(30)
             self._update_status("Preprocessed data loaded successfully")
             
-            return {
+            result = {
                 "success": True,
                 "channels": raw_data.ch_names,
                 "sampling_rate": raw_data.info['sfreq'],
-                "n_samples": raw_data.n_times
+                "n_samples": raw_data.n_times,
+                "consistency_check": consistency_check
             }
+            
+            # Add fix information if any fixes were applied
+            if fix_info.get('applied_fixes') or fix_info.get('changes'):
+                result['fixes_applied'] = fix_info
+                result['message'] = f"Data loaded with {len(fix_info.get('changes', []))} consistency fixes applied"
+            
+            return result
             
         except Exception as e:
             self.is_processing = False
@@ -196,8 +231,8 @@ class EEGArtifactCleaningService:
 
     def fit_ica_analysis(self) -> Dict[str, Any]:
         """
-        Εκτέλεση ICA ανάλυσης με ενισχυμένο χειρισμό σφαλμάτων
-
+        Εκτέλεση ICA ανάλυσης με ενισχυμένο χειρισμό σφαλμάτων και data consistency checks
+        
         Returns:
             Dictionary με αποτελέσματα ICA
         """
@@ -216,77 +251,76 @@ class EEGArtifactCleaningService:
                     "error": "Δεν υπάρχουν φιλτραρισμένα δεδομένα",
                 }
 
-            # Προκαταρκτικός έλεγχος δεδομένων
-            data_shape = filtered_data.get_data().shape
-            n_channels, n_samples = data_shape
+            # Enhanced: Run comprehensive data diagnosis before ICA
+            self._update_status("Διάγνωση δεδομένων για ICA...")
+            diagnosis = diagnose_ica_data_issues(filtered_data)
             
-            if n_channels < 2:
+            if not diagnosis['can_proceed_with_ica']:
+                error_msg = "Τα δεδομένα δεν είναι κατάλληλα για ICA:\n"
+                for rec in diagnosis['recommendations']:
+                    error_msg += f"• {rec}\n"
+                
+                # Add specific consistency information
+                if not diagnosis['consistency']['valid']:
+                    error_msg += f"\n🚫 Πρόβλημα συνέπειας: {diagnosis['consistency']['error']}"
+                
+                return {"success": False, "error": error_msg}
+
+            # Use Enhanced ICA Processor instead of basic one
+            from .enhanced_ica_processor import EnhancedICAProcessor, ICAConfig, ICAMethod
+            
+            # Configure enhanced ICA with better parameters
+            ica_config = ICAConfig(
+                method=ICAMethod.FASTICA,  # Use FastICA as default
+                n_components=None,  # Auto-detect
+                max_iter=2000,  # Increase iterations for better convergence
+                enable_auto_classification=True,
+                random_state=42
+            )
+            
+            enhanced_ica = EnhancedICAProcessor(ica_config)
+            
+            # Fit ICA with enhanced processor
+            self._update_status("Εκπαίδευση Enhanced ICA...")
+            results = enhanced_ica.fit_ica(filtered_data)
+            
+            if not results.get('success', False):
                 return {
                     "success": False,
-                    "error": f"Ανεπαρκή κανάλια για ICA: {n_channels} (απαιτούνται ≥2)\n💡 Επιλέξτε περισσότερα κανάλια EEG"
-                }
-            
-            if n_samples < 1000:
-                duration = n_samples / filtered_data.info['sfreq']
-                return {
-                    "success": False,
-                    "error": f"Ανεπαρκή δεδομένα για ICA: {duration:.1f}s (απαιτούνται ≥4s)\n💡 Χρησιμοποιήστε μεγαλύτερο αρχείο δεδομένων"
+                    "error": results.get('error', 'Άγνωστο σφάλμα Enhanced ICA')
                 }
 
-            # Εκπαίδευση ICA με ενισχυμένο χειρισμό σφαλμάτων
-            self._update_status(f"Εκπαίδευση {n_channels} καναλιών, {n_samples} δείγματα...")
-            success = self.ica_processor.fit_ica(filtered_data)
-
-            if not success:
-                # Use specific error from ICA processor if available
-                if hasattr(self.ica_processor, 'last_error') and self.ica_processor.last_error:
-                    detailed_error = self.ica_processor.last_error
-                    
-                    # Enhance with solutions based on error type
-                    if "NaN" in detailed_error:
-                        detailed_error += "\n\n💡 Λύση: Εφαρμόστε καλύτερο φιλτράρισμα για να αφαιρέσετε NaN τιμές"
-                    elif "κανάλια" in detailed_error:
-                        detailed_error += "\n💡 Λύση: Επιλέξτε περισσότερα κανάλια από την οθόνη επιλογής καναλιών"
-                    elif "δεδομένα" in detailed_error:
-                        detailed_error += "\n💡 Λύση: Χρησιμοποιήστε μεγαλύτερο τμήμα δεδομένων"
-                    
-                    return {
-                        "success": False,
-                        "error": detailed_error
-                    }
-                else:
-                    # Generic fallback
-                    return {
-                        "success": False, 
-                        "error": "Αποτυχία εκπαίδευσης ICA\n\n🔧 Πιθανές λύσεις:\n"
-                               "• Ελέγξτε την ποιότητα των δεδομένων (NaN, άπειρες τιμές)\n"
-                               "• Εφαρμόστε καλύτερο φιλτράρισμα (1-40 Hz)\n"
-                               "• Αφαιρέστε κακά κανάλια\n"
-                               "• Χρησιμοποιήστε μεγαλύτερο τμήμα δεδομένων\n"
-                               f"• Τρέχοντα δεδομένα: {n_channels} κανάλια, {n_samples} δείγματα"
-                    }
-
+            # Store the enhanced ICA processor for later use
+            self.enhanced_ica_processor = enhanced_ica
             self.ica_fitted = True
+            
             self._update_progress(70)
-            self._update_status("✅ ICA εκπαίδευση επιτυχής")
+            self._update_status("✅ Enhanced ICA εκπαίδευση επιτυχής")
 
             return {
                 "success": True,
-                "n_components": self.ica_processor.n_components,
-                "components_info": self.ica_processor.get_all_components_info(),
+                "n_components": results['n_components'],
+                "method": results['method'],
+                "explained_variance": results.get('explained_variance', 0.0),
+                "components_info": {}, # Enhanced ICA handles this differently
                 "data_info": {
-                    "n_channels": n_channels,
-                    "n_samples": n_samples,
-                    "duration": n_samples / filtered_data.info['sfreq'],
+                    "n_channels": diagnosis['data_quality']['shape'][0],
+                    "n_samples": diagnosis['data_quality']['shape'][1],
+                    "duration": diagnosis['data_quality']['shape'][1] / filtered_data.info['sfreq'],
                     "sampling_rate": filtered_data.info['sfreq']
-                }
+                },
+                "diagnosis": diagnosis,
+                "auto_classifications": results.get('auto_classifications', 0),
+                "auto_reject_count": results.get('auto_reject_count', 0)
             }
 
         except Exception as e:
             error_msg = str(e)
             
-            # Παροχή συγκεκριμένων λύσεων βάσει του σφάλματος
-            if "component" in error_msg.lower() and "1" in error_msg:
+            # Enhanced error handling with specific solutions
+            if "Number of channels" in error_msg and "do not match" in error_msg:
+                enhanced_error = f"Σφάλμα συνέπειας δεδομένων: {error_msg}\n\n💡 Λύση: Τα δεδομένα έχουν πρόβλημα συνέπειας μεταξύ info και data array\n🔧 Δοκιμάστε να επαναφορτώσετε τα δεδομένα ή να χρησιμοποιήσετε διαφορετικές ρυθμίσεις προεπεξεργασίας"
+            elif "component" in error_msg.lower() and "1" in error_msg:
                 enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Προσθέστε περισσότερα κανάλια EEG"
             elif "nan" in error_msg.lower():
                 enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Τα δεδομένα περιέχουν NaN τιμές - εφαρμόστε καλύτερο φιλτράρισμα"
