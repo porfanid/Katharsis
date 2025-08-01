@@ -125,7 +125,7 @@ class EnhancedICAProcessor:
     
     def fit_ica(self, raw: mne.io.Raw, picks: Optional[List[str]] = None) -> Dict[str, Any]:
         """
-        Fit ICA model using specified algorithm
+        Fit ICA model using specified algorithm with comprehensive data validation
         
         Args:
             raw: Raw EEG data
@@ -135,18 +135,37 @@ class EnhancedICAProcessor:
             Dictionary with fitting results and statistics
         """
         try:
+            # Comprehensive data validation
+            validation_result = self._validate_data_for_ica(raw)
+            if not validation_result["valid"]:
+                return {
+                    'success': False,
+                    'error': f"Data validation failed: {validation_result['error']}",
+                    'n_components': 0
+                }
+            
             self.raw_data = raw.copy()
             
             # Prepare data
             if picks is None:
                 picks = mne.pick_types(raw.info, eeg=True, exclude='bads')
             
+            # Validate picks
+            if len(picks) < 2:
+                return {
+                    'success': False,
+                    'error': f"Insufficient EEG channels: {len(picks)} (minimum 2 required)",
+                    'n_components': 0
+                }
+            
             # Initialize ICA with specified method
             n_components = self.config.n_components
             if n_components is None:
-                # Use number of channels, not time points
-                n_components = min(len(picks), raw.get_data(picks=picks).shape[0])
-                n_components = max(n_components, min(10, len(picks)))  # At least 10 components or number of channels
+                # Use 90% of channels, but at least 2 and at most n_channels-1
+                n_components = max(2, min(len(picks) - 1, int(0.9 * len(picks))))
+            else:
+                # Ensure n_components is valid
+                n_components = max(2, min(n_components, len(picks) - 1))
             
             # Create ICA object based on method
             fit_params = self.config.fit_params or {}
@@ -643,6 +662,74 @@ class EnhancedICAProcessor:
                 'component_classification': [],
                 'auto_reject_indices': [],
                 'summary': {'status': 'failed', 'error': str(e)}
+            }
+    
+    def _validate_data_for_ica(self, raw: mne.io.Raw) -> dict:
+        """
+        Comprehensive data validation for ICA training
+        
+        Args:
+            raw: MNE Raw object to validate
+            
+        Returns:
+            dict: Validation result with 'valid' boolean and 'error' message
+        """
+        try:
+            data = raw.get_data()
+            
+            # Check minimum requirements
+            n_channels, n_samples = data.shape
+            
+            if n_channels < 2:
+                return {
+                    "valid": False, 
+                    "error": f"Insufficient channels: {n_channels} (minimum 2 required)"
+                }
+            
+            if n_samples < 1000:  # At least 4 seconds at 250Hz
+                return {
+                    "valid": False,
+                    "error": f"Insufficient data: {n_samples} samples (minimum 1000 required)"
+                }
+            
+            # Check for NaN or infinite values
+            if np.any(np.isnan(data)):
+                return {
+                    "valid": False,
+                    "error": "Data contains NaN values"
+                }
+                
+            if np.any(np.isinf(data)):
+                return {
+                    "valid": False,
+                    "error": "Data contains infinite values"
+                }
+            
+            # Check for channels with zero variance (constant channels)
+            variances = np.var(data, axis=1)
+            zero_var_channels = np.where(variances < 1e-12)[0]
+            if len(zero_var_channels) > 0:
+                channel_names = [raw.ch_names[i] for i in zero_var_channels]
+                print(f"Warning: Channels with zero variance: {channel_names}")
+                # Don't fail, just warn - ICA can handle this
+            
+            # Check data range (should be reasonable for EEG)
+            data_range = np.ptp(data)
+            if data_range < 1e-6:
+                return {
+                    "valid": False,
+                    "error": "Data has very small range"
+                }
+            
+            if data_range > 1e6:
+                print("Warning: Data has very large range - may need normalization")
+            
+            return {"valid": True, "error": None}
+            
+        except Exception as e:
+            return {
+                "valid": False,
+                "error": f"Validation error: {str(e)}"
             }
         
         return summary

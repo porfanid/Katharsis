@@ -196,7 +196,7 @@ class EEGArtifactCleaningService:
 
     def fit_ica_analysis(self) -> Dict[str, Any]:
         """
-        Εκτέλεση ICA ανάλυσης
+        Εκτέλεση ICA ανάλυσης με ενισχυμένο χειρισμό σφαλμάτων
 
         Returns:
             Dictionary με αποτελέσματα ICA
@@ -216,23 +216,88 @@ class EEGArtifactCleaningService:
                     "error": "Δεν υπάρχουν φιλτραρισμένα δεδομένα",
                 }
 
-            # Εκπαίδευση ICA
+            # Προκαταρκτικός έλεγχος δεδομένων
+            data_shape = filtered_data.get_data().shape
+            n_channels, n_samples = data_shape
+            
+            if n_channels < 2:
+                return {
+                    "success": False,
+                    "error": f"Ανεπαρκή κανάλια για ICA: {n_channels} (απαιτούνται ≥2)\n💡 Επιλέξτε περισσότερα κανάλια EEG"
+                }
+            
+            if n_samples < 1000:
+                duration = n_samples / filtered_data.info['sfreq']
+                return {
+                    "success": False,
+                    "error": f"Ανεπαρκή δεδομένα για ICA: {duration:.1f}s (απαιτούνται ≥4s)\n💡 Χρησιμοποιήστε μεγαλύτερο αρχείο δεδομένων"
+                }
+
+            # Εκπαίδευση ICA με ενισχυμένο χειρισμό σφαλμάτων
+            self._update_status(f"Εκπαίδευση {n_channels} καναλιών, {n_samples} δείγματα...")
             success = self.ica_processor.fit_ica(filtered_data)
 
             if not success:
-                return {"success": False, "error": "Αποτυχία εκπαίδευσης ICA"}
+                # Use specific error from ICA processor if available
+                if hasattr(self.ica_processor, 'last_error') and self.ica_processor.last_error:
+                    detailed_error = self.ica_processor.last_error
+                    
+                    # Enhance with solutions based on error type
+                    if "NaN" in detailed_error:
+                        detailed_error += "\n\n💡 Λύση: Εφαρμόστε καλύτερο φιλτράρισμα για να αφαιρέσετε NaN τιμές"
+                    elif "κανάλια" in detailed_error:
+                        detailed_error += "\n💡 Λύση: Επιλέξτε περισσότερα κανάλια από την οθόνη επιλογής καναλιών"
+                    elif "δεδομένα" in detailed_error:
+                        detailed_error += "\n💡 Λύση: Χρησιμοποιήστε μεγαλύτερο τμήμα δεδομένων"
+                    
+                    return {
+                        "success": False,
+                        "error": detailed_error
+                    }
+                else:
+                    # Generic fallback
+                    return {
+                        "success": False, 
+                        "error": "Αποτυχία εκπαίδευσης ICA\n\n🔧 Πιθανές λύσεις:\n"
+                               "• Ελέγξτε την ποιότητα των δεδομένων (NaN, άπειρες τιμές)\n"
+                               "• Εφαρμόστε καλύτερο φιλτράρισμα (1-40 Hz)\n"
+                               "• Αφαιρέστε κακά κανάλια\n"
+                               "• Χρησιμοποιήστε μεγαλύτερο τμήμα δεδομένων\n"
+                               f"• Τρέχοντα δεδομένα: {n_channels} κανάλια, {n_samples} δείγματα"
+                    }
 
             self.ica_fitted = True
             self._update_progress(70)
+            self._update_status("✅ ICA εκπαίδευση επιτυχής")
 
             return {
                 "success": True,
                 "n_components": self.ica_processor.n_components,
                 "components_info": self.ica_processor.get_all_components_info(),
+                "data_info": {
+                    "n_channels": n_channels,
+                    "n_samples": n_samples,
+                    "duration": n_samples / filtered_data.info['sfreq'],
+                    "sampling_rate": filtered_data.info['sfreq']
+                }
             }
 
         except Exception as e:
-            return {"success": False, "error": f"Σφάλμα ICA: {str(e)}"}
+            error_msg = str(e)
+            
+            # Παροχή συγκεκριμένων λύσεων βάσει του σφάλματος
+            if "component" in error_msg.lower() and "1" in error_msg:
+                enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Προσθέστε περισσότερα κανάλια EEG"
+            elif "nan" in error_msg.lower():
+                enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Τα δεδομένα περιέχουν NaN τιμές - εφαρμόστε καλύτερο φιλτράρισμα"
+            elif "inf" in error_msg.lower():
+                enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Τα δεδομένα περιέχουν άπειρες τιμές - ελέγξτε το φιλτράρισμα"
+            elif "converge" in error_msg.lower():
+                enhanced_error = f"Σφάλμα ICA: {error_msg}\n\n💡 Λύση: Προβλήματα σύγκλισης - εφαρμόστε καλύτερο προεπεξεργασία"
+            else:
+                enhanced_error = f"Σφάλμα ICA: {error_msg}"
+            
+            return {"success": False, "error": enhanced_error}
 
     def detect_artifacts(self, max_components: int = 3) -> Dict[str, Any]:
         """
