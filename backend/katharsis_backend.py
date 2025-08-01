@@ -38,6 +38,7 @@ from .epoching_processor import EpochingProcessor, EpochingConfig, BaselineCorre
 from .erp_analyzer import ERPAnalyzer, ERPConfig
 from .time_domain_visualizer import TimeDomainVisualizer
 from .data_consistency_utils import validate_raw_consistency, fix_raw_consistency
+from .validation_system import ComprehensiveValidator, ValidationResult, ValidationLevel
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -79,6 +80,9 @@ class KatharsisBackend:
         # Enhanced processors
         self.enhanced_ica = EnhancedICAProcessor()
         self.enhanced_artifact_detector = EnhancedArtifactDetector()
+        
+        # Validation system
+        self.validator = ComprehensiveValidator()
         
         # State management
         self.current_file_path: Optional[str] = None
@@ -203,13 +207,14 @@ class KatharsisBackend:
             self._update_status("Φόρτωση αρχείου...")
             self._update_progress(10)
             
-            # Validate file first
-            validation = self.validate_file(file_path)
-            if not validation["valid"]:
+            # Comprehensive file validation
+            file_validation = self.validator.validate_file_loading(file_path)
+            if not file_validation.passed:
                 return {
                     "success": False,
-                    "error": validation["error"],
-                    "details": validation.get("details", "")
+                    "error": file_validation.message_gr,
+                    "suggestion": file_validation.suggestion_gr,
+                    "level": file_validation.level.value
                 }
             
             # Load based on file type
@@ -226,7 +231,8 @@ class KatharsisBackend:
             else:
                 return {
                     "success": False,
-                    "error": f"Μη υποστηριζόμενος τύπος αρχείου: {ext}"
+                    "error": f"Μη υποστηριζόμενος τύπος αρχείου: {ext}",
+                    "suggestion": "💡 Υποστηριζόμενοι τύποι: .edf, .fif, .csv, .set"
                 }
             
             # Apply channel selection if specified
@@ -235,12 +241,24 @@ class KatharsisBackend:
                     missing = [ch for ch in selected_channels if ch not in available_channels]
                     return {
                         "success": False,
-                        "error": f"Κανάλια δεν βρέθηκαν: {missing}"
+                        "error": f"Κανάλια δεν βρέθηκαν: {missing}",
+                        "suggestion": f"💡 Διαθέσιμα κανάλια: {available_channels[:10]}{'...' if len(available_channels) > 10 else ''}"
                     }
                 raw.pick_channels(selected_channels)
                 available_channels = selected_channels
             
-            # Validate data consistency
+            # Comprehensive data quality validation
+            data_validation = self.validator.validate_raw_data_quality(raw)
+            if not data_validation.passed and data_validation.level in [ValidationLevel.ERROR, ValidationLevel.CRITICAL]:
+                return {
+                    "success": False,
+                    "error": data_validation.message_gr,
+                    "suggestion": data_validation.suggestion_gr,
+                    "level": data_validation.level.value,
+                    "details": data_validation.details
+                }
+            
+            # Validate data consistency (existing check)
             consistency = validate_raw_consistency(raw)
             if not consistency["valid"]:
                 self._update_status("Επιδιόρθωση συνέπειας δεδομένων...")
@@ -400,7 +418,7 @@ class KatharsisBackend:
                            n_components: Optional[int] = None,
                            max_iter: int = 200) -> Dict[str, Any]:
         """
-        Perform ICA analysis with enhanced algorithms
+        Perform ICA analysis with enhanced algorithms and comprehensive validation
         
         Args:
             ica_method: ICA algorithm to use
@@ -417,7 +435,19 @@ class KatharsisBackend:
             if data_to_use is None:
                 return {
                     "success": False,
-                    "error": "Δεν υπάρχουν δεδομένα για ανάλυση"
+                    "error": "Δεν υπάρχουν δεδομένα για ανάλυση",
+                    "suggestion": "💡 Φορτώστε πρώτα ένα αρχείο EEG"
+                }
+            
+            # Comprehensive ICA prerequisites validation
+            ica_validation = self.validator.validate_ica_prerequisites(data_to_use, n_components)
+            if not ica_validation.passed:
+                return {
+                    "success": False,
+                    "error": ica_validation.message_gr,
+                    "suggestion": ica_validation.suggestion_gr,
+                    "level": ica_validation.level.value,
+                    "details": ica_validation.details
                 }
             
             self._update_status("Εκπαίδευση μοντέλου ICA...")
@@ -441,11 +471,31 @@ class KatharsisBackend:
             result = self.enhanced_ica.fit_ica(data_to_use)
             
             if result["success"]:
+                # Validate ICA results immediately after training
+                ica_result_validation = self.validator.validate_ica_results(self.enhanced_ica)
+                if not ica_result_validation.passed and ica_result_validation.level in [ValidationLevel.ERROR, ValidationLevel.CRITICAL]:
+                    return {
+                        "success": False,
+                        "error": ica_result_validation.message_gr,
+                        "suggestion": ica_result_validation.suggestion_gr,
+                        "level": ica_result_validation.level.value,
+                        "details": ica_result_validation.details
+                    }
+                
+                # Store validated ICA data
                 self.ica_data = {
                     "ica": self.enhanced_ica.ica,
                     "n_components": result.get("n_components", 0),
                     "component_info": result.get("component_info", {}),
                 }
+                
+                # Verify n_components is valid before proceeding
+                if self.ica_data["n_components"] is None or self.ica_data["n_components"] <= 0:
+                    return {
+                        "success": False,
+                        "error": "Σφάλμα ICA: Το ICA δεν έχει εκπαιδευτεί σωστά - n_components είναι None",
+                        "suggestion": "💡 Δοκιμάστε να επαναλάβετε την εκπαίδευση ICA με διαφορετικές παραμέτρους ή περισσότερα δεδομένα"
+                    }
                 
                 # Perform automatic artifact detection if we have the enhanced detector
                 try:
@@ -454,11 +504,13 @@ class KatharsisBackend:
                     )
                     self.ica_data["artifact_detection"] = artifact_result
                 except Exception as e:
-                    # Fallback to basic artifact detection
+                    # Fallback to basic artifact detection with graceful degradation
+                    logger.warning(f"Enhanced artifact detection failed: {str(e)}")
                     self.ica_data["artifact_detection"] = {
                         "suggested_components": [],
                         "artifact_types": {},
-                        "error": f"Artifact detection failed: {str(e)}"
+                        "error": f"Artifact detection failed: {str(e)}",
+                        "fallback": True
                     }
                 
                 self._update_progress(90)
@@ -552,7 +604,7 @@ class KatharsisBackend:
                         events_config: Dict[str, Any],
                         epoch_config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Perform epoching for time-domain analysis
+        Perform epoching for time-domain analysis with comprehensive validation
         
         Args:
             events_config: Configuration for event detection
@@ -567,7 +619,19 @@ class KatharsisBackend:
             if data_to_use is None:
                 return {
                     "success": False,
-                    "error": "Δεν υπάρχουν δεδομένα για epoching"
+                    "error": "Δεν υπάρχουν δεδομένα για epoching",
+                    "suggestion": "💡 Φορτώστε πρώτα ένα αρχείο EEG"
+                }
+            
+            # Comprehensive time-domain prerequisites validation
+            time_domain_validation = self.validator.validate_time_domain_prerequisites(data_to_use)
+            if not time_domain_validation.passed:
+                return {
+                    "success": False,
+                    "error": time_domain_validation.message_gr,
+                    "suggestion": time_domain_validation.suggestion_gr,
+                    "level": time_domain_validation.level.value,
+                    "details": time_domain_validation.details
                 }
             
             self._update_status("Εκτέλεση epoching...")
@@ -589,13 +653,15 @@ class KatharsisBackend:
                     if len(events) == 0:
                         return {
                             "success": False,
-                            "error": "Δεν βρέθηκαν events για epoching. Δοκιμάστε διαφορετικές παραμέτρους."
+                            "error": "Δεν βρέθηκαν events για epoching",
+                            "suggestion": "💡 Ελέγξτε αν το αρχείο περιέχει stimulus channels ή annotations. Δοκιμάστε διαφορετικές παραμέτρους threshold."
                         }
                 
             except Exception as e:
                 return {
                     "success": False,
-                    "error": f"Σφάλμα εντοπισμού events: {str(e)}"
+                    "error": f"Σφάλμα εντοπισμού events: {str(e)}",
+                    "suggestion": "💡 Ελέγξτε τις παραμέτρους event detection ή χρησιμοποιήστε διαφορετικό stimulus channel"
                 }
             
             # Create epochs configuration
