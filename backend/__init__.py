@@ -4,6 +4,10 @@ Backend Package Initialization
 Αρχικοποίηση Backend Package
 """
 
+# Primary unified backend API
+from .katharsis_backend import KatharsisBackend
+
+# Legacy individual components (for compatibility)
 from .artifact_detector import ArtifactDetector
 from .eeg_backend import EEGBackendCore, EEGDataManager, EEGPreprocessor
 from .eeg_service import EEGArtifactCleaningService
@@ -24,13 +28,21 @@ from .epoching_processor import EpochingProcessor, EpochingConfig, SegmentationC
 from .erp_analyzer import ERPAnalyzer, ERPConfig, PeakDetectionMethod, ERPComponent, StatisticalTest
 from .time_domain_visualizer import TimeDomainVisualizer, PlotConfig, PlotType, LayoutType
 
+# Data consistency utilities
+from .data_consistency_utils import validate_raw_consistency, fix_raw_consistency
+
 __all__ = [
+    # Primary unified API
+    "KatharsisBackend",
+    
+    # Legacy components (for compatibility)
     "EEGBackendCore",
     "EEGDataManager", 
     "EEGPreprocessor",
     "ICAProcessor",
     "ArtifactDetector",
     "EEGArtifactCleaningService",
+    
     # Phase 1 - Advanced Preprocessing
     "EEGFilterProcessor",
     "FilterConfig",
@@ -45,6 +57,7 @@ __all__ = [
     "PreprocessingPipeline",
     "PreprocessingConfig",
     "PreprocessingPresets",
+    
     # Phase 2 - Enhanced ICA and Artifact Detection
     "EnhancedICAProcessor",
     "ICAConfig", 
@@ -52,6 +65,7 @@ __all__ = [
     "EnhancedArtifactDetector",
     "ArtifactType",
     "DetectionConfig",
+    
     # Phase 3 - Time-Domain Analysis & ERPs
     "EpochingProcessor",
     "EpochingConfig",
@@ -67,4 +81,8 @@ __all__ = [
     "PlotConfig",
     "PlotType",
     "LayoutType",
+    
+    # Data consistency utilities
+    "validate_raw_consistency",
+    "fix_raw_consistency",
 ]
