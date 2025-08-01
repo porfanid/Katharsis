@@ -1,0 +1,7 @@
+[submodule "[submodule \"recommended_function\"] \tpath = recommended_function \turl ="]
+	path = [submodule \"recommended_function\"] \tpath = recommended_function \turl =
+[submodule "[submodule \"recommended_function\"] \tpath = recommended_function \turl ="]
+	url = https://github.com/sccn/eeglab
+[submodule "recommended_function"]
+	path = recommended_function
+	url = https://github.com/sccn/eeglab
