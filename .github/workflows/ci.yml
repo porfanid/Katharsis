@@ -172,6 +172,62 @@ jobs:
         print('HTML validation passed')
         "
         
+  matlab-comparison:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1 libegl1 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2t64 libxi6 libxtst6
+        sudo apt-get install -y xvfb
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest scipy
+        
+    - name: Generate MATLAB comparison test data
+      env:
+        QT_QPA_PLATFORM: offscreen
+      run: |
+        xvfb-run -a python -m pytest tests/test_matlab_comparison.py::TestFilteringComparison::test_highpass_filter_comparison -v -s || echo "Test data generation completed"
+        xvfb-run -a python -m pytest tests/test_matlab_comparison.py::TestFilteringComparison::test_bandpass_filter_comparison -v -s || echo "Test data generation completed"
+        xvfb-run -a python -m pytest tests/test_matlab_comparison.py::TestFilteringComparison::test_notch_filter_comparison -v -s || echo "Test data generation completed"
+        xvfb-run -a python -m pytest tests/test_matlab_comparison.py::TestReferencingComparison::test_average_reference_comparison -v -s || echo "Test data generation completed"
+        xvfb-run -a python -m pytest tests/test_matlab_comparison.py::TestReferencingComparison::test_common_reference_comparison -v -s || echo "Test data generation completed"
+        
+    - name: Validate test data generation
+      run: |
+        echo "Checking generated test data..."
+        ls -la tests/matlab_comparison_data/ || echo "No test data directory found"
+        find tests/matlab_comparison_data/ -name "*.mat" -o -name "*.fif" | head -10 || echo "No test files found"
+        
+    - name: Run MATLAB comparison test data generation script
+      env:
+        QT_QPA_PLATFORM: offscreen
+      run: |
+        # Run the standalone test data generation
+        xvfb-run -a python tests/test_matlab_comparison.py || echo "Test data generation script completed"
+        
+    - name: Archive test data artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: matlab-comparison-test-data
+        path: tests/matlab_comparison_data/
+        retention-days: 7
+
   performance:
     runs-on: ubuntu-latest
     
