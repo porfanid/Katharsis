@@ -210,8 +210,8 @@ class EEGArtifactCleaningService:
             # Λήψη φιλτραρισμένων δεδομένων
             filtered_data = self.backend_core.get_filtered_data()
 
-            # Εντοπισμός artifacts
-            suggested_artifacts, methods_results = (
+            # Εντοπισμός artifacts με ICLabel (αν διαθέσιμο)
+            suggested_artifacts, methods_results, icalabel_info = (
                 self.artifact_detector.detect_artifacts_multi_method(
                     self.ica_processor, filtered_data, max_components
                 )
@@ -219,12 +219,13 @@ class EEGArtifactCleaningService:
 
             self.suggested_artifacts = suggested_artifacts
             self.detection_methods_results = methods_results
+            self.icalabel_info = icalabel_info
 
-            # Δημιουργία επεξηγήσεων
+            # Δημιουργία επεξηγήσεων (με προτεραιότητα στο ICLabel)
             explanations = {}
             for i in range(self.ica_processor.n_components):
                 explanations[i] = self.artifact_detector.get_artifact_explanation(
-                    i, methods_results
+                    i, methods_results, icalabel_info
                 )
 
             self._update_progress(90)
@@ -235,6 +236,7 @@ class EEGArtifactCleaningService:
                 "methods_results": methods_results,
                 "explanations": explanations,
                 "components_info": self.ica_processor.get_all_components_info(),
+                "icalabel_info": icalabel_info,  # Προσθήκη ICLabel πληροφοριών
             }
 
         except Exception as e:
@@ -317,10 +319,11 @@ class EEGArtifactCleaningService:
             "suggested_artifacts": self.suggested_artifacts,
             "explanations": {
                 i: self.artifact_detector.get_artifact_explanation(
-                    i, self.detection_methods_results
+                    i, self.detection_methods_results, self.icalabel_info
                 )
                 for i in range(self.ica_processor.n_components)
             },
+            "icalabel_info": self.icalabel_info,  # Προσθήκη ICLabel πληροφοριών
         }
 
     def reset_state(self):
@@ -330,6 +333,8 @@ class EEGArtifactCleaningService:
         self.current_file = None
         self.suggested_artifacts = []
         self.detection_methods_results = {}
+        self.icalabel_info = {}
+        self.icalabel_info = {}  # Προσθήκη για ICLabel πληροφορίες
 
         # Reset backend components
         self.backend_core = EEGBackendCore()

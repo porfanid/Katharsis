@@ -34,6 +34,7 @@ class EEGDataManager:
     - Αυτόματο εντοπισμό EEG καναλιών
     - Φόρτωση και αποθήκευση EDF αρχείων
     - Εξαγωγή πληροφοριών αρχείου
+    - Κανονικοποίηση ονομάτων ηλεκτροδίων για ICLabel
     """
 
     @staticmethod
@@ -136,6 +137,97 @@ class EEGDataManager:
         return available_eeg_channels
 
     @staticmethod
+    def normalize_electrode_names(raw: mne.io.Raw) -> Dict[str, str]:
+        """
+        Κανονικοποίηση των ονομάτων ηλεκτροδίων για συμβατότητα με standard_1020
+        
+        Μετατρέπει ηλεκτρόδια από all caps (π.χ. "FP1", "FZ") στο standard_1020 format 
+        (π.χ. "Fp1", "Fz") για να λειτουργεί σωστά το ICLabel.
+        
+        Args:
+            raw: Raw EEG δεδομένα
+            
+        Returns:
+            Dict[str, str]: Mapping από παλιά σε νέα ονόματα ηλεκτροδίων
+        """
+        # Δημιουργία standard_1020 montage για reference
+        try:
+            standard_montage = mne.channels.make_standard_montage('standard_1020')
+            standard_names = set(standard_montage.ch_names)
+        except Exception:
+            # Fallback list αν αποτύχει η δημιουργία montage
+            standard_names = {
+                'Fp1', 'Fp2', 'Fpz', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'Fz',
+                'FC1', 'FC2', 'FC3', 'FC4', 'FC5', 'FC6', 'FCz', 'FT7', 'FT8', 'FT9', 'FT10',
+                'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'Cz', 'CP1', 'CP2', 'CP3', 'CP4', 'CP5', 'CP6', 'CPz',
+                'TP7', 'TP8', 'TP9', 'TP10', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10',
+                'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'Pz',
+                'PO1', 'PO2', 'PO3', 'PO4', 'PO5', 'PO6', 'PO7', 'PO8', 'PO9', 'PO10', 'POz',
+                'O1', 'O2', 'O9', 'O10', 'Oz', 'Iz', 'A1', 'A2', 'M1', 'M2',
+                'AF1', 'AF2', 'AF3', 'AF4', 'AF5', 'AF6', 'AF7', 'AF8', 'AF9', 'AF10', 'AFz'
+            }
+        
+        # Δημιουργία mapping από all caps σε standard format
+        rename_mapping = {}
+        
+        for ch_name in raw.ch_names:
+            # Αν το όνομα είναι ήδη στο σωστό format, δεν χρειάζεται αλλαγή
+            if ch_name in standard_names:
+                continue
+                
+            # Προσπάθεια κανονικοποίησης
+            normalized_name = EEGDataManager._normalize_electrode_case(ch_name)
+            
+            # Έλεγχος αν το κανονικοποιημένο όνομα υπάρχει στο standard_1020
+            if normalized_name and normalized_name in standard_names:
+                rename_mapping[ch_name] = normalized_name
+        
+        return rename_mapping
+
+    @staticmethod
+    def _normalize_electrode_case(electrode_name: str) -> Optional[str]:
+        """
+        Κανονικοποιεί το case ενός ονόματος ηλεκτροδίου
+        
+        Args:
+            electrode_name: Το αρχικό όνομα ηλεκτροδίου
+            
+        Returns:
+            Κανονικοποιημένο όνομα ή None αν δεν μπορεί να κανονικοποιηθεί
+        """
+        if not electrode_name:
+            return None
+            
+        name = electrode_name.strip()
+        
+        # Αν είναι μόνο ένα γράμμα ή κενό, επέστρεψε None
+        if len(name) <= 1:
+            return None
+            
+        # Κανονικοποίηση για διάφορα patterns
+        
+        # Pattern 1: Ειδική περίπτωση για Fp (FP1 -> Fp1, FPZ -> Fpz)
+        if name.upper().startswith('FP'):
+            if len(name) >= 3:
+                rest = name[2:].lower().replace('z', 'z')  
+                return 'Fp' + rest
+                
+        # Pattern 2: Δύο γράμματα + αριθμός με uppercase για συγκεκριμένα prefixes 
+        # (π.χ. AF3 -> AF3, FC1 -> FC1, CP2 -> CP2, PO4 -> PO4)
+        elif len(name) >= 3 and name[:2].upper() in ['AF', 'FC', 'CP', 'PO', 'FT', 'TP']:
+            prefix = name[:2].upper()
+            rest = name[2:].lower().replace('z', 'z')  # Κρατάμε το 'z' lowercase
+            return prefix + rest
+            
+        # Pattern 3: Ένα γράμμα + αριθμός ή z (π.χ. F3 -> F3, CZ -> Cz)
+        elif len(name) >= 2 and name[0].isalpha() and (name[1:].replace('Z', '').replace('z', '').isdigit() or name[1:].upper() == 'Z'):
+            first_letter = name[0].upper()
+            rest = name[1:].lower().replace('z', 'z')  # Κρατάμε το 'z' lowercase
+            return first_letter + rest
+            
+        return None
+
+    @staticmethod
     def load_edf_file(
         file_path: str, selected_channels: Optional[List[str]] = None
     ) -> Tuple[mne.io.Raw, List[str]]:
@@ -181,6 +273,15 @@ class EEGDataManager:
 
         # Κρατάμε μόνο τα επιλεγμένα κανάλια
         raw.pick_channels(available_channels)
+        raw.set_channel_types({ch: 'eeg' for ch in raw.ch_names})
+
+        # Κανονικοποίηση ονομάτων ηλεκτροδίων για ICLabel συμβατότητα
+        rename_mapping = EEGDataManager.normalize_electrode_names(raw)
+        if rename_mapping:
+            print(f"Κανονικοποίηση ηλεκτροδίων: {rename_mapping}")
+            raw.rename_channels(rename_mapping)
+            # Ενημέρωση της λίστας available_channels με τα νέα ονόματα
+            available_channels = [rename_mapping.get(ch, ch) for ch in available_channels]
 
         # Ορισμός montage για τοπογραφική απεικόνιση
         try:

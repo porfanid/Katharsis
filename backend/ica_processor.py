@@ -57,11 +57,11 @@ class ICAProcessor:
 
     def fit_ica(self, raw: mne.io.Raw) -> bool:
         """
-        Εκπαίδευση ICA μοντέλου
+        Εκπαίδευση ICA μοντέλου ακολουθώντας τις βέλτιστες πρακτικές του MNE.
 
-        Εκπαιδεύει ένα ICA μοντέλο στα παρεχόμενα EEG δεδομένα χρησιμοποιώντας
-        τον FastICA αλγόριθμο. Το μοντέλο αναλύει τα σήματα σε ανεξάρτητες
-        συνιστώσες που αντιπροσωπεύουν διαφορετικές πηγές δραστηριότητας.
+        Χρησιμοποιεί ένα αντίγραφο των δεδομένων, υποβιβάζει τη δειγματοληψία
+        για ταχύτητα και αφήνει το MNE να καθορίσει τον βέλτιστο αριθμό
+        συνιστωσών για να αποφευχθούν σφάλματα "rank deficiency".
 
         Args:
             raw (mne.io.Raw): Φιλτραρισμένα Raw EEG δεδομένα
@@ -70,28 +70,25 @@ class ICAProcessor:
             bool: True εάν η εκπαίδευση ήταν επιτυχής, False αλλιώς
         """
         try:
-            self.raw_data = raw.copy()
+            # Δημιουργούμε ένα αντίγραφο για να μην αλλάξουμε τα αρχικά δεδομένα
+            raw_for_ica = raw.copy()
 
-            # Αυτόματος προσδιορισμός αριθμού συνιστωσών αν δεν δοθεί
-            if self.n_components is None:
-                self.n_components = min(len(raw.ch_names), len(raw.ch_names))
-            else:
-                # Βεβαιώνουμε ότι δεν υπερβαίνουμε τον αριθμό των καναλιών
-                self.n_components = min(self.n_components, len(raw.ch_names))
+            # Υποβιβάζουμε τη δειγματοληψία για πιο γρήγορη και σταθερή εκπαίδευση
+            raw_for_ica.resample(250, npad="auto")
 
-            # Δημιουργία και εκπαίδευση ICA
+            # Δημιουργία και εκπαίδευση ICA ακολουθώντας τις βέλτιστες πρακτικές
             self.ica = mne.preprocessing.ICA(
-                n_components=self.n_components,
-                method="fastica",
+                n_components=None,  # ΚΡΙΣΙΜΟ: Αυτόματη επιλογή για σταθερότητα
+                method="picard",    # Προτεινόμενη μέθοδος: γρήγορη και αξιόπιστη
                 random_state=self.random_state,
-                max_iter=1000,
+                max_iter="auto",    # Αυτόματη προσαρμογή των επαναλήψεων
                 verbose=False,
             )
 
-            if self.ica is not None:
-                self.ica.fit(raw, verbose=False)
-            else:
-                raise RuntimeError("ICA initialization failed")
+            # Εκπαιδεύουμε το μοντέλο στο προετοιμασμένο αντίγραφο
+            self.ica.fit(raw_for_ica, verbose=False)
+            
+            self.n_components = self.ica.n_components_
 
             # Υπολογισμός πληροφοριών συνιστωσών
             self._calculate_component_info()

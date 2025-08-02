@@ -466,6 +466,7 @@ class ICAComponentSelector(QWidget):
         self.component_widgets = {}
         self.components_info = {}
         self.explanations = {}
+        self.icalabel_info = {}  # Προσθήκη για ICLabel πληροφορίες
 
         # Preview functionality
         self.preview_timer = QTimer()
@@ -563,7 +564,7 @@ class ICAComponentSelector(QWidget):
         comp_layout = QHBoxLayout(comp_container)
         comp_layout.setContentsMargins(10, 5, 10, 5)
 
-        # Δημιουργούμε ένα κάθετο layout για το checkbox και το νέο κουμπί
+        # Δημιουργούμε ένα κάθετο layout για το checkbox και τα controls
         controls_layout = QVBoxLayout()
 
         checkbox = QCheckBox(f" IC {i}")
@@ -577,6 +578,32 @@ class ICAComponentSelector(QWidget):
         )
         checkbox.toggled.connect(self._on_checkbox_toggled)  # Προσθήκη για preview
         self.checkboxes[i] = checkbox
+
+        # Προσθήκη ICLabel πληροφοριών (αν διαθέσιμες)
+        icalabel_label = QLabel()
+        if i in self.icalabel_info:
+            info = self.icalabel_info[i]
+            description = info.get('description', 'N/A')
+            icalabel_label.setText(description)
+            icalabel_label.setFont(QFont("Arial", 11, QFont.Weight.Normal))
+            icalabel_label.setStyleSheet(
+                f"""
+                QLabel {{
+                    color: {self.theme.get('text', '#212529')}; 
+                    background-color: {self.theme.get('background', '#ffffff')};
+                    border: 1px solid {self.theme.get('border', '#dee2e6')};
+                    border-radius: 4px;
+                    padding: 3px 6px;
+                    margin: 2px 0px;
+                }}
+                """
+            )
+        else:
+            # Fallback για παραδοσιακές επεξηγήσεις
+            explanation = self.explanations.get(i, "Καθαρό εγκεφαλικό σήμα")
+            icalabel_label.setText(explanation)
+            icalabel_label.setFont(QFont("Arial", 10, QFont.Weight.Normal))
+            icalabel_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')};")
 
         # Το νέο κουμπί "Ανάλυση"
         details_btn = QPushButton("🔎 Ανάλυση")
@@ -603,6 +630,7 @@ class ICAComponentSelector(QWidget):
         )  # Σύνδεση με τη νέα συνάρτηση
 
         controls_layout.addWidget(checkbox)
+        controls_layout.addWidget(icalabel_label)  # Προσθήκη ICLabel πληροφοριών
         controls_layout.addWidget(details_btn)
         controls_layout.addStretch()
 
@@ -704,6 +732,7 @@ class ICAComponentSelector(QWidget):
         suggested_artifacts,
         components_info=None,
         explanations=None,
+        icalabel_info=None,  # Προσθήκη ICLabel πληροφοριών
         **kwargs,
     ):
         # ... (Η συνάρτηση παραμένει ίδια με προσθήκη αρχικού preview)
@@ -712,6 +741,7 @@ class ICAComponentSelector(QWidget):
         self.suggested_artifacts = suggested_artifacts
         self.components_info = components_info or {}
         self.explanations = explanations or {}
+        self.icalabel_info = icalabel_info or {}  # Αποθήκευση ICLabel πληροφοριών
 
         while self.components_layout.count():
             item = self.components_layout.takeAt(0)

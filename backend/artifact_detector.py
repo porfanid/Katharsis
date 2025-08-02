@@ -19,6 +19,12 @@ import mne
 import numpy as np
 from scipy import stats
 
+try:
+    import mne_icalabel
+    ICALABEL_AVAILABLE = True
+except ImportError:
+    ICALABEL_AVAILABLE = False
+
 from .ica_processor import ICAProcessor
 
 
@@ -219,9 +225,9 @@ class ArtifactDetector:
 
     def detect_artifacts_multi_method(
         self, ica_processor: ICAProcessor, raw: mne.io.Raw, max_components: int = 3
-    ) -> Tuple[List[int], Dict[str, List[int]]]:
+    ) -> Tuple[List[int], Dict[str, List[int]], Dict[int, Dict[str, Any]]]:
         """
-        Πολλαπλός εντοπισμός artifacts με συνδυασμό μεθόδων
+        Πολλαπλός εντοπισμός artifacts με συνδυασμό μεθόδων, συμπεριλαμβανομένου του ICLabel
 
         Args:
             ica_processor: ICA processor
@@ -232,12 +238,36 @@ class ArtifactDetector:
             Tuple με:
             - Τελική λίστα artifacts
             - Dictionary με αποτελέσματα κάθε μεθόδου
+            - Dictionary με πληροφορίες ICLabel (αν διαθέσιμο)
         """
         ica = ica_processor.get_ica_object()
         if ica is None:
-            return [], {}
+            return [], {}, {}
 
-        # Εφαρμογή όλων των μεθόδων
+        # Προσπάθεια χρήσης ICLabel πρώτα
+        icalabel_artifacts, icalabel_info = self.detect_with_icalabel(ica, raw)
+        
+        if icalabel_artifacts and icalabel_info:
+            # Αν το ICLabel είναι διαθέσιμο, χρησιμοποιούμε κυρίως αυτό
+            print(f"Χρήση ICLabel - εντοπίστηκαν {len(icalabel_artifacts)} artifacts")
+            
+            methods_results = {
+                "icalabel": icalabel_artifacts,
+                "eog": self.detect_eog_artifacts(ica, raw),
+                "statistical": self.detect_statistical_artifacts(ica_processor),
+                "muscle": self.detect_muscle_artifacts(ica_processor),
+                "drift": self.detect_drift_artifacts(ica_processor),
+            }
+            
+            # Κρατάμε τα ICLabel artifacts μέχρι το max_components
+            final_artifacts = icalabel_artifacts[:max_components]
+            
+            return final_artifacts, methods_results, icalabel_info
+        
+        # Αν το ICLabel δεν είναι διαθέσιμο ή απέτυχε, χρησιμοποιούμε τις παραδοσιακές μεθόδους
+        print("Χρήση παραδοσιακών μεθόδων εντοπισμού artifacts")
+        
+        # Εφαρμογή όλων των παραδοσιακών μεθόδων
         methods_results = {
             "eog": self.detect_eog_artifacts(ica, raw),
             "statistical": self.detect_statistical_artifacts(ica_processor),
@@ -279,10 +309,103 @@ class ArtifactDetector:
             comp_idx for comp_idx, score in sorted_components if score > 0
         ][:max_components]
 
-        return final_artifacts, methods_results
+        return final_artifacts, methods_results, {}
+
+    def detect_with_icalabel(
+        self, ica: mne.preprocessing.ICA, raw: mne.io.Raw
+    ) -> Tuple[List[int], Dict[int, Dict[str, Any]]]:
+        """
+        Εντοπισμός artifacts χρησιμοποιώντας ICLabel deep learning μοντέλο
+
+        Args:
+            ica: Εκπαιδευμένο ICA αντικείμενο
+            raw: Raw EEG δεδομένα
+
+        Returns:
+            Tuple με:
+            - Λίστα με δείκτες artifact συνιστωσών
+            - Dictionary με λεπτομερείς πληροφορίες ICLabel για κάθε συνιστώσα
+        """
+        if not ICALABEL_AVAILABLE:
+            print("mne-icalabel δεν είναι διαθέσιμο. Επιστροφή σε στατιστική μέθοδο.")
+            return [], {}
+
+        try:
+            # Κλήση ICLabel για αυτόματη κατηγοριοποίηση
+            component_dict = mne_icalabel.label_components(raw, ica, method="iclabel")
+
+            # Λήψη ετικετών και πιθανοτήτων
+            labels = component_dict['labels']
+            probabilities = component_dict['y_pred_proba']
+
+            # Δημιουργία λεπτομερών πληροφοριών για κάθε συνιστώσα
+            components_info = {}
+            artifact_components = []
+
+            # Ορισμός κατωφλίου εμπιστοσύνης για artifacts
+            confidence_threshold = 0.7
+
+            # Κατηγορίες που θεωρούνται artifacts
+            artifact_categories = {'Muscle', 'Eye', 'Heart', 'Line Noise', 'Channel Noise'}
+
+            for i, (label, prob) in enumerate(zip(labels, probabilities)):
+                # Δημιουργία emoji για την κατηγορία
+                category_emoji = self._get_category_emoji(label)
+                
+                components_info[i] = {
+                    'icalabel_category': label,
+                    'icalabel_probability': prob,
+                    'icalabel_emoji': category_emoji,
+                    'is_artifact': label in artifact_categories and prob >= confidence_threshold,
+                    'description': f"{category_emoji} {label} ({prob:.1%})"
+                }
+
+                # Προσθήκη στη λίστα artifacts αν χρειάζεται
+                if components_info[i]['is_artifact']:
+                    artifact_components.append(i)
+
+            print(f"ICLabel εντόπισε {len(artifact_components)} artifact συνιστώσες")
+            return artifact_components, components_info
+
+        except Exception as e:
+            print(f"Σφάλμα ICLabel detection: {str(e)}")
+            return [], {}
+
+    def _get_category_emoji(self, category: str) -> str:
+        """
+        Επιστρέφει το κατάλληλο emoji για κάθε κατηγορία ICLabel
+
+        Args:
+            category: Η κατηγορία ICLabel
+
+        Returns:
+            Emoji string
+        """
+        emoji_map = {
+            'brain': '🧠',
+            'muscle': '💪', 
+            'eye blink': '👁️',
+            'heart beat': '❤️',
+            'line noise': '⚡',
+            'channel noise': '📻',
+            'muscle artifact': '💪',
+            'eye': '👁️',
+            'heart': '❤️',
+            'other': '❓',
+            # Add title case variants
+            'Brain': '🧠',
+            'Muscle': '💪', 
+            'Eye': '👁️',
+            'Heart': '❤️',
+            'Line Noise': '⚡',
+            'Channel Noise': '📻',
+            'Other': '❓'
+        }
+        return emoji_map.get(category, '❓')
 
     def get_artifact_explanation(
-        self, component_idx: int, methods_results: Dict[str, List[int]]
+        self, component_idx: int, methods_results: Dict[str, List[int]], 
+        icalabel_info: Optional[Dict[int, Dict[str, Any]]] = None
     ) -> str:
         """
         Επεξήγηση γιατί μια συνιστώσα θεωρείται artifact
@@ -290,10 +413,17 @@ class ArtifactDetector:
         Args:
             component_idx: Δείκτης συνιστώσας
             methods_results: Αποτελέσματα των μεθόδων εντοπισμού
+            icalabel_info: Πληροφορίες από ICLabel (προαιρετικό)
 
         Returns:
             Κείμενο επεξήγησης
         """
+        # Προτεραιότητα στο ICLabel αν είναι διαθέσιμο
+        if icalabel_info and component_idx in icalabel_info:
+            info = icalabel_info[component_idx]
+            return info['description']
+
+        # Fallback στις παραδοσιακές μεθόδους
         reasons = []
 
         if component_idx in methods_results.get("eog", []):
@@ -309,6 +439,6 @@ class ArtifactDetector:
             reasons.append("Drift σήματος")
 
         if not reasons:
-            return "Καθαρό εγκεφαλικό σήμα"
+            return "🧠 Καθαρό εγκεφαλικό σήμα"
 
         return f"Πιθανό artifact: {', '.join(reasons)}"
