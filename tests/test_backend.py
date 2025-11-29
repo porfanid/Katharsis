@@ -870,16 +870,12 @@ class TestMultiFormatImportExport(unittest.TestCase):
         raw = EEGDataManager.read_raw(csv_path)
         self.assertIsInstance(raw, mne.io.BaseRaw)
 
-    def test_export_raw_bdf(self):
-        """Έλεγχος εξαγωγής σε BDF format"""
+    def test_export_raw_bdf_unsupported(self):
+        """Έλεγχος ότι BDF export δεν υποστηρίζεται"""
         bdf_path = self._create_temp_file(".bdf")
-        success = EEGDataManager.export_raw(self.test_raw, bdf_path)
-        self.assertTrue(success)
-        self.assertTrue(os.path.exists(bdf_path))
-
-        # Verify by reading back
-        raw = EEGDataManager.read_raw(bdf_path)
-        self.assertIsInstance(raw, mne.io.BaseRaw)
+        # BDF export is not supported by MNE
+        with self.assertRaises(ValueError):
+            EEGDataManager.export_raw(self.test_raw, bdf_path)
 
     def test_export_raw_set(self):
         """Έλεγχος εξαγωγής σε EEGLAB (.set) format"""
@@ -918,11 +914,6 @@ class TestMultiFormatImportExport(unittest.TestCase):
         # Test CSV
         csv_path = self._create_temp_file(".csv")
         success = self.data_manager.save_cleaned_data(self.test_raw, csv_path)
-        self.assertTrue(success)
-
-        # Test BDF
-        bdf_path = self._create_temp_file(".bdf")
-        success = self.data_manager.save_cleaned_data(self.test_raw, bdf_path)
         self.assertTrue(success)
 
         # Test SET

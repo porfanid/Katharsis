@@ -23,7 +23,8 @@ import pandas as pd
 
 # Supported file formats for import and export
 SUPPORTED_IMPORT_FORMATS = [".edf", ".bdf", ".fif", ".csv", ".set"]
-SUPPORTED_EXPORT_FORMATS = [".edf", ".bdf", ".fif", ".csv", ".set"]
+# Note: BDF export is not supported by MNE's export function
+SUPPORTED_EXPORT_FORMATS = [".edf", ".fif", ".csv", ".set"]
 
 # Default sampling rate for CSV files without time column
 DEFAULT_SAMPLING_RATE = 256.0
@@ -505,9 +506,6 @@ class EEGDataManager:
         try:
             if ext == ".edf":
                 raw.export(output_path, fmt="edf", overwrite=True, verbose=False)
-            elif ext == ".bdf":
-                # BDF uses the same export mechanism as EDF with auto format
-                raw.export(output_path, fmt="auto", overwrite=True, verbose=False)
             elif ext == ".fif":
                 raw.save(output_path, overwrite=True, verbose=False)
             elif ext == ".csv":
