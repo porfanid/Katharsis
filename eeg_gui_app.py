@@ -266,11 +266,14 @@ class EEGProcessingThread(QThread):
                 return
             self.progress_update.emit(30)
 
-            self.status_update.emit("Εκπαίδευση μοντέλου ICA...")
-            ica_result = self.service.fit_ica_analysis()
-            if not ica_result["success"]:
+            # Use generic fit_analysis() which respects the set analysis method
+            method_name = self.service.analysis_method
+            self.status_update.emit(f"Εκπαίδευση μοντέλου {method_name}...")
+            analysis_result = self.service.fit_analysis()
+            if not analysis_result["success"]:
                 self.processing_complete.emit(
-                    False, f"Σφάλμα ICA: {ica_result.get('error', 'Άγνωστο σφάλμα')}"
+                    False,
+                    f"Σφάλμα {method_name}: {analysis_result.get('error', 'Άγνωστο σφάλμα')}",
                 )
                 return
             self.progress_update.emit(70)
