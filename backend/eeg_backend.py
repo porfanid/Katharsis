@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-EEG Backend Core - Κεντρικό σύστημα επεξεργασίας EEG δεδομένων
-===========================================================
+EEG Backend Core - Central EEG Data Processing System
+======================================================
 
-Περιέχει τις βασικές κλάσεις και συναρτήσεις για την επεξεργασία δεδομένων EEG:
-- Διαχείριση φόρτωσης και αποθήκευσης αρχείων (.edf, .bdf, .fif, .csv, .set)
-- Φιλτράρισμα και προεπεξεργασία σημάτων
-- Αυτόματος εντοπισμός EEG καναλιών
-- Στατιστική ανάλυση δεδομένων
+Contains the core classes and functions for EEG data processing:
+- File loading and saving management (.edf, .bdf, .fif, .csv, .set)
+- Signal filtering and preprocessing
+- Automatic EEG channel detection
+- Statistical data analysis
 
 Author: porfanid
 Version: 1.1
@@ -41,47 +41,47 @@ mne.set_log_level("WARNING")
 
 class EEGDataManager:
     """
-    Διαχείριση δεδομένων EEG - φόρτωση, αποθήκευση, επικύρωση
+    EEG Data Management - loading, saving, validation.
 
-    Παρέχει στατικές μεθόδους για:
-    - Αυτόματο εντοπισμό EEG καναλιών
-    - Φόρτωση αρχείων σε διάφορες μορφές (.edf, .bdf, .fif, .csv, .set)
-    - Αποθήκευση αρχείων σε διάφορες μορφές
-    - Εξαγωγή πληροφοριών αρχείου
+    Provides static methods for:
+    - Automatic EEG channel detection
+    - Loading files in various formats (.edf, .bdf, .fif, .csv, .set)
+    - Saving files in various formats
+    - Extracting file information
     """
 
     @staticmethod
     def get_supported_import_formats() -> List[str]:
         """
-        Επιστρέφει τη λίστα με τις υποστηριζόμενες μορφές εισαγωγής.
+        Returns the list of supported import formats.
 
         Returns:
-            List[str]: Λίστα με τις υποστηριζόμενες επεκτάσεις εισαγωγής
+            List[str]: List of supported import file extensions
         """
         return SUPPORTED_IMPORT_FORMATS.copy()
 
     @staticmethod
     def get_supported_export_formats() -> List[str]:
         """
-        Επιστρέφει τη λίστα με τις υποστηριζόμενες μορφές εξαγωγής.
+        Returns the list of supported export formats.
 
         Returns:
-            List[str]: Λίστα με τις υποστηριζόμενες επεκτάσεις εξαγωγής
+            List[str]: List of supported export file extensions
         """
         return SUPPORTED_EXPORT_FORMATS.copy()
 
     @staticmethod
     def detect_eeg_channels(raw: mne.io.Raw) -> List[str]:
         """
-        Αυτόματος εντοπισμός EEG καναλιών από τα διαθέσιμα κανάλια
+        Automatic detection of EEG channels from available channels.
 
         Args:
-            raw: Raw EEG δεδομένα
+            raw: Raw EEG data
 
         Returns:
-            List[str]: Λίστα με τα εντοπισμένα EEG κανάλια
+            List[str]: List of detected EEG channels
         """
-        # Κοινά EEG κανάλια βάσει του 10-20 συστήματος
+        # Common EEG channels based on the 10-20 system
         common_eeg_channels = [
             "Fp1",
             "Fp2",
@@ -145,21 +145,21 @@ class EEGDataManager:
             "PO8",
         ]
 
-        # Βρες διαθέσιμα EEG κανάλια
+        # Find available EEG channels
         available_eeg_channels = []
 
         for ch_name in raw.ch_names:
-            # Έλεγχος για κοινά EEG κανάλια
+            # Check for common EEG channels
             if ch_name in common_eeg_channels:
                 available_eeg_channels.append(ch_name)
-            # Έλεγχος για κανάλια που μοιάζουν με EEG (π.χ. F4, P3, etc.)
+            # Check for channels that look like EEG (e.g., F4, P3, etc.)
             elif (
                 len(ch_name) >= 2
                 and ch_name[0].upper() in ["F", "C", "P", "O", "T", "A"]
                 and ch_name[1:].replace("z", "").replace("Z", "").isdigit()
             ):
                 available_eeg_channels.append(ch_name)
-            # Έλεγχος για κανάλια με πρόθεμα AF, FP, PO, etc.
+            # Check for channels with prefix AF, FP, PO, etc.
             elif (
                 len(ch_name) >= 3
                 and ch_name[:2].upper() in ["AF", "FP", "PO", "FC", "CP", "FT", "TP"]
@@ -172,9 +172,9 @@ class EEGDataManager:
     @staticmethod
     def read_raw(file_path: str, preload: bool = True) -> mne.io.Raw:
         """
-        Φόρτωση raw EEG δεδομένων από διάφορες μορφές αρχείων.
+        Load raw EEG data from various file formats.
 
-        Υποστηρίζει τις ακόλουθες μορφές:
+        Supports the following formats:
         - .edf (European Data Format)
         - .bdf (BioSemi Data Format)
         - .fif (MNE-Python native format)
@@ -182,27 +182,27 @@ class EEGDataManager:
         - .set (EEGLAB format)
 
         Args:
-            file_path: Διαδρομή του αρχείου
-            preload: Αν True, φορτώνει τα δεδομένα στη μνήμη
+            file_path: Path to the file
+            preload: If True, loads data into memory
 
         Returns:
-            mne.io.Raw: Raw EEG δεδομένα
+            mne.io.Raw: Raw EEG data
 
         Raises:
-            FileNotFoundError: Εάν το αρχείο δεν βρεθεί
-            ValueError: Εάν η μορφή αρχείου δεν υποστηρίζεται
+            FileNotFoundError: If the file is not found
+            ValueError: If the file format is not supported
         """
         path = Path(file_path)
 
         if not path.exists():
-            raise FileNotFoundError(f"Το αρχείο {file_path} δεν βρέθηκε")
+            raise FileNotFoundError(f"File {file_path} not found")
 
         ext = path.suffix.lower()
 
         if ext not in SUPPORTED_IMPORT_FORMATS:
             raise ValueError(
-                f"Μη υποστηριζόμενη μορφή αρχείου: {ext}. "
-                f"Υποστηριζόμενες μορφές: {SUPPORTED_IMPORT_FORMATS}"
+                f"Unsupported file format: {ext}. "
+                f"Supported formats: {SUPPORTED_IMPORT_FORMATS}"
             )
 
         try:
@@ -217,7 +217,7 @@ class EEGDataManager:
             elif ext == ".csv":
                 raw = EEGDataManager._read_raw_csv(file_path)
             else:
-                raise ValueError(f"Μη υποστηριζόμενη μορφή αρχείου: {ext}")
+                raise ValueError(f"Unsupported file format: {ext}")
 
             return raw
 
@@ -226,7 +226,7 @@ class EEGDataManager:
         except ValueError:
             raise
         except Exception as e:
-            raise ValueError(f"Σφάλμα φόρτωσης αρχείου {ext}: {str(e)}")
+            raise ValueError(f"Error loading {ext} file: {str(e)}")
 
     @staticmethod
     def _read_raw_csv(
@@ -235,28 +235,28 @@ class EEGDataManager:
         ch_types: str = "eeg",
     ) -> mne.io.Raw:
         """
-        Φόρτωση EEG δεδομένων από CSV αρχείο.
+        Load EEG data from CSV file.
 
-        Το CSV αρχείο πρέπει να έχει:
-        - Κάθε στήλη είναι ένα κανάλι (εκτός από στήλη 'time' αν υπάρχει)
-        - Κάθε γραμμή είναι ένα δείγμα
-        - Η πρώτη γραμμή περιέχει τα ονόματα των καναλιών
+        The CSV file should have:
+        - Each column is a channel (except 'time' column if present)
+        - Each row is a sample
+        - The first row contains channel names
 
         Args:
-            file_path: Διαδρομή του CSV αρχείου
-            sfreq: Sampling frequency σε Hz. Αν None, υπολογίζεται από τα δεδομένα.
-            ch_types: Τύπος καναλιών (default: 'eeg')
+            file_path: Path to the CSV file
+            sfreq: Sampling frequency in Hz. If None, calculated from data.
+            ch_types: Type of channels (default: 'eeg')
 
         Returns:
-            mne.io.Raw: Raw EEG δεδομένα
+            mne.io.Raw: Raw EEG data
 
         Raises:
-            ValueError: Εάν το αρχείο δεν είναι έγκυρο CSV
+            ValueError: If the file is not a valid CSV
         """
         try:
             df = pd.read_csv(file_path)
         except Exception as e:
-            raise ValueError(f"Σφάλμα ανάγνωσης CSV: {str(e)}")
+            raise ValueError(f"Error reading CSV: {str(e)}")
 
         # Check for time column and remove it
         time_columns = ["time", "Time", "TIME", "timestamp", "Timestamp"]
@@ -287,7 +287,7 @@ class EEGDataManager:
             # Default sampling frequency if not provided
             sfreq = DEFAULT_SAMPLING_RATE
             warnings.warn(
-                f"Δεν βρέθηκε στήλη χρόνου, χρήση default sfreq={sfreq} Hz",
+                f"No time column found, using default sfreq={sfreq} Hz",
                 UserWarning,
             )
 
@@ -309,56 +309,56 @@ class EEGDataManager:
         file_path: str, selected_channels: Optional[List[str]] = None
     ) -> Tuple[mne.io.Raw, List[str]]:
         """
-        Φόρτωση EDF αρχείου και εξαγωγή καναλιών
+        Load EDF file and extract channels.
 
         Args:
-            file_path: Διαδρομή του EDF αρχείου
-            selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
+            file_path: Path to the EDF file
+            selected_channels: List of selected channels (None for auto detection)
 
         Returns:
-            Tuple[mne.io.Raw, List[str]]: Raw δεδομένα και λίστα καναλιών
+            Tuple[mne.io.Raw, List[str]]: Raw data and list of channels
 
         Raises:
-            FileNotFoundError: Εάν το αρχείο δεν βρεθεί
-            ValueError: Εάν το αρχείο δεν είναι έγκυρο EDF
+            FileNotFoundError: If the file is not found
+            ValueError: If the file is not a valid EDF
         """
         if not Path(file_path).exists():
-            raise FileNotFoundError(f"Το αρχείο {file_path} δεν βρέθηκε")
+            raise FileNotFoundError(f"File {file_path} not found")
 
         try:
             raw = mne.io.read_raw_edf(file_path, preload=True, verbose=False)
         except Exception as e:
-            raise ValueError(f"Σφάλμα φόρτωσης EDF αρχείου: {str(e)}")
+            raise ValueError(f"Error loading EDF file: {str(e)}")
 
         if selected_channels is None:
-            # Αυτόματος εντοπισμός EEG καναλιών (backward compatibility)
+            # Automatic EEG channel detection (backward compatibility)
             available_channels = EEGDataManager.detect_eeg_channels(raw)
 
             if not available_channels:
-                raise ValueError("Δεν βρέθηκαν έγκυρα EEG κανάλια στο αρχείο")
+                raise ValueError("No valid EEG channels found in the file")
         else:
-            # Χρήση επιλεγμένων καναλιών
+            # Use selected channels
             available_channels = []
             for ch in selected_channels:
                 if ch in raw.ch_names:
                     available_channels.append(ch)
                 else:
-                    raise ValueError(f"Το κανάλι '{ch}' δεν υπάρχει στο αρχείο")
+                    raise ValueError(f"Channel '{ch}' does not exist in the file")
 
             if len(available_channels) < 3:
-                raise ValueError("Χρειάζονται τουλάχιστον 3 κανάλια για την ανάλυση")
+                raise ValueError("At least 3 channels are required for analysis")
 
-        # Κρατάμε μόνο τα επιλεγμένα κανάλια
+        # Keep only selected channels
         raw.pick_channels(available_channels)
 
-        # Ορισμός montage για τοπογραφική απεικόνιση
+        # Set montage for topographic visualization
         try:
             raw.set_montage("standard_1020", on_missing="warn")
         except (ValueError, KeyError, RuntimeError) as e:
-            # Αν αποτύχει το montage, συνεχίζουμε χωρίς αυτό
+            # If montage fails, continue without it
             import warnings
 
-            warnings.warn(f"Αδυναμία ορισμού montage: {str(e)}", UserWarning)
+            warnings.warn(f"Unable to set montage: {str(e)}", UserWarning)
 
         return raw, available_channels
 
@@ -367,74 +367,74 @@ class EEGDataManager:
         file_path: str, selected_channels: Optional[List[str]] = None
     ) -> Tuple[mne.io.Raw, List[str]]:
         """
-        Φόρτωση αρχείου EEG από διάφορες μορφές και εξαγωγή καναλιών.
+        Load EEG file from various formats and extract channels.
 
-        Υποστηρίζει: .edf, .bdf, .fif, .csv, .set
+        Supports: .edf, .bdf, .fif, .csv, .set
 
         Args:
-            file_path: Διαδρομή του αρχείου
-            selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
+            file_path: Path to the file
+            selected_channels: List of selected channels (None for auto detection)
 
         Returns:
-            Tuple[mne.io.Raw, List[str]]: Raw δεδομένα και λίστα καναλιών
+            Tuple[mne.io.Raw, List[str]]: Raw data and list of channels
 
         Raises:
-            FileNotFoundError: Εάν το αρχείο δεν βρεθεί
-            ValueError: Εάν το αρχείο δεν είναι έγκυρο ή δεν υποστηρίζεται
+            FileNotFoundError: If the file is not found
+            ValueError: If the file is invalid or not supported
         """
         raw = EEGDataManager.read_raw(file_path, preload=True)
 
         if selected_channels is None:
-            # Αυτόματος εντοπισμός EEG καναλιών
+            # Automatic EEG channel detection
             available_channels = EEGDataManager.detect_eeg_channels(raw)
 
             if not available_channels:
-                raise ValueError("Δεν βρέθηκαν έγκυρα EEG κανάλια στο αρχείο")
+                raise ValueError("No valid EEG channels found in the file")
         else:
-            # Χρήση επιλεγμένων καναλιών
+            # Use selected channels
             available_channels = []
             for ch in selected_channels:
                 if ch in raw.ch_names:
                     available_channels.append(ch)
                 else:
-                    raise ValueError(f"Το κανάλι '{ch}' δεν υπάρχει στο αρχείο")
+                    raise ValueError(f"Channel '{ch}' does not exist in the file")
 
             if len(available_channels) < 3:
-                raise ValueError("Χρειάζονται τουλάχιστον 3 κανάλια για την ανάλυση")
+                raise ValueError("At least 3 channels are required for analysis")
 
-        # Κρατάμε μόνο τα επιλεγμένα κανάλια
+        # Keep only selected channels
         raw.pick_channels(available_channels)
 
-        # Ορισμός montage για τοπογραφική απεικόνιση
+        # Set montage for topographic visualization
         try:
             raw.set_montage("standard_1020", on_missing="warn")
         except (ValueError, KeyError, RuntimeError) as e:
-            warnings.warn(f"Αδυναμία ορισμού montage: {str(e)}", UserWarning)
+            warnings.warn(f"Unable to set montage: {str(e)}", UserWarning)
 
         return raw, available_channels
 
     @staticmethod
     def load_file_info(file_path: str) -> Dict[str, Any]:
         """
-        Φόρτωση πληροφοριών αρχείου EEG χωρίς επεξεργασία.
+        Load EEG file information without processing.
 
-        Υποστηρίζει: .edf, .bdf, .fif, .csv, .set
+        Supports: .edf, .bdf, .fif, .csv, .set
 
         Args:
-            file_path: Διαδρομή του αρχείου
+            file_path: Path to the file
 
         Returns:
-            Dict με πληροφορίες αρχείου:
-                - success (bool): Επιτυχία φόρτωσης
-                - channels (List[str]): Ονόματα καναλιών
-                - sampling_rate (float): Ρυθμός δειγματοληψίας
-                - n_channels (int): Αριθμός καναλιών
-                - detected_eeg (List[str]): Εντοπισμένα EEG κανάλια
-                - n_annotations (int): Αριθμός annotations/markers
-                - format (str): Μορφή αρχείου
+            Dict with file information:
+                - success (bool): Loading success
+                - channels (List[str]): Channel names
+                - sampling_rate (float): Sampling rate
+                - n_channels (int): Number of channels
+                - detected_eeg (List[str]): Detected EEG channels
+                - n_annotations (int): Number of annotations/markers
+                - format (str): File format
         """
         if not Path(file_path).exists():
-            raise FileNotFoundError(f"Το αρχείο {file_path} δεν βρέθηκε")
+            raise FileNotFoundError(f"File {file_path} not found")
 
         ext = Path(file_path).suffix.lower()
 
@@ -455,16 +455,16 @@ class EEGDataManager:
     @staticmethod
     def load_edf_file_info(file_path: str) -> Dict[str, Any]:
         """
-        Φόρτωση πληροφοριών EDF αρχείου χωρίς επεξεργασία
+        Load EDF file information without processing.
 
         Args:
-            file_path: Διαδρομή του EDF αρχείου
+            file_path: Path to the EDF file
 
         Returns:
-            Dict με πληροφορίες αρχείου
+            Dict with file information
         """
         if not Path(file_path).exists():
-            raise FileNotFoundError(f"Το αρχείο {file_path} δεν βρέθηκε")
+            raise FileNotFoundError(f"File {file_path} not found")
 
         try:
             raw = mne.io.read_raw_edf(file_path, preload=False, verbose=False)
@@ -481,26 +481,26 @@ class EEGDataManager:
     @staticmethod
     def export_raw(raw: mne.io.Raw, output_path: str) -> bool:
         """
-        Εξαγωγή raw δεδομένων σε διάφορες μορφές.
+        Export raw data to various formats.
 
-        Υποστηρίζει: .edf, .bdf, .fif, .csv, .set
+        Supports: .edf, .bdf, .fif, .csv, .set
 
         Args:
-            raw: Raw EEG δεδομένα
-            output_path: Διαδρομή εξόδου
+            raw: Raw EEG data
+            output_path: Output path
 
         Returns:
-            bool: True εάν η εξαγωγή ήταν επιτυχής
+            bool: True if export was successful
 
         Raises:
-            ValueError: Εάν η μορφή εξόδου δεν υποστηρίζεται
+            ValueError: If output format is not supported
         """
         ext = Path(output_path).suffix.lower()
 
         if ext not in SUPPORTED_EXPORT_FORMATS:
             raise ValueError(
-                f"Μη υποστηριζόμενη μορφή εξαγωγής: {ext}. "
-                f"Υποστηριζόμενες μορφές: {SUPPORTED_EXPORT_FORMATS}"
+                f"Unsupported export format: {ext}. "
+                f"Supported formats: {SUPPORTED_EXPORT_FORMATS}"
             )
 
         try:
@@ -515,17 +515,17 @@ class EEGDataManager:
                 raw.export(output_path, fmt="eeglab", overwrite=True, verbose=False)
             return True
         except Exception as e:
-            warnings.warn(f"Σφάλμα εξαγωγής: {str(e)}", UserWarning)
+            warnings.warn(f"Export error: {str(e)}", UserWarning)
             return False
 
     @staticmethod
     def _export_raw_csv(raw: mne.io.Raw, output_path: str) -> None:
         """
-        Εξαγωγή raw δεδομένων σε CSV μορφή.
+        Export raw data to CSV format.
 
         Args:
-            raw: Raw EEG δεδομένα
-            output_path: Διαδρομή εξόδου
+            raw: Raw EEG data
+            output_path: Output path
         """
         data = raw.get_data().T  # (n_samples, n_channels)
         times = raw.times
@@ -537,18 +537,18 @@ class EEGDataManager:
     @staticmethod
     def save_cleaned_data(raw: mne.io.Raw, output_path: str) -> bool:
         """
-        Αποθήκευση καθαρισμένων δεδομένων.
+        Save cleaned data.
 
-        Υποστηρίζει αυτόματη ανίχνευση μορφής από την επέκταση αρχείου.
-        Για backward compatibility, αν η επέκταση δεν υποστηρίζεται,
-        χρησιμοποιείται EDF format.
+        Supports automatic format detection from file extension.
+        For backward compatibility, if extension is not supported,
+        uses EDF format.
 
         Args:
-            raw: Καθαρισμένα Raw δεδομένα
-            output_path: Διαδρομή εξόδου
+            raw: Cleaned Raw data
+            output_path: Output path
 
         Returns:
-            bool: True εάν η αποθήκευση ήταν επιτυχής
+            bool: True if saving was successful
         """
         ext = Path(output_path).suffix.lower()
 
@@ -561,19 +561,19 @@ class EEGDataManager:
             raw.export(output_path, fmt="edf", overwrite=True, verbose=False)
             return True
         except Exception as e:
-            warnings.warn(f"Σφάλμα αποθήκευσης: {str(e)}", UserWarning)
+            warnings.warn(f"Save error: {str(e)}", UserWarning)
             return False
 
     @staticmethod
     def validate_edf_file(file_path: str) -> Dict[str, Any]:
         """
-        Επικύρωση και πληροφορίες EDF αρχείου
+        Validate and get EDF file information.
 
         Args:
-            file_path: Διαδρομή αρχείου
+            file_path: File path
 
         Returns:
-            Dict με πληροφορίες αρχείου
+            Dict with file information
         """
         try:
             raw, channels = EEGDataManager.load_edf_file(file_path)
@@ -595,23 +595,23 @@ class EEGDataManager:
     @staticmethod
     def validate_file(file_path: str) -> Dict[str, Any]:
         """
-        Επικύρωση και πληροφορίες αρχείου EEG.
+        Validate and get EEG file information.
 
-        Υποστηρίζει: .edf, .bdf, .fif, .csv, .set
+        Supports: .edf, .bdf, .fif, .csv, .set
 
         Args:
-            file_path: Διαδρομή αρχείου
+            file_path: File path
 
         Returns:
-            Dict με πληροφορίες αρχείου:
-                - valid (bool): Αν το αρχείο είναι έγκυρο
-                - channels (List[str]): Ονόματα καναλιών
-                - sampling_rate (float): Ρυθμός δειγματοληψίας
-                - duration (float): Διάρκεια σε δευτερόλεπτα
-                - n_samples (int): Αριθμός δειγμάτων
-                - n_channels (int): Αριθμός καναλιών
-                - n_annotations (int): Αριθμός annotations/markers
-                - format (str): Μορφή αρχείου
+            Dict with file information:
+                - valid (bool): If file is valid
+                - channels (List[str]): Channel names
+                - sampling_rate (float): Sampling rate
+                - duration (float): Duration in seconds
+                - n_samples (int): Number of samples
+                - n_channels (int): Number of channels
+                - n_annotations (int): Number of annotations/markers
+                - format (str): File format
         """
         try:
             raw, channels = EEGDataManager.load_raw_file(file_path)
@@ -636,12 +636,12 @@ class EEGDataManager:
 
 class EEGPreprocessor:
     """
-    Προεπεξεργασία EEG δεδομένων - φιλτράρισμα, τυποποίηση
+    EEG Data Preprocessing - filtering, standardization.
 
-    Παρέχει στατικές μεθόδους για:
-    - Εφαρμογή ζωνοπερατών φίλτρων
-    - Υπολογισμό στατιστικών δεδομένων
-    - Προεπεξεργασία σημάτων
+    Provides static methods for:
+    - Applying band-pass filters
+    - Computing data statistics
+    - Preprocessing signals
     """
 
     @staticmethod
@@ -649,15 +649,15 @@ class EEGPreprocessor:
         raw: mne.io.Raw, low_freq: float = 1.0, high_freq: float = 40.0
     ) -> mne.io.Raw:
         """
-        Εφαρμογή ζωνοπερατού φίλτρου
+        Apply band-pass filter.
 
         Args:
-            raw: Raw EEG δεδομένα
-            low_freq: Κάτω συχνότητα (Hz)
-            high_freq: Άνω συχνότητα (Hz)
+            raw: Raw EEG data
+            low_freq: Low frequency cutoff (Hz)
+            high_freq: High frequency cutoff (Hz)
 
         Returns:
-            Φιλτραρισμένα Raw δεδομένα
+            Filtered Raw data
         """
         raw_filtered = raw.copy()
         raw_filtered.filter(
@@ -668,15 +668,15 @@ class EEGPreprocessor:
     @staticmethod
     def get_data_statistics(raw: mne.io.Raw) -> Dict[str, Dict[str, float]]:
         """
-        Υπολογισμός στατιστικών δεδομένων ανά κανάλι
+        Compute data statistics per channel.
 
         Args:
-            raw: Raw EEG δεδομένα
+            raw: Raw EEG data
 
         Returns:
-            Dictionary με στατιστικά ανά κανάλι
+            Dictionary with statistics per channel
         """
-        data = raw.get_data() * 1e6  # Μετατροπή σε μV
+        data = raw.get_data() * 1e6  # Convert to μV
         stats_dict = {}
 
         for i, ch_name in enumerate(raw.ch_names):
@@ -696,25 +696,25 @@ class EEGPreprocessor:
 
 class EEGBackendCore:
     """
-    Κεντρικό Backend για EEG επεξεργασία
+    Central Backend for EEG Processing.
 
-    Συνδυάζει τη διαχείριση δεδομένων και την προεπεξεργασία για να παρέχει
-    μια ενιαία διεπαφή για φόρτωση, επεξεργασία και αποθήκευση EEG δεδομένων.
+    Combines data management and preprocessing to provide a unified
+    interface for loading, processing, and saving EEG data.
 
     Attributes:
-        data_manager (EEGDataManager): Διαχειριστής δεδομένων
-        preprocessor (EEGPreprocessor): Προεπεξεργαστής δεδομένων
-        raw_data (mne.io.Raw): Αρχικά δεδομένα
-        filtered_data (mne.io.Raw): Φιλτραρισμένα δεδομένα
-        current_file (str): Τρέχον αρχείο που επεξεργάζεται
+        data_manager (EEGDataManager): Data manager
+        preprocessor (EEGPreprocessor): Data preprocessor
+        raw_data (mne.io.Raw): Original data
+        filtered_data (mne.io.Raw): Filtered data
+        current_file (str): Current file being processed
     """
 
     def __init__(self):
         """
-        Αρχικοποίηση του κεντρικού backend
+        Initialize the central backend.
 
-        Δημιουργεί instances των data manager και preprocessor και
-        αρχικοποιεί τις μεταβλητές κατάστασης.
+        Creates instances of data manager and preprocessor and
+        initializes state variables.
         """
         self.data_manager = EEGDataManager()
         self.preprocessor = EEGPreprocessor()
@@ -726,28 +726,28 @@ class EEGBackendCore:
         self, file_path: str, selected_channels: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Φόρτωση και αρχική επεξεργασία αρχείου.
+        Load and initially process file.
 
-        Υποστηρίζει: .edf, .bdf, .fif, .csv, .set
+        Supports: .edf, .bdf, .fif, .csv, .set
 
         Args:
-            file_path: Διαδρομή αρχείου
-            selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
+            file_path: File path
+            selected_channels: List of selected channels (None for auto detection)
 
         Returns:
-            Dictionary με πληροφορίες φόρτωσης
+            Dictionary with loading information
         """
         try:
-            # Φόρτωση δεδομένων (υποστηρίζει πολλαπλές μορφές)
+            # Load data (supports multiple formats)
             self.raw_data, channels = self.data_manager.load_raw_file(
                 file_path, selected_channels
             )
             self.current_file = file_path
 
-            # Εφαρμογή φίλτρου
+            # Apply filter
             self.filtered_data = self.preprocessor.apply_bandpass_filter(self.raw_data)
 
-            # Επιστροφή πληροφοριών
+            # Return information
             return {
                 "success": True,
                 "channels": channels,
@@ -766,15 +766,15 @@ class EEGBackendCore:
 
     def get_file_info(self, file_path: str) -> Dict[str, Any]:
         """
-        Λήψη πληροφοριών αρχείου χωρίς φόρτωση δεδομένων.
+        Get file information without loading data.
 
-        Υποστηρίζει: .edf, .bdf, .fif, .csv, .set
+        Supports: .edf, .bdf, .fif, .csv, .set
 
         Args:
-            file_path: Διαδρομή αρχείου
+            file_path: File path
 
         Returns:
-            Dictionary με πληροφορίες αρχείου
+            Dictionary with file information
         """
         try:
             return self.data_manager.load_file_info(file_path)
@@ -783,33 +783,33 @@ class EEGBackendCore:
 
     def save_cleaned_data(self, cleaned_raw: mne.io.Raw, output_path: str) -> bool:
         """
-        Αποθήκευση καθαρισμένων δεδομένων.
+        Save cleaned data.
 
-        Υποστηρίζει: .edf, .fif, .csv
+        Supports: .edf, .fif, .csv
 
         Args:
-            cleaned_raw (mne.io.Raw): Τα καθαρισμένα δεδομένα
-            output_path (str): Διαδρομή αρχείου εξόδου
+            cleaned_raw (mne.io.Raw): The cleaned data
+            output_path (str): Output file path
 
         Returns:
-            bool: True εάν η αποθήκευση ήταν επιτυχής
+            bool: True if saving was successful
         """
         return self.data_manager.save_cleaned_data(cleaned_raw, output_path)
 
     def get_filtered_data(self) -> Optional[mne.io.Raw]:
         """
-        Επιστροφή φιλτραρισμένων δεδομένων
+        Return filtered data.
 
         Returns:
-            Optional[mne.io.Raw]: Τα φιλτραρισμένα δεδομένα ή None αν δεν υπάρχουν
+            Optional[mne.io.Raw]: The filtered data or None if not available
         """
         return self.filtered_data
 
     def get_original_data(self) -> Optional[mne.io.Raw]:
         """
-        Επιστροφή αρχικών δεδομένων
+        Return original data.
 
         Returns:
-            Optional[mne.io.Raw]: Τα αρχικά δεδομένα ή None αν δεν υπάρχουν
+            Optional[mne.io.Raw]: The original data or None if not available
         """
         return self.raw_data

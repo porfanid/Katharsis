@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Artifact Detector - Εντοπισμός artifacts σε ICA και PCA συνιστώσες
-================================================================
+Artifact Detector - Detection of artifacts in ICA and PCA components
+=====================================================================
 
-Υλοποιεί αλγορίθμους για τον αυτόματο εντοπισμό artifacts σε EEG δεδομένα:
-- Εντοπισμός EOG artifacts (βλεφαρισμοί) - για ICA
-- Στατιστική ανάλυση συνιστωσών - για ICA και PCA
-- Ανάλυση εξηγούμενης διακύμανσης - για PCA
-- Πολλαπλές μέθοδοι εντοπισμού
-- Γενερικός εντοπισμός με fallback μεθόδους
+Implements algorithms for automatic artifact detection in EEG data:
+- EOG artifact detection (eye blinks) - for ICA
+- Statistical component analysis - for ICA and PCA
+- Explained variance analysis - for PCA
+- Multiple detection methods
+- Generic detection with fallback methods
 
 Author: porfanid
 Version: 1.1
@@ -27,18 +27,18 @@ from .pca_processor import PCAProcessor
 
 class ArtifactDetector:
     """
-    Εντοπισμός artifacts σε ICA και PCA συνιστώσες με πολλαπλές μεθόδους
+    Artifact detection in ICA and PCA components using multiple methods.
 
-    Χρησιμοποιεί διάφορους αλγορίθμους για τον εντοπισμό artifacts όπως:
-    - EOG artifacts (βλεφαρισμοί) μέσω frontal καναλιών (ICA only)
-    - Στατιστική ανάλυση (διακύμανση, κύρτωση, εύρος)
-    - Ανάλυση εξηγούμενης διακύμανσης (PCA specific)
-    - Συνδυαστικούς αλγορίθμους εντοπισμού
+    Uses various algorithms for artifact detection such as:
+    - EOG artifacts (eye blinks) via frontal channels (ICA only)
+    - Statistical analysis (variance, kurtosis, range)
+    - Explained variance analysis (PCA specific)
+    - Combined detection algorithms
 
     Attributes:
-        variance_threshold (float): Κατώφλι διακύμανσης για artifacts
-        kurtosis_threshold (float): Κατώφλι κύρτωσης για artifacts
-        range_threshold (float): Κατώφλι εύρους για artifacts
+        variance_threshold (float): Variance threshold for artifacts
+        kurtosis_threshold (float): Kurtosis threshold for artifacts
+        range_threshold (float): Range threshold for artifacts
     """
 
     def __init__(
@@ -48,12 +48,12 @@ class ArtifactDetector:
         range_threshold: float = 3.0,
     ):
         """
-        Αρχικοποίηση artifact detector
+        Initialize artifact detector.
 
         Args:
-            variance_threshold (float): Κατώφλι διακύμανσης για artifacts
-            kurtosis_threshold (float): Κατώφλι κύρτωσης για artifacts
-            range_threshold (float): Κατώφλι εύρους για artifacts
+            variance_threshold (float): Variance threshold for artifacts
+            kurtosis_threshold (float): Kurtosis threshold for artifacts
+            range_threshold (float): Range threshold for artifacts
         """
         self.variance_threshold = variance_threshold
         self.kurtosis_threshold = kurtosis_threshold
@@ -63,23 +63,23 @@ class ArtifactDetector:
         self, ica: mne.preprocessing.ICA, raw: mne.io.Raw
     ) -> List[int]:
         """
-        Εντοπισμός EOG artifacts χρησιμοποιώντας MNE (ICA only)
+        Detect EOG artifacts using MNE (ICA only).
 
         Args:
-            ica: Εκπαιδευμένο ICA αντικείμενο
-            raw: Raw EEG δεδομένα
+            ica: Trained ICA object
+            raw: Raw EEG data
 
         Returns:
-            Λίστα με δείκτες EOG artifact συνιστωσών
+            List of EOG artifact component indices
         """
         try:
-            # Χρήση των frontal καναλιών ως EOG proxy
+            # Use frontal channels as EOG proxy
             frontal_channels = [ch for ch in ["AF3", "AF4"] if ch in raw.ch_names]
 
             if not frontal_channels:
                 return []
 
-            # Εντοπισμός EOG artifacts
+            # Detect EOG artifacts
             eog_indices, _ = ica.find_bads_eog(
                 raw, ch_name=frontal_channels, threshold=2.0, verbose=False
             )
@@ -87,22 +87,22 @@ class ArtifactDetector:
             return eog_indices
 
         except Exception as e:
-            print(f"Σφάλμα EOG detection: {str(e)}")
+            print(f"EOG detection error: {str(e)}")
             return []
 
     def detect_statistical_artifacts(
         self, processor: Union[ICAProcessor, PCAProcessor, BaseComponentProcessor]
     ) -> List[int]:
         """
-        Εντοπισμός artifacts με στατιστικά κριτήρια
+        Detect artifacts using statistical criteria.
 
         Works for both ICA and PCA processors.
 
         Args:
-            processor: Component processor (ICA or PCA) με υπολογισμένες συνιστώσες
+            processor: Component processor (ICA or PCA) with computed components
 
         Returns:
-            Λίστα με δείκτες artifact συνιστωσών
+            List of artifact component indices
         """
         artifacts = []
         components_info = processor.get_all_components_info()
@@ -110,7 +110,7 @@ class ArtifactDetector:
         if not components_info:
             return []
 
-        # Υπολογισμός κατωφλίων βασισμένων στη διανομή
+        # Calculate thresholds based on distribution
         variances = [info["variance"] for info in components_info.values()]
         kurtoses = [info["kurtosis"] for info in components_info.values()]
         ranges = [info["range"] for info in components_info.values()]
@@ -119,19 +119,19 @@ class ArtifactDetector:
         kurt_mean, kurt_std = np.mean(kurtoses), np.std(kurtoses)
         range_mean, range_std = np.mean(ranges), np.std(ranges)
 
-        # Εντοπισμός outliers
+        # Detect outliers
         for comp_idx, info in components_info.items():
             is_artifact = False
 
-            # Κριτήριο διακύμανσης
+            # Variance criterion
             if info["variance"] > var_mean + self.variance_threshold * var_std:
                 is_artifact = True
 
-            # Κριτήριο κύρτωσης
+            # Kurtosis criterion
             if info["kurtosis"] > kurt_mean + self.kurtosis_threshold * kurt_std:
                 is_artifact = True
 
-            # Κριτήριο εύρους
+            # Range criterion
             if info["range"] > range_mean + self.range_threshold * range_std:
                 is_artifact = True
 
@@ -146,16 +146,16 @@ class ArtifactDetector:
         frequency_threshold: float = 20.0,
     ) -> List[int]:
         """
-        Εντοπισμός μυϊκών artifacts (υψηλές συχνότητες)
+        Detect muscle artifacts (high frequencies).
 
         Works for both ICA and PCA processors.
 
         Args:
             processor: Component processor (ICA or PCA)
-            frequency_threshold: Κατώφλι συχνότητας (Hz)
+            frequency_threshold: Frequency threshold (Hz)
 
         Returns:
-            Λίστα με δείκτες muscle artifact συνιστωσών
+            List of muscle artifact component indices
         """
         artifacts: List[int] = []
 
@@ -172,23 +172,23 @@ class ArtifactDetector:
             for i in range(sources_data.shape[0]):
                 comp_data = sources_data[i]
 
-                # FFT για ανάλυση συχνοτήτων
+                # FFT for frequency analysis
                 freqs = np.fft.fftfreq(len(comp_data), 1 / sfreq)
                 fft_data = np.abs(np.fft.fft(comp_data))
 
-                # Υπολογισμός ισχύος σε υψηλές συχνότητες
+                # Calculate power in high frequencies
                 high_freq_mask = freqs > frequency_threshold
                 high_freq_power = np.sum(fft_data[high_freq_mask])
                 total_power = np.sum(fft_data)
 
-                # Εάν η ισχύς σε υψηλές συχνότητες είναι >50% του συνόλου
+                # If power in high frequencies is >50% of total
                 if high_freq_power / total_power > 0.5:
                     artifacts.append(i)
 
             return artifacts
 
         except Exception as e:
-            print(f"Σφάλμα muscle artifact detection: {str(e)}")
+            print(f"Muscle artifact detection error: {str(e)}")
             return []
 
     def detect_drift_artifacts(
@@ -197,16 +197,16 @@ class ArtifactDetector:
         drift_threshold: float = 0.1,
     ) -> List[int]:
         """
-        Εντοπισμός drift artifacts (χαμηλές συχνότητες)
+        Detect drift artifacts (low frequencies).
 
         Works for both ICA and PCA processors.
 
         Args:
             processor: Component processor (ICA or PCA)
-            drift_threshold: Κατώφλι για drift (Hz)
+            drift_threshold: Threshold for drift (Hz)
 
         Returns:
-            Λίστα με δείκτες drift artifact συνιστωσών
+            List of drift artifact component indices
         """
         artifacts: List[int] = []
 
@@ -221,37 +221,37 @@ class ArtifactDetector:
             for i in range(sources_data.shape[0]):
                 comp_data = sources_data[i]
 
-                # Υπολογισμός τάσης (trend)
+                # Calculate trend
                 x = np.arange(len(comp_data))
                 slope, intercept, r_value, p_value, std_err = stats.linregress(
                     x, comp_data
                 )
 
-                # Εάν υπάρχει σημαντική τάση
+                # If there is a significant trend
                 if abs(r_value) > 0.7 and p_value < 0.05:
                     artifacts.append(i)
 
             return artifacts
 
         except Exception as e:
-            print(f"Σφάλμα drift artifact detection: {str(e)}")
+            print(f"Drift artifact detection error: {str(e)}")
             return []
 
     def detect_pca_variance_artifacts(
         self, pca_processor: PCAProcessor, variance_ratio_threshold: float = 0.3
     ) -> List[int]:
         """
-        Εντοπισμός artifacts βασισμένος στην εξηγούμενη διακύμανση (PCA specific)
+        Detect artifacts based on explained variance (PCA specific).
 
-        Στο PCA, artifacts συχνά εμφανίζονται ως συνιστώσες με υπερβολικά υψηλή
-        εξηγούμενη διακύμανση (π.χ. eye blinks) ή πολύ χαμηλή (θόρυβος).
+        In PCA, artifacts often appear as components with excessively high
+        explained variance (e.g., eye blinks) or very low (noise).
 
         Args:
             pca_processor: PCA processor
-            variance_ratio_threshold: Κατώφλι αναλογίας διακύμανσης
+            variance_ratio_threshold: Variance ratio threshold
 
         Returns:
-            Λίστα με δείκτες artifact συνιστωσών
+            List of artifact component indices
         """
         artifacts: List[int] = []
 
@@ -260,34 +260,34 @@ class ArtifactDetector:
             if explained_variance is None:
                 return []
 
-            # Αν μια συνιστώσα εξηγεί υπερβολικά μεγάλο ποσοστό της διακύμανσης
-            # (> threshold), μπορεί να είναι artifact (π.χ. eye blinks)
+            # If a component explains excessively large percentage of variance
+            # (> threshold), it may be an artifact (e.g., eye blinks)
             for i, var_ratio in enumerate(explained_variance):
-                # Πρώτες συνιστώσες με υπερβολική διακύμανση
+                # First components with excessive variance
                 if var_ratio > variance_ratio_threshold:
                     artifacts.append(i)
 
             return artifacts
 
         except Exception as e:
-            print(f"Σφάλμα PCA variance artifact detection: {str(e)}")
+            print(f"PCA variance artifact detection error: {str(e)}")
             return []
 
     def detect_pca_spatial_artifacts(
         self, pca_processor: PCAProcessor, raw: mne.io.Raw
     ) -> List[int]:
         """
-        Εντοπισμός artifacts βασισμένος στα χωρικά patterns (PCA specific)
+        Detect artifacts based on spatial patterns (PCA specific).
 
-        Ελέγχει αν τα PCA components έχουν υψηλά βάρη σε frontal καναλιά
-        (υποδηλώνει EOG artifacts).
+        Checks if PCA components have high weights in frontal channels
+        (indicates EOG artifacts).
 
         Args:
             pca_processor: PCA processor
-            raw: Raw EEG δεδομένα
+            raw: Raw EEG data
 
         Returns:
-            Λίστα με δείκτες artifact συνιστωσών
+            List of artifact component indices
         """
         artifacts: List[int] = []
 
@@ -298,7 +298,7 @@ class ArtifactDetector:
 
             ch_names = raw.ch_names
 
-            # Εύρεση frontal καναλιών (πιθανές πηγές EOG artifacts)
+            # Find frontal channels (potential EOG artifact sources)
             frontal_indices = []
             frontal_patterns = ["Fp", "AF", "F3", "F4", "F7", "F8", "Fz"]
             for i, ch in enumerate(ch_names):
@@ -308,16 +308,16 @@ class ArtifactDetector:
             if not frontal_indices:
                 return []
 
-            # Για κάθε component, έλεγχος αν έχει υψηλά βάρη σε frontal καναλιά
+            # For each component, check if it has high weights in frontal channels
             n_components = components.shape[1]
             for comp_idx in range(n_components):
                 comp_weights = np.abs(components[:, comp_idx])
 
-                # Υπολογισμός αναλογίας frontal vs total weights
+                # Calculate ratio of frontal vs total weights
                 frontal_weights = np.sum(comp_weights[frontal_indices])
                 total_weights = np.sum(comp_weights)
 
-                # Αν > 50% των βαρών είναι σε frontal καναλιά, πιθανό EOG artifact
+                # If > 50% of weights are in frontal channels, possible EOG artifact
                 # Guard against division by zero
                 if total_weights > 0 and frontal_weights / total_weights > 0.5:
                     artifacts.append(comp_idx)
@@ -325,7 +325,7 @@ class ArtifactDetector:
             return artifacts
 
         except Exception as e:
-            print(f"Σφάλμα PCA spatial artifact detection: {str(e)}")
+            print(f"PCA spatial artifact detection error: {str(e)}")
             return []
 
     def detect_artifacts_multi_method(
@@ -335,19 +335,19 @@ class ArtifactDetector:
         max_components: int = 3,
     ) -> Tuple[List[int], Dict[str, List[int]]]:
         """
-        Πολλαπλός εντοπισμός artifacts με συνδυασμό μεθόδων
+        Multiple artifact detection with method combination.
 
         Supports both ICA and PCA processors with appropriate methods.
 
         Args:
             processor: Component processor (ICA or PCA)
-            raw: Raw EEG δεδομένα
-            max_components: Μέγιστος αριθμός συνιστωσών προς αφαίρεση
+            raw: Raw EEG data
+            max_components: Maximum number of components to remove
 
         Returns:
-            Tuple με:
-            - Τελική λίστα artifacts
-            - Dictionary με αποτελέσματα κάθε μεθόδου
+            Tuple with:
+            - Final artifact list
+            - Dictionary with results from each method
         """
         methods_results: Dict[str, List[int]] = {}
 
@@ -375,46 +375,46 @@ class ArtifactDetector:
         methods_results["muscle"] = self.detect_muscle_artifacts(processor)
         methods_results["drift"] = self.detect_drift_artifacts(processor)
 
-        # Συνδυασμός αποτελεσμάτων με βάρη
+        # Combine results with weights
         artifact_scores = {}
 
         for comp_idx in range(processor.n_components):
             score = 0
 
             if is_ica:
-                # EOG detection (βάρος 3) - ICA only
+                # EOG detection (weight 3) - ICA only
                 if comp_idx in methods_results.get("eog", []):
                     score += 3
 
             if is_pca:
-                # PCA variance detection (βάρος 3)
+                # PCA variance detection (weight 3)
                 if comp_idx in methods_results.get("variance", []):
                     score += 3
 
-                # PCA spatial detection (βάρος 2)
+                # PCA spatial detection (weight 2)
                 if comp_idx in methods_results.get("spatial", []):
                     score += 2
 
-            # Statistical detection (βάρος 2)
+            # Statistical detection (weight 2)
             if comp_idx in methods_results.get("statistical", []):
                 score += 2
 
-            # Muscle detection (βάρος 2)
+            # Muscle detection (weight 2)
             if comp_idx in methods_results.get("muscle", []):
                 score += 2
 
-            # Drift detection (βάρος 1)
+            # Drift detection (weight 1)
             if comp_idx in methods_results.get("drift", []):
                 score += 1
 
             artifact_scores[comp_idx] = score
 
-        # Επιλογή των top artifact συνιστωσών
+        # Select top artifact components
         sorted_components = sorted(
             artifact_scores.items(), key=lambda x: x[1], reverse=True
         )
 
-        # Κρατάμε μόνο συνιστώσες με score > 0
+        # Keep only components with score > 0
         final_artifacts = [
             comp_idx for comp_idx, score in sorted_components if score > 0
         ][:max_components]
@@ -425,39 +425,39 @@ class ArtifactDetector:
         self, component_idx: int, methods_results: Dict[str, List[int]]
     ) -> str:
         """
-        Επεξήγηση γιατί μια συνιστώσα θεωρείται artifact
+        Explain why a component is considered an artifact.
 
         Args:
-            component_idx: Δείκτης συνιστώσας
-            methods_results: Αποτελέσματα των μεθόδων εντοπισμού
+            component_idx: Component index
+            methods_results: Results from detection methods
 
         Returns:
-            Κείμενο επεξήγησης
+            Explanation text
         """
         reasons = []
 
         # ICA-specific
         if component_idx in methods_results.get("eog", []):
-            reasons.append("EOG (κίνηση ματιών)")
+            reasons.append("EOG (eye movement)")
 
         # PCA-specific
         if component_idx in methods_results.get("variance", []):
-            reasons.append("Υψηλή διακύμανση (PCA)")
+            reasons.append("High variance (PCA)")
 
         if component_idx in methods_results.get("spatial", []):
-            reasons.append("Χωρικό pattern (frontal)")
+            reasons.append("Spatial pattern (frontal)")
 
         # Common methods
         if component_idx in methods_results.get("statistical", []):
-            reasons.append("Στατιστικά outlier")
+            reasons.append("Statistical outlier")
 
         if component_idx in methods_results.get("muscle", []):
-            reasons.append("Μυϊκή δραστηριότητα")
+            reasons.append("Muscle activity")
 
         if component_idx in methods_results.get("drift", []):
-            reasons.append("Drift σήματος")
+            reasons.append("Signal drift")
 
         if not reasons:
-            return "Καθαρό εγκεφαλικό σήμα"
+            return "Clean brain signal"
 
-        return f"Πιθανό artifact: {', '.join(reasons)}"
+        return f"Possible artifact: {', '.join(reasons)}"

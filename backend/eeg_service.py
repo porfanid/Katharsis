@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-EEG Artifact Cleaning Service - Κεντρική υπηρεσία backend
+EEG Artifact Cleaning Service - Central backend service
 ========================================================
 
-Η κεντρική υπηρεσία που ενοποιεί όλες τις λειτουργίες καθαρισμού EEG:
-- Διαχείριση φόρτωσης και επεξεργασίας αρχείων
-- Εκτέλεση ICA ή PCA ανάλυσης
-- Αυτόματος εντοπισμός artifacts
-- Καθαρισμός και αποθήκευση δεδομένων
-- Progress tracking και status updates
+The central service that unifies all EEG cleaning functions:
+- File loading and processing management
+- ICA or PCA analysis execution
+- Automatic artifact detection
+- Data cleaning and saving
+- Progress tracking and status updates
 
 Author: porfanid
 Version: 1.1
@@ -27,23 +27,23 @@ from .pca_processor import PCAProcessor
 
 class EEGArtifactCleaningService:
     """
-    Κεντρική υπηρεσία για EEG artifact cleaning
+    Central service for EEG artifact cleaning.
 
-    Συνδυάζει όλες τις λειτουργίες καθαρισμού EEG σε μια ενιαία υπηρεσία:
-    - Φόρτωση και προεπεξεργασία δεδομένων
-    - ICA ή PCA ανάλυση και εκπαίδευση μοντέλου
-    - Αυτόματος εντοπισμός artifacts
-    - Καθαρισμός και αποθήκευση αποτελεσμάτων
-    - Progress tracking και callback system
+    Combines all EEG cleaning functions into a unified service:
+    - Data loading and preprocessing
+    - ICA or PCA analysis and model training
+    - Automatic artifact detection
+    - Cleaning and saving results
+    - Progress tracking and callback system
 
     Attributes:
-        backend_core (EEGBackendCore): Κεντρικό backend για I/O και preprocessing
-        component_processor (BaseComponentProcessor): Επεξεργαστής ICA ή PCA
-        artifact_detector (ArtifactDetector): Ανιχνευτής artifacts
-        current_file (str): Τρέχον αρχείο που επεξεργάζεται
-        is_processing (bool): Κατάσταση επεξεργασίας
-        analysis_fitted (bool): Αν το μοντέλο έχει εκπαιδευτεί
-        analysis_method (str): Η μέθοδος ανάλυσης ("ICA" ή "PCA")
+        backend_core (EEGBackendCore): Central backend for I/O and preprocessing
+        component_processor (BaseComponentProcessor): ICA or PCA processor
+        artifact_detector (ArtifactDetector): Artifact detector
+        current_file (str): Current file being processed
+        is_processing (bool): Processing state
+        analysis_fitted (bool): Whether the model has been trained
+        analysis_method (str): Analysis method ("ICA" or "PCA")
     """
 
     def __init__(
@@ -55,15 +55,15 @@ class EEGArtifactCleaningService:
         analysis_method: str = "ICA",
     ):
         """
-        Αρχικοποίηση της υπηρεσίας καθαρισμού EEG
+        Initialize the EEG cleaning service.
 
         Args:
-            n_components (int, optional): Αριθμός συνιστωσών.
-                                        Αν None, καθορίζεται αυτόματα.
-            variance_threshold (float): Κατώφλι διακύμανσης για artifact detection
-            kurtosis_threshold (float): Κατώφλι κύρτωσης για artifact detection
-            range_threshold (float): Κατώφλι εύρους για artifact detection
-            analysis_method (str): Μέθοδος ανάλυσης ("ICA" ή "PCA"), default "ICA"
+            n_components (int, optional): Number of components.
+                                        If None, determined automatically.
+            variance_threshold (float): Variance threshold for artifact detection
+            kurtosis_threshold (float): Kurtosis threshold for artifact detection
+            range_threshold (float): Range threshold for artifact detection
+            analysis_method (str): Analysis method ("ICA" or "PCA"), default "ICA"
         """
         self.backend_core = EEGBackendCore()
         self._n_components = n_components
@@ -78,7 +78,7 @@ class EEGArtifactCleaningService:
             range_threshold=range_threshold,
         )
 
-        # Callbacks για progress updates
+        # Callbacks for progress updates
         self.progress_callback: Optional[Callable[[int], None]] = None
         self.status_callback: Optional[Callable[[str], None]] = None
 
@@ -150,20 +150,20 @@ class EEGArtifactCleaningService:
         self.analysis_fitted = value
 
     def set_progress_callback(self, callback: Callable[[int], None]):
-        """Ορισμός callback για progress updates"""
+        """Set callback for progress updates."""
         self.progress_callback = callback
 
     def set_status_callback(self, callback: Callable[[str], None]):
-        """Ορισμός callback για status updates"""
+        """Set callback for status updates."""
         self.status_callback = callback
 
     def _update_progress(self, progress: int):
-        """Ενημέρωση progress"""
+        """Update progress."""
         if self.progress_callback:
             self.progress_callback(progress)
 
     def _update_status(self, status: str):
-        """Ενημέρωση status"""
+        """Update status."""
         if self.status_callback:
             self.status_callback(status)
 
@@ -174,15 +174,15 @@ class EEGArtifactCleaningService:
         analysis_method: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Φόρτωση και προετοιμασία αρχείου για επεξεργασία
+        Load and prepare file for processing.
 
         Args:
-            file_path: Διαδρομή αρχείου
-            selected_channels: Λίστα επιλεγμένων καναλιών (None για αυτόματη ανίχνευση)
-            analysis_method: Μέθοδος ανάλυσης ("ICA" ή "PCA"), None για χρήση της προεπιλεγμένης
+            file_path: File path
+            selected_channels: List of selected channels (None for auto detection)
+            analysis_method: Analysis method ("ICA" or "PCA"), None to use default
 
         Returns:
-            Dictionary με αποτελέσματα φόρτωσης
+            Dictionary with loading results
         """
         self.is_processing = True
         self.current_file = file_path
@@ -193,71 +193,71 @@ class EEGArtifactCleaningService:
             self.set_analysis_method(analysis_method)
 
         try:
-            self._update_status("Φόρτωση δεδομένων...")
+            self._update_status("Loading data...")
             self._update_progress(10)
 
-            # Φόρτωση αρχείου με επιλεγμένα κανάλια
+            # Load file with selected channels
             result = self.backend_core.load_file(file_path, selected_channels)
 
             if not result["success"]:
                 self.is_processing = False
                 return result
 
-            # Ενημερώνουμε τον processor με τον αριθμό καναλιών
-            self._n_components = None  # Αυτόματη ανίχνευση
+            # Update processor with channel count
+            self._n_components = None  # Auto detection
             self._create_processor()
 
             self._update_progress(30)
-            self._update_status("Αρχείο φορτώθηκε επιτυχώς")
+            self._update_status("File loaded successfully")
 
             return result
 
         except Exception as e:
             self.is_processing = False
-            return {"success": False, "error": f"Σφάλμα φόρτωσης: {str(e)}"}
+            return {"success": False, "error": f"Loading error: {str(e)}"}
 
     def get_file_info(self, file_path: str) -> Dict[str, Any]:
         """
-        Λήψη πληροφοριών αρχείου για επιλογή καναλιών
+        Get file information for channel selection.
 
         Args:
-            file_path: Διαδρομή αρχείου
+            file_path: File path
 
         Returns:
-            Dictionary με πληροφορίες αρχείου
+            Dictionary with file information
         """
         return self.backend_core.get_file_info(file_path)
 
     def fit_analysis(self) -> Dict[str, Any]:
         """
-        Εκτέλεση ανάλυσης (ICA ή PCA)
+        Execute analysis (ICA or PCA).
 
         Returns:
-            Dictionary με αποτελέσματα ανάλυσης
+            Dictionary with analysis results
         """
         if not self.is_processing:
-            return {"success": False, "error": "Δεν έχει φορτωθεί αρχείο"}
+            return {"success": False, "error": "No file loaded"}
 
         try:
             method_name = self.component_processor.get_method_name()
-            self._update_status(f"Εκτέλεση {method_name} ανάλυσης...")
+            self._update_status(f"Running {method_name} analysis...")
             self._update_progress(50)
 
-            # Λήψη φιλτραρισμένων δεδομένων
+            # Get filtered data
             filtered_data = self.backend_core.get_filtered_data()
             if filtered_data is None:
                 return {
                     "success": False,
-                    "error": "Δεν υπάρχουν φιλτραρισμένα δεδομένα",
+                    "error": "No filtered data available",
                 }
 
-            # Εκπαίδευση μοντέλου
+            # Train model
             success = self.component_processor.fit(filtered_data)
 
             if not success:
                 return {
                     "success": False,
-                    "error": f"Αποτυχία εκπαίδευσης {method_name}",
+                    "error": f"{method_name} training failed",
                 }
 
             self.analysis_fitted = True
@@ -271,14 +271,14 @@ class EEGArtifactCleaningService:
             }
 
         except Exception as e:
-            return {"success": False, "error": f"Σφάλμα ανάλυσης: {str(e)}"}
+            return {"success": False, "error": f"Analysis error: {str(e)}"}
 
     def fit_ica_analysis(self) -> Dict[str, Any]:
         """
-        Εκτέλεση ICA ανάλυσης (backward compatible method)
+        Execute ICA analysis (backward compatible method).
 
         Returns:
-            Dictionary με αποτελέσματα ICA
+            Dictionary with ICA results
         """
         # Ensure we're using ICA
         if self._analysis_method != "ICA":
@@ -287,10 +287,10 @@ class EEGArtifactCleaningService:
 
     def fit_pca_analysis(self) -> Dict[str, Any]:
         """
-        Εκτέλεση PCA ανάλυσης
+        Execute PCA analysis.
 
         Returns:
-            Dictionary με αποτελέσματα PCA
+            Dictionary with PCA results
         """
         # Ensure we're using PCA
         if self._analysis_method != "PCA":
@@ -299,22 +299,22 @@ class EEGArtifactCleaningService:
 
     def detect_artifacts(self, max_components: int = 3) -> Dict[str, Any]:
         """
-        Εντοπισμός artifacts με πολλαπλές μεθόδους
+        Detect artifacts using multiple methods.
 
         Args:
-            max_components: Μέγιστος αριθμός συνιστωσών προς αφαίρεση
+            max_components: Maximum number of components to remove
 
         Returns:
-            Dictionary με αποτελέσματα εντοπισμού
+            Dictionary with detection results
         """
         if not self.analysis_fitted:
-            return {"success": False, "error": "Η ανάλυση δεν έχει εκτελεστεί"}
+            return {"success": False, "error": "Analysis has not been executed"}
 
         try:
-            self._update_status("Εντοπισμός artifacts...")
+            self._update_status("Detecting artifacts...")
             self._update_progress(80)
 
-            # Λήψη φιλτραρισμένων δεδομένων
+            # Get filtered data
             filtered_data = self.backend_core.get_filtered_data()
 
             # Use full multi-method artifact detection for both ICA and PCA
@@ -328,7 +328,7 @@ class EEGArtifactCleaningService:
             self.suggested_artifacts = suggested_artifacts
             self.detection_methods_results = methods_results
 
-            # Δημιουργία επεξηγήσεων
+            # Create explanations
             explanations = {}
             for i in range(self.component_processor.n_components):
                 explanations[i] = self.artifact_detector.get_artifact_explanation(
@@ -346,34 +346,34 @@ class EEGArtifactCleaningService:
             }
 
         except Exception as e:
-            return {"success": False, "error": f"Σφάλμα εντοπισμού artifacts: {str(e)}"}
+            return {"success": False, "error": f"Artifact detection error: {str(e)}"}
 
     def apply_artifact_removal(self, components_to_remove: List[int]) -> Dict[str, Any]:
         """
-        Εφαρμογή αφαίρεσης artifacts
+        Apply artifact removal.
 
         Args:
-            components_to_remove: Λίστα συνιστωσών προς αφαίρεση
+            components_to_remove: List of components to remove
 
         Returns:
-            Dictionary με αποτελέσματα
+            Dictionary with results
         """
         if not self.analysis_fitted:
-            return {"success": False, "error": "Η ανάλυση δεν έχει εκτελεστεί"}
+            return {"success": False, "error": "Analysis has not been executed"}
 
         try:
-            self._update_status("Εφαρμογή καθαρισμού...")
+            self._update_status("Applying cleaning...")
             self._update_progress(95)
 
-            # Εφαρμογή καθαρισμού
+            # Apply cleaning
             cleaned_data = self.component_processor.apply_artifact_removal(
                 components_to_remove
             )
 
             if cleaned_data is None:
-                return {"success": False, "error": "Αποτυχία καθαρισμού δεδομένων"}
+                return {"success": False, "error": "Data cleaning failed"}
 
-            # Υπολογισμός στατιστικών πριν/μετά
+            # Calculate before/after statistics
             original_stats = self.backend_core.preprocessor.get_data_statistics(
                 self.backend_core.get_filtered_data()
             )
@@ -382,7 +382,7 @@ class EEGArtifactCleaningService:
             )
 
             self._update_progress(100)
-            self._update_status("Καθαρισμός ολοκληρώθηκε")
+            self._update_status("Cleaning completed")
 
             return {
                 "success": True,
@@ -393,27 +393,27 @@ class EEGArtifactCleaningService:
             }
 
         except Exception as e:
-            return {"success": False, "error": f"Σφάλμα καθαρισμού: {str(e)}"}
+            return {"success": False, "error": f"Cleaning error: {str(e)}"}
 
     def save_cleaned_data(self, cleaned_data: mne.io.Raw, output_path: str) -> bool:
         """
-        Αποθήκευση καθαρισμένων δεδομένων
+        Save cleaned data.
 
         Args:
-            cleaned_data: Καθαρισμένα δεδομένα
-            output_path: Διαδρομή εξόδου
+            cleaned_data: Cleaned data
+            output_path: Output path
 
         Returns:
-            bool: True εάν η αποθήκευση ήταν επιτυχής
+            bool: True if saving was successful
         """
         return self.backend_core.save_cleaned_data(cleaned_data, output_path)
 
     def get_component_visualization_data(self) -> Optional[Dict[str, Any]]:
         """
-        Λήψη δεδομένων για οπτικοποίηση συνιστωσών
+        Get data for component visualization.
 
         Returns:
-            Dictionary με δεδομένα για plots ή None
+            Dictionary with data for plots or None
         """
         if not self.analysis_fitted:
             return None
@@ -442,7 +442,7 @@ class EEGArtifactCleaningService:
         return result
 
     def reset_state(self):
-        """Επαναφορά κατάστασης service"""
+        """Reset service state."""
         self.is_processing = False
         self.analysis_fitted = False
         self.current_file = None
@@ -456,10 +456,10 @@ class EEGArtifactCleaningService:
 
     def get_processing_summary(self) -> Dict[str, Any]:
         """
-        Επιστροφή περίληψης επεξεργασίας
+        Return processing summary.
 
         Returns:
-            Dictionary με περίληψη
+            Dictionary with summary
         """
         return {
             "current_file": self.current_file,
