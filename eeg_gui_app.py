@@ -4,19 +4,20 @@ Katharsis - EEG Artifact Cleaner GUI Application
 =====================================
 
 Το Katharsis είναι μια εφαρμογή για τον αυτόματο καθαρισμό artifacts από δεδομένα EEG.
-Χρησιμοποιεί τεχνικές Independent Component Analysis (ICA) για τον εντοπισμό και την
-αφαίρεση artifacts που προέρχονται από βλεφαρισμούς και άλλες μυικές κινήσεις.
+Χρησιμοποιεί τεχνικές Independent Component Analysis (ICA) ή Principal Component
+Analysis (PCA) για τον εντοπισμό και την αφαίρεση artifacts που προέρχονται από
+βλεφαρισμούς και άλλες μυικές κινήσεις.
 
 Χαρακτηριστικά:
 - Γραφικό περιβάλλον χρήστη με PyQt6
-- Υποστήριξη αρχείων EDF από συσκευές EEG
+- Υποστήριξη πολλαπλών μορφών αρχείων EEG (EDF, BDF, FIF, CSV, SET/EEGLAB)
 - Αυτόματος εντοπισμός και επιλογή καναλιών
-- ICA ανάλυση με οπτικοποίηση συνιστωσών
+- ICA/PCA ανάλυση με οπτικοποίηση συνιστωσών
 - Σύγκριση πριν/μετά τον καθαρισμό
-- Εξαγωγή καθαρών δεδομένων
+- Εξαγωγή καθαρών δεδομένων σε πολλαπλές μορφές
 
 Author: porfanid
-Version: 3.2
+Version: 3.3
 License: MIT
 """
 
@@ -577,16 +578,28 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
     def select_input_file(self):
         """
-        Επιλογή αρχείου EDF για επεξεργασία
+        Επιλογή αρχείου EEG για επεξεργασία
 
-        Ανοίγει file dialog για επιλογή αρχείου EDF και μεταβαίνει στην
-        οθόνη επιλογής καναλιών.
+        Ανοίγει file dialog για επιλογή αρχείου EEG (υποστηρίζει πολλαπλές μορφές)
+        και μεταβαίνει στην οθόνη επιλογής καναλιών.
+
+        Υποστηριζόμενες μορφές: EDF, BDF, FIF, CSV, SET (EEGLAB)
         """
+        # Define supported formats for import
+        file_filter = (
+            "EEG Files (*.edf *.bdf *.fif *.csv *.set);;"
+            "EDF Files (*.edf);;"
+            "BDF Files (*.bdf);;"
+            "FIF Files (*.fif);;"
+            "CSV Files (*.csv);;"
+            "EEGLAB Files (*.set);;"
+            "All Files (*.*)"
+        )
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Επιλογή EDF",
+            "Επιλογή Αρχείου EEG",
             str(Path.home()),
-            "*.edf",
+            file_filter,
             options=QFileDialog.Option.DontUseNativeDialog,
         )
         if file_path:
@@ -673,20 +686,48 @@ class EEGArtifactCleanerGUI(QMainWindow):
         Ζητά από τον χρήστη να επιλέξει αρχείο εξόδου και ξεκινά τον
         καθαρισμό των επιλεγμένων artifacts.
 
+        Υποστηριζόμενες μορφές εξόδου: EDF, BDF, FIF, CSV, SET (EEGLAB)
+
         Args:
             selected_components (List[int]): Λίστα συνιστωσών προς αφαίρεση
         """
-        default_path = self.current_input_file.replace(".edf", "_clean.edf")
-        output_file, _ = QFileDialog.getSaveFileName(
+        # Get the input file extension to suggest the same format by default
+        input_ext = Path(self.current_input_file).suffix.lower()
+        input_stem = Path(self.current_input_file).stem
+
+        # Use the same format as input by default
+        default_path = str(
+            Path(self.current_input_file).parent / f"{input_stem}_clean{input_ext}"
+        )
+
+        # Define supported formats for export
+        file_filter = (
+            "EEG Files (*.edf *.bdf *.fif *.csv *.set);;"
+            "EDF Files (*.edf);;"
+            "BDF Files (*.bdf);;"
+            "FIF Files (*.fif);;"
+            "CSV Files (*.csv);;"
+            "EEGLAB Files (*.set);;"
+            "All Files (*.*)"
+        )
+
+        output_file, selected_filter = QFileDialog.getSaveFileName(
             self,
             "Αποθήκευση Καθαρού Αρχείου",
             default_path,
-            "*.edf",
+            file_filter,
             options=QFileDialog.Option.DontUseNativeDialog,
         )
         if not output_file:
             self.status_bar.showMessage("Η διαδικασία καθαρισμού ακυρώθηκε.", 3000)
             return
+
+        # Ensure the file has a valid extension
+        output_path = Path(output_file)
+        if not output_path.suffix:
+            # Add default extension based on selected filter or input format
+            output_file = str(output_path) + input_ext
+
         self.cleaning_thread = CleaningThread(
             self.service, selected_components, output_file
         )

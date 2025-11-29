@@ -518,20 +518,24 @@ class ChannelSelectorWidget(QWidget):
         main_layout.addLayout(bottom_layout)
 
     def set_edf_file(self, file_path: str):
-        """Load and analyze EDF file for channel selection"""
+        """
+        Load and analyze EEG file for channel selection.
+
+        Supports multiple formats: EDF, BDF, FIF, CSV, SET (EEGLAB)
+        """
         try:
             self.current_file = file_path
 
-            # Load file to get channel information
-            raw = mne.io.read_raw_edf(file_path, preload=False, verbose=False)
+            # Load file using the generic reader for multi-format support
+            from backend.eeg_backend import EEGDataManager
+
+            raw = EEGDataManager.read_raw(file_path, preload=False)
             self.raw_data = raw
 
             # Get all channels
-            self.all_channels = raw.ch_names
+            self.all_channels = list(raw.ch_names)
 
             # Detect potential EEG channels using existing logic
-            from backend.eeg_backend import EEGDataManager
-
             potential_eeg = EEGDataManager.detect_eeg_channels(raw)
 
             # Categorize channels
@@ -549,7 +553,7 @@ class ChannelSelectorWidget(QWidget):
                 file_path,
                 len(self.eeg_channels),
                 raw.info["sfreq"],
-                0,
+                len(raw.annotations),
                 self.all_channels,
             )
 
