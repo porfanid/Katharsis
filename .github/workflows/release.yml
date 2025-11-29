@@ -42,14 +42,25 @@ jobs:
         shell: bash
         run: |
           # PyInstaller command with necessary configuration
+          # Added hidden imports for jaraco and setuptools dependencies to fix runtime errors
           PYINSTALLER_CMD="pyinstaller --noconfirm --onefile --windowed \
             --collect-all mne \
             --collect-all scipy \
             --copy-metadata mne \
+            --copy-metadata jaraco.text \
             --hidden-import=sklearn.utils._typedefs \
             --hidden-import=scipy.signal \
             --hidden-import=backend \
             --hidden-import=components \
+            --hidden-import=jaraco \
+            --hidden-import=jaraco.text \
+            --hidden-import=jaraco.functools \
+            --hidden-import=jaraco.context \
+            --hidden-import=pkg_resources \
+            --hidden-import=packaging \
+            --hidden-import=packaging.version \
+            --hidden-import=packaging.specifiers \
+            --hidden-import=packaging.requirements \
             --add-data backend:backend \
             --add-data components:components \
             eeg_gui_app.py"
