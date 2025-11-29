@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import mne
 import numpy as np
-from scipy import stats
 
 # Suppress MNE warnings for cleaner output
 warnings.filterwarnings("ignore", category=RuntimeWarning)

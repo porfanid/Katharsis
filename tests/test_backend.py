@@ -23,6 +23,7 @@ from backend import (
     EEGDataManager,
     EEGPreprocessor,
     ICAProcessor,
+    PCAProcessor,
 )
 
 
@@ -422,6 +423,281 @@ class TestEEGArtifactCleaningService(unittest.TestCase):
         self.assertFalse(summary["is_processing"])
         self.assertFalse(summary["ica_fitted"])
         self.assertIsNone(summary["current_file"])
+
+
+class TestPCAProcessor(unittest.TestCase):
+    """Έλεγχοι για PCAProcessor"""
+
+    def setUp(self):
+        """Προετοιμασία test δεδομένων"""
+        self.pca_processor = PCAProcessor(n_components=3)
+
+        # Create test raw data with more samples for PCA
+        sfreq = 128.0
+        duration = 60.0  # 1 minute for better PCA
+        n_samples = int(sfreq * duration)
+        ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        # Create mixed signals for PCA
+        time = np.linspace(0, duration, n_samples)
+
+        # Source signals
+        source1 = np.sin(2 * np.pi * 10 * time)  # 10 Hz sine
+        source2 = np.sin(2 * np.pi * 20 * time)  # 20 Hz sine
+        source3 = np.random.randn(n_samples)  # Random noise
+
+        # Mixing matrix
+        mixing = np.array(
+            [
+                [0.8, 0.2, 0.1],
+                [0.3, 0.7, 0.2],
+                [0.1, 0.3, 0.9],
+                [0.2, 0.8, 0.1],
+                [0.7, 0.1, 0.3],
+            ]
+        )
+
+        sources = np.array([source1, source2, source3])
+        mixed_data = mixing @ sources * 1e-5
+
+        info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(mixed_data, info)
+
+    def test_fit_pca_success(self):
+        """Έλεγχος επιτυχούς εκπαίδευσης PCA"""
+        success = self.pca_processor.fit(self.test_raw)
+
+        self.assertTrue(success)
+        self.assertIsNotNone(self.pca_processor.pca)
+        self.assertEqual(len(self.pca_processor.components_info), 3)
+
+    def test_get_component_info(self):
+        """Έλεγχος λήψης πληροφοριών συνιστώσας PCA"""
+        self.pca_processor.fit(self.test_raw)
+
+        info = self.pca_processor.get_component_info(0)
+        self.assertIsInstance(info, dict)
+
+        expected_keys = [
+            "variance",
+            "kurtosis",
+            "range",
+            "std",
+            "mean",
+            "rms",
+            "skewness",
+        ]
+        for key in expected_keys:
+            self.assertIn(key, info)
+
+    def test_get_component_data(self):
+        """Έλεγχος λήψης δεδομένων συνιστώσας PCA"""
+        self.pca_processor.fit(self.test_raw)
+
+        comp_data = self.pca_processor.get_component_data(0)
+        self.assertIsInstance(comp_data, np.ndarray)
+        self.assertEqual(len(comp_data), len(self.test_raw.times))
+
+    def test_apply_artifact_removal(self):
+        """Έλεγχος εφαρμογής αφαίρεσης artifacts με PCA"""
+        self.pca_processor.fit(self.test_raw)
+
+        # Remove first component
+        cleaned_raw = self.pca_processor.apply_artifact_removal([0])
+
+        self.assertIsInstance(cleaned_raw, mne.io.BaseRaw)
+        self.assertEqual(len(cleaned_raw.ch_names), len(self.test_raw.ch_names))
+
+        # Data should be different after artifact removal
+        orig_data = self.test_raw.get_data()
+        clean_data = cleaned_raw.get_data()
+        self.assertFalse(np.array_equal(orig_data, clean_data))
+
+    def test_get_explained_variance_ratio(self):
+        """Έλεγχος λήψης explained variance ratio"""
+        self.pca_processor.fit(self.test_raw)
+
+        variance_ratio = self.pca_processor.get_explained_variance_ratio()
+        self.assertIsInstance(variance_ratio, np.ndarray)
+        self.assertEqual(len(variance_ratio), 3)
+        # Variance ratios should sum to ~1 (or less if not all components)
+        self.assertLessEqual(np.sum(variance_ratio), 1.01)
+
+    def test_get_method_name(self):
+        """Έλεγχος ονόματος μεθόδου"""
+        self.assertEqual(self.pca_processor.get_method_name(), "PCA")
+
+
+class TestPCAArtifactDetection(unittest.TestCase):
+    """Έλεγχοι για PCA artifact detection"""
+
+    def setUp(self):
+        """Προετοιμασία test δεδομένων"""
+        self.detector = ArtifactDetector()
+        self.pca_processor = PCAProcessor(n_components=3)
+
+        # Create test data
+        sfreq = 128.0
+        duration = 60.0
+        n_samples = int(sfreq * duration)
+        ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        time = np.linspace(0, duration, n_samples)
+
+        # Create sources with different characteristics
+        source1 = np.sin(2 * np.pi * 2 * time) + 0.5 * np.random.randn(n_samples)
+        source2 = np.sin(2 * np.pi * 60 * time) + 2.0 * np.random.randn(n_samples)
+        source3 = np.sin(2 * np.pi * 10 * time) + 0.1 * np.random.randn(n_samples)
+
+        mixing = np.array(
+            [
+                [0.8, 0.2, 0.1],
+                [0.3, 0.7, 0.2],
+                [0.1, 0.3, 0.9],
+                [0.2, 0.8, 0.1],
+                [0.7, 0.1, 0.3],
+            ]
+        )
+
+        sources = np.array([source1, source2, source3])
+        mixed_data = mixing @ sources * 1e-5
+
+        info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(mixed_data, info)
+
+        # Fit PCA
+        self.pca_processor.fit(self.test_raw)
+
+    def test_detect_statistical_artifacts_pca(self):
+        """Έλεγχος στατιστικού εντοπισμού artifacts με PCA"""
+        artifacts = self.detector.detect_statistical_artifacts(self.pca_processor)
+
+        self.assertIsInstance(artifacts, list)
+
+    def test_detect_muscle_artifacts_pca(self):
+        """Έλεγχος εντοπισμού μυϊκών artifacts με PCA"""
+        artifacts = self.detector.detect_muscle_artifacts(self.pca_processor)
+
+        self.assertIsInstance(artifacts, list)
+
+    def test_detect_drift_artifacts_pca(self):
+        """Έλεγχος εντοπισμού drift artifacts με PCA"""
+        artifacts = self.detector.detect_drift_artifacts(self.pca_processor)
+
+        self.assertIsInstance(artifacts, list)
+
+    def test_detect_pca_variance_artifacts(self):
+        """Έλεγχος εντοπισμού variance artifacts με PCA"""
+        artifacts = self.detector.detect_pca_variance_artifacts(self.pca_processor)
+
+        self.assertIsInstance(artifacts, list)
+
+    def test_detect_pca_spatial_artifacts(self):
+        """Έλεγχος εντοπισμού spatial artifacts με PCA"""
+        artifacts = self.detector.detect_pca_spatial_artifacts(
+            self.pca_processor, self.test_raw
+        )
+
+        self.assertIsInstance(artifacts, list)
+
+    def test_detect_artifacts_multi_method_pca(self):
+        """Έλεγχος πολλαπλού εντοπισμού artifacts με PCA"""
+        final_artifacts, methods_results = self.detector.detect_artifacts_multi_method(
+            self.pca_processor, self.test_raw, max_components=2
+        )
+
+        self.assertIsInstance(final_artifacts, list)
+        self.assertIsInstance(methods_results, dict)
+        self.assertLessEqual(len(final_artifacts), 2)
+
+        # Check PCA-specific methods are included
+        self.assertIn("variance", methods_results)
+        self.assertIn("spatial", methods_results)
+        self.assertIn("statistical", methods_results)
+
+    def test_get_artifact_explanation_pca(self):
+        """Έλεγχος επεξήγησης artifacts με PCA"""
+        _, methods_results = self.detector.detect_artifacts_multi_method(
+            self.pca_processor, self.test_raw
+        )
+
+        explanation = self.detector.get_artifact_explanation(0, methods_results)
+        self.assertIsInstance(explanation, str)
+        self.assertGreater(len(explanation), 0)
+
+
+class TestEEGArtifactCleaningServicePCA(unittest.TestCase):
+    """Έλεγχοι για EEGArtifactCleaningService με PCA"""
+
+    def setUp(self):
+        """Προετοιμασία test δεδομένων"""
+        self.service = EEGArtifactCleaningService(analysis_method="PCA")
+
+        # Create test EDF file
+        sfreq = 128.0
+        duration = 60.0
+        n_samples = int(sfreq * duration)
+        ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        data = np.random.randn(len(ch_names), n_samples) * 1e-5
+        info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types="eeg")
+        test_raw = mne.io.RawArray(data, info)
+
+        # Create temporary EDF file
+        self.temp_edf = tempfile.NamedTemporaryFile(suffix=".edf", delete=False)
+        self.temp_edf_path = self.temp_edf.name
+        self.temp_edf.close()
+
+        test_raw.export(self.temp_edf_path, fmt="edf", overwrite=True, verbose=False)
+
+    def tearDown(self):
+        """Καθαρισμός μετά από tests"""
+        if os.path.exists(self.temp_edf_path):
+            os.unlink(self.temp_edf_path)
+
+    def test_pca_processing_pipeline(self):
+        """Έλεγχος πλήρους pipeline επεξεργασίας με PCA"""
+        # Load file
+        load_result = self.service.load_and_prepare_file(self.temp_edf_path)
+        self.assertTrue(load_result["success"])
+
+        # Fit PCA
+        pca_result = self.service.fit_pca_analysis()
+        self.assertTrue(pca_result["success"])
+        self.assertEqual(pca_result.get("method"), "PCA")
+
+        # Detect artifacts
+        detect_result = self.service.detect_artifacts()
+        self.assertTrue(detect_result["success"])
+
+        # Apply cleaning
+        clean_result = self.service.apply_artifact_removal([0])
+        self.assertTrue(clean_result["success"])
+
+        # Check visualization data
+        viz_data = self.service.get_component_visualization_data()
+        self.assertIsNotNone(viz_data)
+        self.assertEqual(viz_data.get("analysis_method"), "PCA")
+        self.assertIn("pca", viz_data)
+
+    def test_switch_analysis_method(self):
+        """Έλεγχος εναλλαγής μεθόδου ανάλυσης"""
+        # Start with PCA
+        self.assertEqual(self.service.analysis_method, "PCA")
+
+        # Switch to ICA
+        self.service.set_analysis_method("ICA")
+        self.assertEqual(self.service.analysis_method, "ICA")
+
+        # Switch back to PCA
+        self.service.set_analysis_method("PCA")
+        self.assertEqual(self.service.analysis_method, "PCA")
+
+    def test_processing_summary_includes_method(self):
+        """Έλεγχος ότι η περίληψη περιέχει τη μέθοδο ανάλυσης"""
+        summary = self.service.get_processing_summary()
+        self.assertIn("analysis_method", summary)
+        self.assertEqual(summary["analysis_method"], "PCA")
 
 
 if __name__ == "__main__":

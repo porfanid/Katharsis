@@ -266,11 +266,14 @@ class EEGProcessingThread(QThread):
                 return
             self.progress_update.emit(30)
 
-            self.status_update.emit("Εκπαίδευση μοντέλου ICA...")
-            ica_result = self.service.fit_ica_analysis()
-            if not ica_result["success"]:
+            # Use generic fit_analysis() which respects the set analysis method
+            method_name = self.service.analysis_method
+            self.status_update.emit(f"Εκπαίδευση μοντέλου {method_name}...")
+            analysis_result = self.service.fit_analysis()
+            if not analysis_result["success"]:
                 self.processing_complete.emit(
-                    False, f"Σφάλμα ICA: {ica_result.get('error', 'Άγνωστο σφάλμα')}"
+                    False,
+                    f"Σφάλμα {method_name}: {analysis_result.get('error', 'Άγνωστο σφάλμα')}",
                 )
                 return
             self.progress_update.emit(70)
@@ -610,16 +613,21 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 f"Αδυναμία φόρτωσης αρχείου για επιλογή καναλιών:\n{str(e)}",
             )
 
-    def on_channels_selected(self, selected_channels):
+    def on_channels_selected(self, selected_channels, analysis_method="ICA"):
         """
         Χειρισμός επιλογής καναλιών και έναρξη επεξεργασίας
 
-        Αποθηκεύει τα επιλεγμένα κανάλια και ξεκινά την επεξεργασία των δεδομένων.
+        Αποθηκεύει τα επιλεγμένα κανάλια και τη μέθοδο ανάλυσης,
+        και ξεκινά την επεξεργασία των δεδομένων.
 
         Args:
             selected_channels (List[str]): Λίστα επιλεγμένων καναλιών
+            analysis_method (str): Μέθοδος ανάλυσης ("ICA" ή "PCA")
         """
         self.selected_channels = selected_channels
+        self.analysis_method = analysis_method
+        # Set the analysis method in the service
+        self.service.set_analysis_method(analysis_method)
         self.start_processing()
 
     def start_processing(self):

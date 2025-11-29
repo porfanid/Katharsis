@@ -10,21 +10,22 @@ ICA Processor - Independent Component Analysis για EEG artifact cleaning
 - Αποκατάσταση καθαρών σημάτων
 
 Author: porfanid
-Version: 1.0
+Version: 1.1
 """
 
 import warnings
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import mne
 import numpy as np
 from scipy import stats
-from sklearn.decomposition import FastICA
+
+from .base_processor import BaseComponentProcessor
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 
-class ICAProcessor:
+class ICAProcessor(BaseComponentProcessor):
     """
     Επεξεργαστής ICA για εντοπισμό και αφαίρεση artifacts
 
@@ -49,11 +50,20 @@ class ICAProcessor:
                                         Αν None, καθορίζεται αυτόματα.
             random_state (int): Seed για αναπαραγωγιμότητα
         """
-        self.n_components = n_components
-        self.random_state = random_state
+        super().__init__(n_components, random_state)
         self.ica: Optional[mne.preprocessing.ICA] = None
-        self.raw_data: Optional[mne.io.Raw] = None
-        self.components_info: Dict[int, Dict[str, float]] = {}
+
+    def fit(self, raw: mne.io.Raw) -> bool:
+        """
+        Fit ICA model to EEG data (implements BaseComponentProcessor interface)
+
+        Args:
+            raw (mne.io.Raw): Filtered Raw EEG data
+
+        Returns:
+            bool: True if fitting was successful, False otherwise
+        """
+        return self.fit_ica(raw)
 
     def fit_ica(self, raw: mne.io.Raw) -> bool:
         """
@@ -239,3 +249,26 @@ class ICAProcessor:
         if self.ica is None:
             return None
         return self.ica.unmixing_
+
+    def get_components(self) -> Optional[np.ndarray]:
+        """
+        Get the ICA component vectors (spatial patterns)
+
+        Returns the component matrix showing how each component
+        contributes to each channel.
+
+        Returns:
+            Optional[np.ndarray]: Array of shape (n_channels, n_components) or None
+        """
+        if self.ica is None:
+            return None
+        return self.ica.get_components()
+
+    def get_method_name(self) -> str:
+        """
+        Get the name of this analysis method
+
+        Returns:
+            str: "ICA"
+        """
+        return "ICA"

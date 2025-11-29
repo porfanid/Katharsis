@@ -7,8 +7,8 @@ Channel Selector Component - Interactive channel selection interface
 from typing import Any, Dict, List, Optional
 
 import mne
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPixmap
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect
+from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPixmap, QBrush, QPen
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -26,6 +26,132 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+class ToggleSwitch(QWidget):
+    """
+    Custom toggle switch widget for ICA/PCA selection
+    A modern-looking animated toggle switch
+    """
+
+    toggled = pyqtSignal(bool)  # True = PCA, False = ICA
+
+    def __init__(self, theme: Dict[str, str], parent=None):
+        super().__init__(parent)
+        self.theme = theme
+        self._is_checked = False  # False = ICA (left), True = PCA (right)
+        self._handle_position = 3  # Starting position
+
+        # Size settings
+        self.setFixedSize(180, 44)
+
+        # Animation for smooth toggle
+        self._animation = QPropertyAnimation(self, b"handle_position")
+        self._animation.setDuration(200)
+        self._animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    @property
+    def handle_position(self):
+        return self._handle_position
+
+    @handle_position.setter
+    def handle_position(self, pos):
+        self._handle_position = pos
+        self.update()
+
+    def isChecked(self):
+        return self._is_checked
+
+    def setChecked(self, checked: bool):
+        if self._is_checked != checked:
+            self._is_checked = checked
+            self._animate_toggle()
+            self.toggled.emit(checked)
+
+    def _animate_toggle(self):
+        self._animation.stop()
+        if self._is_checked:
+            # Move to PCA (right)
+            self._animation.setStartValue(self._handle_position)
+            self._animation.setEndValue(self.width() // 2 + 3)
+        else:
+            # Move to ICA (left)
+            self._animation.setStartValue(self._handle_position)
+            self._animation.setEndValue(3)
+        self._animation.start()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.setChecked(not self._is_checked)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Colors
+        primary_color = QColor(self.theme.get("primary", "#007AFF"))
+        secondary_color = QColor("#6c757d")
+        bg_color = QColor("#e9ecef")
+        handle_color = QColor("white")
+
+        # Draw background track
+        track_rect = QRect(0, 0, self.width(), self.height())
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(bg_color))
+        painter.drawRoundedRect(track_rect, 22, 22)
+
+        # Draw left side (ICA) background
+        left_rect = QRect(0, 0, self.width() // 2, self.height())
+        if not self._is_checked:
+            painter.setBrush(QBrush(primary_color))
+        else:
+            painter.setBrush(QBrush(secondary_color.lighter(130)))
+        painter.drawRoundedRect(left_rect, 22, 22)
+        # Fix the right edge of left side
+        painter.drawRect(QRect(self.width() // 2 - 22, 0, 22, self.height()))
+
+        # Draw right side (PCA) background
+        right_rect = QRect(self.width() // 2, 0, self.width() // 2, self.height())
+        if self._is_checked:
+            painter.setBrush(QBrush(primary_color))
+        else:
+            painter.setBrush(QBrush(secondary_color.lighter(130)))
+        painter.drawRoundedRect(right_rect, 22, 22)
+        # Fix the left edge of right side
+        painter.drawRect(QRect(self.width() // 2, 0, 22, self.height()))
+
+        # Draw labels
+        painter.setPen(QPen(QColor("white") if not self._is_checked else QColor("#6c757d")))
+        painter.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        painter.drawText(QRect(5, 0, self.width() // 2 - 5, self.height()),
+                         Qt.AlignmentFlag.AlignCenter, "ICA")
+
+        painter.setPen(QPen(QColor("white") if self._is_checked else QColor("#6c757d")))
+        painter.drawText(QRect(self.width() // 2, 0, self.width() // 2 - 5, self.height()),
+                         Qt.AlignmentFlag.AlignCenter, "PCA")
+
+        # Draw handle (sliding circle)
+        handle_width = self.width() // 2 - 6
+        handle_height = self.height() - 6
+        handle_rect = QRect(int(self._handle_position), 3, handle_width, handle_height)
+
+        # Handle shadow
+        shadow_rect = QRect(int(self._handle_position) + 2, 5, handle_width, handle_height)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 30)))
+        painter.drawRoundedRect(shadow_rect, 19, 19)
+
+        # Handle
+        painter.setBrush(QBrush(handle_color))
+        painter.setPen(QPen(QColor("#dee2e6"), 1))
+        painter.drawRoundedRect(handle_rect, 19, 19)
+
+        # Handle label
+        handle_text = "🧠 ICA" if not self._is_checked else "📊 PCA"
+        painter.setPen(QPen(primary_color))
+        painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        painter.drawText(handle_rect, Qt.AlignmentFlag.AlignCenter, handle_text)
 
 
 class ChannelCheckBox(QCheckBox):
@@ -146,9 +272,10 @@ class FileInfoWidget(QFrame):
 
 
 class ChannelSelectorWidget(QWidget):
-    """Main channel selection widget"""
+    """Main channel selection widget with analysis method selection"""
 
-    channels_selected = pyqtSignal(list)  # Emits list of selected channel names
+    # Emits tuple of (selected channel names, analysis method)
+    channels_selected = pyqtSignal(list, str)
 
     def __init__(self, theme: Dict[str, str]):
         super().__init__()
@@ -158,6 +285,7 @@ class ChannelSelectorWidget(QWidget):
         self.channel_checkboxes = {}
         self.current_file = ""
         self.raw_data = None
+        self.analysis_method = "ICA"  # Default to ICA
 
         self.setup_ui()
 
@@ -174,16 +302,72 @@ class ChannelSelectorWidget(QWidget):
         main_layout.addWidget(title)
 
         # Description
-        description = QLabel(
+        self.description = QLabel(
             "Επιλέξτε τα κανάλια EEG που θέλετε να συμπεριλάβετε στην ανάλυση.\n"
-            "Συνιστώνται τουλάχιστον 3 κανάλια για βέλτιστα αποτελέσματα ICA."
+            "Συνιστώνται τουλάχιστον 3 κανάλια για βέλτιστα αποτελέσματα."
         )
-        description.setFont(QFont("Arial", 12))
-        description.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        description.setStyleSheet(
+        self.description.setFont(QFont("Arial", 12))
+        self.description.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.description.setStyleSheet(
             f"color: {self.theme['text_light']}; margin-bottom: 15px;"
         )
-        main_layout.addWidget(description)
+        main_layout.addWidget(self.description)
+
+        # Analysis Method Selector (ICA/PCA toggle)
+        method_group = QGroupBox("🔬 Μέθοδος Ανάλυσης / Analysis Method")
+        method_group.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        method_group.setStyleSheet(
+            f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 2px solid {self.theme['primary']};
+                border-radius: 8px;
+                margin: 5px 0px;
+                padding: 15px;
+                background-color: white;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: {self.theme['primary']};
+                background-color: white;
+            }}
+        """
+        )
+        method_layout = QHBoxLayout(method_group)
+        method_layout.setSpacing(20)
+
+        # ICA label
+        ica_label = QLabel("🧠 ICA")
+        ica_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        ica_label.setStyleSheet(f"color: {self.theme['text']};")
+        method_layout.addWidget(ica_label)
+
+        # Custom toggle switch for ICA/PCA selection
+        self.method_toggle = ToggleSwitch(self.theme)
+        self.method_toggle.toggled.connect(self._on_toggle_changed)
+        method_layout.addWidget(self.method_toggle)
+
+        # PCA label
+        pca_label = QLabel("📊 PCA")
+        pca_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        pca_label.setStyleSheet(f"color: {self.theme['text']};")
+        method_layout.addWidget(pca_label)
+
+        method_layout.addStretch()
+
+        # Method description label
+        self.method_info_label = QLabel(
+            "ICA: Καλύτερη για εντοπισμό βλεφαρισμών και μυϊκών artifacts"
+        )
+        self.method_info_label.setFont(QFont("Arial", 10))
+        self.method_info_label.setStyleSheet(
+            f"color: {self.theme['text_light']}; font-style: italic;"
+        )
+        method_layout.addWidget(self.method_info_label)
+
+        main_layout.addWidget(method_group)
 
         # Create splitter for layout
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -530,7 +714,7 @@ class ChannelSelectorWidget(QWidget):
             QMessageBox.warning(
                 self,
                 "Ανεπαρκή Κανάλια",
-                "Παρακαλώ επιλέξτε τουλάχιστον 3 κανάλια για αξιόπιστη ανάλυση ICA.",
+                f"Παρακαλώ επιλέξτε τουλάχιστον 3 κανάλια για αξιόπιστη ανάλυση {self.analysis_method}.",
             )
             return
 
@@ -544,6 +728,7 @@ class ChannelSelectorWidget(QWidget):
         🧠 EEG Κανάλια: {eeg_count}
         📊 Άλλα Κανάλια: {other_count}
         📈 Συνολικά: {len(selected_channels)}
+        🔬 Μέθοδος Ανάλυσης: {self.analysis_method}
         
         Επιλεγμένα κανάλια:
         {', '.join(selected_channels)}
@@ -560,4 +745,21 @@ class ChannelSelectorWidget(QWidget):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.channels_selected.emit(selected_channels)
+            self.channels_selected.emit(selected_channels, self.analysis_method)
+
+    def _on_toggle_changed(self, is_pca: bool):
+        """Handle analysis method toggle change"""
+        if is_pca:
+            self.analysis_method = "PCA"
+            self.method_info_label.setText(
+                "PCA: Ταχύτερη, ιδανική για γρήγορη προκαταρκτική ανάλυση"
+            )
+        else:
+            self.analysis_method = "ICA"
+            self.method_info_label.setText(
+                "ICA: Καλύτερη για εντοπισμό βλεφαρισμών και μυϊκών artifacts"
+            )
+
+    def get_analysis_method(self) -> str:
+        """Get the selected analysis method"""
+        return self.analysis_method
