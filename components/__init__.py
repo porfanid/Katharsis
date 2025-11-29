@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 GUI Components Package Initialization
-Αρχικοποίηση Package Στοιχείων GUI
 """
 
 from .band_power_display import (

@@ -1,87 +1,87 @@
 # Contributing to Katharsis
 
-Καλώς ήρθατε στο Katharsis! Ευχαριστούμε που ενδιαφέρεστε να συνεισφέρετε σε αυτό το project.
+Welcome to Katharsis! Thank you for your interest in contributing to this project.
 
-## 🎯 Οδηγός Συνεισφοράς
+## 🎯 Contribution Guide
 
-### Τύποι Συνεισφορών
+### Types of Contributions
 
-Δεχόμαστε διάφορους τύπους συνεισφορών:
+We accept various types of contributions:
 
-- 🐛 **Bug Reports**: Αναφορά προβλημάτων
-- 💡 **Feature Requests**: Προτάσεις νέων χαρακτηριστικών
-- 📝 **Documentation**: Βελτίωση τεκμηρίωσης
-- 🔧 **Code Contributions**: Υλοποίηση βελτιώσεων
-- 🌍 **Translations**: Μεταφράσεις σε άλλες γλώσσες
-- 🧪 **Testing**: Δοκιμές και feedback
+- 🐛 **Bug Reports**: Report issues
+- 💡 **Feature Requests**: Suggestions for new features
+- 📝 **Documentation**: Improve documentation
+- 🔧 **Code Contributions**: Implement improvements
+- 🌍 **Translations**: Translations to other languages
+- 🧪 **Testing**: Testing and feedback
 
-### Προετοιμασία Περιβάλλοντος
+### Setting Up Your Environment
 
-1. **Fork το repository**
+1. **Fork the repository**
    ```bash
    git clone https://github.com/[your-username]/Katharsis.git
    cd Katharsis
    ```
 
-2. **Δημιουργία virtual environment**
+2. **Create virtual environment**
    ```bash
    python -m venv katharsis_env
    source katharsis_env/bin/activate  # Linux/Mac
-   # ή
+   # or
    katharsis_env\Scripts\activate     # Windows
    ```
 
-3. **Εγκατάσταση dependencies**
+3. **Install dependencies**
    ```bash
    pip install -r requirements.txt
-   pip install -r requirements-dev.txt  # Αν υπάρχει
+   pip install -r requirements-dev.txt  # If available
    ```
 
-4. **Εγκατάσταση pre-commit hooks**
+4. **Install pre-commit hooks**
    ```bash
    pip install pre-commit
    pre-commit install
    ```
 
-### Αναφορά Bugs
+### Reporting Bugs
 
-Όταν αναφέρετε ένα bug, παρακαλούμε συμπεριλάβετε:
+When reporting a bug, please include:
 
-- **Περιγραφή του προβλήματος**: Τι συνέβη;
-- **Βήματα αναπαραγωγής**: Πώς μπορούμε να αναπαράγουμε το πρόβλημα;
-- **Αναμενόμενη συμπεριφορά**: Τι περιμένατε να συμβεί;
-- **Screenshots**: Αν είναι GUI-related
-- **Περιβάλλον**:
+- **Problem description**: What happened?
+- **Reproduction steps**: How can we reproduce the problem?
+- **Expected behavior**: What did you expect to happen?
+- **Screenshots**: If GUI-related
+- **Environment**:
   - OS (Windows/Mac/Linux)
   - Python version
   - Katharsis version
   - Error logs
 
-### Προτάσεις Χαρακτηριστικών
+### Feature Suggestions
 
-Για νέα χαρακτηριστικά:
+For new features:
 
-- **Περιγράψτε τη λειτουργία**: Τι θέλετε να κάνει;
-- **Αιτιολογήστε τη χρησιμότητα**: Γιατί είναι χρήσιμο;
-- **Προτείνετε υλοποίηση**: Πώς θα μπορούσε να υλοποιηθεί;
-- **Εξετάστε τις επιπτώσεις**: Πώς επηρεάζει υπάρχοντα features;
+- **Describe the functionality**: What do you want it to do?
+- **Justify the usefulness**: Why is it useful?
+- **Suggest implementation**: How could it be implemented?
+- **Consider the implications**: How does it affect existing features?
 
 ## 💻 Code Contributions
 
 ### Workflow
 
-1. **Δημιουργία branch**
+1. **Create a branch**
    ```bash
    git checkout -b feature/your-feature-name
-   # ή
+   # or
    git checkout -b bugfix/issue-number
    ```
 
-2. **Υλοποίηση αλλαγών**
-   - Γράψτε καθαρό, readable κώδικα
-   - Ακολουθήστε τα υπάρχοντα style conventions
-   - Προσθέστε docstrings στις νέες functions/classes
-   - Προσθέστε ή ενημερώστε tests
+2. **Implement changes**
+   - Write clean, readable code
+   - Follow existing style conventions
+   - Add docstrings to new functions/classes
+   - Add or update tests
 
 3. **Testing**
    ```bash
@@ -96,7 +96,7 @@
    git commit -m "feat: add new feature description"
    ```
 
-5. **Push και Pull Request**
+5. **Push and Pull Request**
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -106,8 +106,8 @@
 #### Style Guide
 
 - **PEP 8** compliance
-- **Black** για formatting
-- **isort** για import sorting
+- **Black** for formatting
+- **isort** for import sorting
 - **Maximum line length**: 127 characters
 - **Docstrings**: Google style
 
@@ -135,17 +135,17 @@ def _internal_method():
 ```python
 def process_signal(data: np.ndarray, sampling_rate: float) -> np.ndarray:
     """
-    Επεξεργάζεται το EEG σήμα με φιλτράρισμα.
+    Process EEG signal with filtering.
     
     Args:
-        data (np.ndarray): Τα raw EEG δεδομένα
-        sampling_rate (float): Η συχνότητα δειγματοληψίας σε Hz
+        data (np.ndarray): The raw EEG data
+        sampling_rate (float): The sampling rate in Hz
         
     Returns:
-        np.ndarray: Τα φιλτραρισμένα δεδομένα
+        np.ndarray: The filtered data
         
     Raises:
-        ValueError: Αν τα δεδομένα είναι άδεια
+        ValueError: If data is empty
         
     Example:
         >>> filtered = process_signal(raw_data, 256.0)
@@ -176,7 +176,7 @@ class TestEEGBackend:
     """Tests for EEG Backend functionality."""
     
     def setup_method(self):
-        """Setup για κάθε test method."""
+        """Setup for each test method."""
         self.backend = EEGBackendCore()
     
     def test_load_valid_file(self):
@@ -199,7 +199,7 @@ class TestEEGBackend:
 
 ### Commit Messages
 
-Χρησιμοποιούμε [Conventional Commits](https://www.conventionalcommits.org/):
+We use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 type(scope): description
@@ -211,12 +211,12 @@ type(scope): description
 
 #### Types
 
-- `feat`: Νέο χαρακτηριστικό
+- `feat`: New feature
 - `fix`: Bug fix
-- `docs`: Αλλαγές documentation
-- `style`: Formatting, missing semicolons, κλπ.
+- `docs`: Documentation changes
+- `style`: Formatting, missing semicolons, etc.
 - `refactor`: Code refactoring
-- `test`: Προσθήκη tests
+- `test`: Adding tests
 - `chore`: Maintenance tasks
 
 #### Examples
@@ -232,43 +232,43 @@ test(ica): add unit tests for component detection
 
 ### README Updates
 
-Όταν προσθέτετε νέα features:
+When adding new features:
 
-- Ενημερώστε τη λίστα χαρακτηριστικών
-- Προσθέστε παραδείγματα χρήσης
-- Ενημερώστε τις εγκαταστάσεις dependencies
+- Update the features list
+- Add usage examples
+- Update dependency installations
 
 ### Code Documentation
 
-- **Modules**: Module-level docstring στην κορυφή
-- **Classes**: Class docstring με περιγραφή και attributes
-- **Methods**: Docstring με Args, Returns, Raises
-- **Complex Code**: Inline comments για περίπλοκη λογική
+- **Modules**: Module-level docstring at the top
+- **Classes**: Class docstring with description and attributes
+- **Methods**: Docstring with Args, Returns, Raises
+- **Complex Code**: Inline comments for complex logic
 
 ### API Documentation
 
-Αν προσθέτετε νέα API:
+When adding new API:
 
 ```python
 def new_api_function(param1: str, param2: int = 10) -> Dict[str, Any]:
     """
-    Συνοπτική περιγραφή της λειτουργίας.
+    Brief description of the function.
     
-    Λεπτομερής περιγραφή του τι κάνει η συνάρτηση και πώς.
-    Μπορεί να περιέχει πολλές γραμμές.
+    Detailed description of what the function does and how.
+    Can contain multiple lines.
     
     Args:
-        param1 (str): Περιγραφή του πρώτου παραμέτρου
-        param2 (int, optional): Περιγραφή του δεύτερου παραμέτρου.
-                               Default είναι 10.
+        param1 (str): Description of the first parameter
+        param2 (int, optional): Description of the second parameter.
+                               Default is 10.
     
     Returns:
-        Dict[str, Any]: Περιγραφή του επιστρεφόμενου dictionary
-                       με τα keys και τους τύπους values
+        Dict[str, Any]: Description of the returned dictionary
+                       with keys and value types
     
     Raises:
-        ValueError: Όταν το param1 είναι κενό string
-        TypeError: Όταν το param2 δεν είναι integer
+        ValueError: When param1 is an empty string
+        TypeError: When param2 is not an integer
     
     Example:
         >>> result = new_api_function("test", 20)
@@ -276,7 +276,7 @@ def new_api_function(param1: str, param2: int = 10) -> Dict[str, Any]:
         'success'
     
     Note:
-        Αυτή η συνάρτηση αλλάζει την εσωτερική κατάσταση του object.
+        This function changes the internal state of the object.
     """
 ```
 
@@ -284,24 +284,24 @@ def new_api_function(param1: str, param2: int = 10) -> Dict[str, Any]:
 
 ### Before Submitting
 
-- [ ] Έχω δοκιμάσει τις αλλαγές μου τοπικά
-- [ ] Έχω προσθέσει/ενημερώσει tests
-- [ ] Έχω ενημερώσει τη documentation
-- [ ] Ο κώδικας περνάει όλα τα quality checks
-- [ ] Έχω ελέγξει για merge conflicts
+- [ ] I have tested my changes locally
+- [ ] I have added/updated tests
+- [ ] I have updated the documentation
+- [ ] The code passes all quality checks
+- [ ] I have checked for merge conflicts
 
 ### PR Template
 
 ```markdown
-## Περιγραφή
+## Description
 
-Σύντομη περιγραφή των αλλαγών.
+Brief description of the changes.
 
-## Τύπος Αλλαγής
+## Type of Change
 
-- [ ] Bug fix (non-breaking change που διορθώνει πρόβλημα)
-- [ ] New feature (non-breaking change που προσθέτει λειτουργία)
-- [ ] Breaking change (αλλαγή που θα σπάσει existing functionality)
+- [ ] Bug fix (non-breaking change that fixes an issue)
+- [ ] New feature (non-breaking change that adds functionality)
+- [ ] Breaking change (change that will break existing functionality)
 - [ ] Documentation update
 
 ## Testing
@@ -310,31 +310,31 @@ def new_api_function(param1: str, param2: int = 10) -> Dict[str, Any]:
 - [ ] Integration tests pass
 - [ ] Manual testing completed
 
-## Screenshots (αν εφαρμόζεται)
+## Screenshots (if applicable)
 
-Προσθέστε screenshots για GUI changes.
+Add screenshots for GUI changes.
 
 ## Checklist
 
-- [ ] Ο κώδικας ακολουθεί το style guide
+- [ ] Code follows the style guide
 - [ ] Self-review of the code
 - [ ] Code changes generate no new warnings
-- [ ] Tests για νέα functionality
+- [ ] Tests for new functionality
 - [ ] Documentation updates
 ```
 
 ### Review Process
 
-1. **Automated Checks**: CI/CD θα τρέξει τα tests
-2. **Code Review**: Maintainers θα ελέγξουν τον κώδικα
-3. **Feedback**: Ενδέχεται να ζητηθούν αλλαγές
-4. **Approval**: Μετά την έγκριση, το PR θα γίνει merge
+1. **Automated Checks**: CI/CD will run the tests
+2. **Code Review**: Maintainers will review the code
+3. **Feedback**: Changes may be requested
+4. **Approval**: After approval, the PR will be merged
 
 ## 🌍 Internationalization
 
-### Προσθήκη Μεταφράσεων
+### Adding Translations
 
-1. **Δημιουργία language file**
+1. **Create language file**
    ```python
    # locales/en.py
    TRANSLATIONS = {
@@ -344,7 +344,7 @@ def new_api_function(param1: str, param2: int = 10) -> Dict[str, Any]:
    }
    ```
 
-2. **Χρήση στον κώδικα**
+2. **Use in code**
    ```python
    from locales import get_translation
    
@@ -355,31 +355,31 @@ def new_api_function(param1: str, param2: int = 10) -> Dict[str, Any]:
 
 ### Contributors
 
-Όλοι οι contributors αναφέρονται στο:
+All contributors are mentioned in:
 - README.md
 - Release notes
 - Contributors page
 
 ### Types of Recognition
 
-- **Code Contributors**: Αναφορά σε commits
-- **Issue Reporters**: Credit στα issue fixes
-- **Documentation**: Αναφορά σε documentation updates
-- **Translators**: Credit για translations
-- **Testers**: Αναφορά για extensive testing
+- **Code Contributors**: Credit in commits
+- **Issue Reporters**: Credit in issue fixes
+- **Documentation**: Credit in documentation updates
+- **Translators**: Credit for translations
+- **Testers**: Credit for extensive testing
 
-## ❓ Ερωτήσεις;
+## ❓ Questions?
 
-Αν έχετε ερωτήσεις:
+If you have questions:
 
-- **GitHub Issues**: Για γενικές ερωτήσεις
-- **GitHub Discussions**: Για συζητήσεις κοινότητας
+- **GitHub Issues**: For general questions
+- **GitHub Discussions**: For community discussions
 - **Email**: [maintainers@katharsis-eeg.org]
 
 ## 📄 License
 
-Συνεισφέροντας, συμφωνείτε ότι οι συνεισφορές σας θα διαθέτονται υπό την ίδια MIT License που καλύπτει το project.
+By contributing, you agree that your contributions will be available under the same MIT License that covers the project.
 
 ---
 
-Ευχαριστούμε για τη συνεισφορά σας στο Katharsis! 🧠✨
+Thank you for contributing to Katharsis! 🧠✨

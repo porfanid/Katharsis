@@ -22,21 +22,21 @@ from PyQt6.QtWidgets import (
 )
 
 
-# --- 1. ΔΗΜΙΟΥΡΓΟΥΜΕ ΕΝΑ CUSTOM CANVAS ---
-# Αυτή η κλάση κληρονομεί όλες τις ιδιότητες του FigureCanvas,
-# αλλά αλλάζει τη συμπεριφορά του wheelEvent.
+# --- 1. CREATE A CUSTOM CANVAS ---
+# This class inherits all properties from FigureCanvas,
+# but changes the wheelEvent behavior.
 class CustomCanvas(FigureCanvas):
     def wheelEvent(self, event: QWheelEvent):
         """
-        Αντί να "καταναλώσει" το event, το αγνοεί.
-        Όταν ένα event αγνοείται, η Qt το προωθεί αυτόματα στο γονικό widget.
+        Instead of consuming the event, ignore it.
+        When an event is ignored, Qt automatically forwards it to the parent widget.
         """
         event.ignore()
 
 
-# --- 2. BACKGROUND THREAD ΓΙΑ PREVIEW UPDATE ---
+# --- 2. BACKGROUND THREAD FOR PREVIEW UPDATE ---
 class PreviewUpdateThread(QThread):
-    """Thread για υπολογισμό του καθαρισμένου σήματος στο background"""
+    """Thread for calculating the cleaned signal in the background"""
 
     preview_ready = pyqtSignal(object, object)  # (original_raw, cleaned_raw)
 
@@ -72,37 +72,37 @@ class PreviewUpdateThread(QThread):
 
             # Fallback to ICA-specific handling (for backward compatibility)
             if self.ica is not None:
-                # Δημιουργία αντιγράφου για καθαρισμό
+                # Create copy for cleaning
                 cleaned_raw = self.raw.copy()
 
-                # Ορισμός συνιστωσών προς αφαίρεση
+                # Set components to remove
                 ica_copy = self.ica.copy()
                 ica_copy.exclude = self.components_to_remove
 
-                # Εφαρμογή καθαρισμού
+                # Apply cleaning
                 cleaned_raw = ica_copy.apply(cleaned_raw, verbose=False)
 
-                # Εκπομπή των αποτελεσμάτων
+                # Emit results
                 self.preview_ready.emit(self.raw, cleaned_raw)
             else:
                 self.preview_ready.emit(self.raw, None)
 
         except Exception as e:
-            print(f"Σφάλμα στο preview thread: {str(e)}")
-            # Εκπομπή μόνο του αρχικού σήματος σε περίπτωση σφάλματος
+            print(f"Error in preview thread: {str(e)}")
+            # Emit only original signal in case of error
             self.preview_ready.emit(self.raw, None)
 
 
 # --- 3. PREVIEW WIDGET ---
 class PreviewWidget(QWidget):
-    """Widget για εμφάνιση preview του καθαρισμένου σήματος"""
+    """Widget for displaying preview of the cleaned signal"""
 
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
         self.theme = theme
         self.selected_channel_idx = 0
         self.channel_names = []
-        self.update_callback = None  # Callback για ενημέρωση preview
+        self.update_callback = None  # Callback for preview update
         self.band_power_analyzer = None  # Will be set on first use
         self.setup_ui()
 
@@ -110,19 +110,19 @@ class PreviewWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
 
-        # Header layout με τίτλο και dropdown για επιλογή καναλιού
+        # Header layout with title and dropdown for channel selection
         header_layout = QHBoxLayout()
 
-        # Τίτλος
-        title_label = QLabel("📊 Ζωντανή Προεπισκόπηση Αποτελέσματος Καθαρισμού")
+        # Title
+        title_label = QLabel("📊 Live Preview of Cleaning Result")
         title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         title_label.setStyleSheet(f"color: {self.theme['text']}; margin-bottom: 5px;")
         header_layout.addWidget(title_label)
 
         header_layout.addStretch()
 
-        # Dropdown για επιλογή καναλιού
-        channel_label = QLabel("Κανάλι / Channel:")
+        # Dropdown for channel selection
+        channel_label = QLabel("Channel:")
         channel_label.setStyleSheet(f"color: {self.theme['text']}; font-size: 12px;")
         header_layout.addWidget(channel_label)
 
@@ -220,35 +220,34 @@ class PreviewWidget(QWidget):
 
         layout.addLayout(content_layout)
 
-        # Αρχική εμφάνιση κενού γραφήματος
+        # Initial empty plot
         self.show_empty_plot()
 
     def set_update_callback(self, callback):
-        """Ορισμός callback για ενημέρωση preview"""
+        """Set callback for preview update"""
         self.update_callback = callback
 
     def set_channel_data(self, raw):
-        """Ενημέρωση του dropdown με τα διαθέσιμα κανάλια"""
+        """Update dropdown with available channels"""
         self.channel_names = raw.ch_names
         self.channel_dropdown.clear()
         self.channel_dropdown.addItems(self.channel_names)
         self.selected_channel_idx = 0
 
     def _on_channel_changed(self, index):
-        """Καλείται όταν αλλάζει η επιλογή καναλιού"""
+        """Called when channel selection changes"""
         self.selected_channel_idx = index
         # Trigger preview update if we have a callback
         if self.update_callback:
             self.update_callback()
 
     def show_empty_plot(self):
-        """Εμφάνιση κενού γραφήματος με οδηγίες"""
+        """Display empty plot with instructions"""
         self.figure.clear()
         ax = self.figure.add_subplot(111)
         ax.text(
             0.5,
             0.5,
-            "Επιλέξτε συνιστώσες για να δείτε την προεπισκόπηση του καθαρισμένου σήματος\n"
             "Select components to see preview of cleaned signal",
             ha="center",
             va="center",
@@ -265,15 +264,15 @@ class PreviewWidget(QWidget):
         self.canvas.draw()
 
     def update_preview(self, original_raw, cleaned_raw):
-        """Ενημέρωση του preview με τα νέα δεδομένα"""
+        """Update preview with new data"""
         try:
             self.figure.clear()
 
-            # Χρησιμοποιούμε τα πρώτα 10 δευτερόλεπτα για preview
+            # Use first 10 seconds for preview
             preview_duration = 10.0
             n_samples = int(preview_duration * original_raw.info["sfreq"])
 
-            # Λήψη των δεδομένων
+            # Get data
             original_data = original_raw.get_data()[:, :n_samples]
             time_points = np.arange(n_samples) / original_raw.info["sfreq"]
 
@@ -294,14 +293,14 @@ class PreviewWidget(QWidget):
                 cleaned_data = cleaned_data[:, :min_samples]
                 time_points = time_points[:min_samples]
 
-                # Δύο subplots - αρχικό και καθαρισμένο
+                # Two subplots - original and cleaned
                 ax1 = self.figure.add_subplot(2, 1, 1)
                 ax2 = self.figure.add_subplot(2, 1, 2)
 
-                # Εμφάνιση του επιλεγμένου καναλιού
+                # Display selected channel
                 channel_idx = self.selected_channel_idx
 
-                # Αρχικό σήμα
+                # Original signal
                 ax1.plot(
                     time_points,
                     original_data[channel_idx, :],
@@ -315,14 +314,14 @@ class PreviewWidget(QWidget):
                     else f"Channel {channel_idx}"
                 )
                 ax1.set_title(
-                    f"Αρχικό Σήμα - {channel_name} / Original Signal - {channel_name}",
+                    f"Original Signal - {channel_name}",
                     fontsize=10,
                     color=self.theme["text"],
                 )
                 ax1.set_ylabel("Amplitude (μV)", fontsize=9)
                 ax1.grid(True, alpha=0.3)
 
-                # Καθαρισμένο σήμα
+                # Cleaned signal
                 ax2.plot(
                     time_points,
                     cleaned_data[channel_idx, :],
@@ -331,11 +330,11 @@ class PreviewWidget(QWidget):
                     alpha=0.8,
                 )
                 ax2.set_title(
-                    f"Καθαρισμένο Σήμα - {channel_name} / Cleaned Signal - {channel_name}",
+                    f"Cleaned Signal - {channel_name}",
                     fontsize=10,
                     color=self.theme["text"],
                 )
-                ax2.set_xlabel("Χρόνος (s) / Time (s)", fontsize=9)
+                ax2.set_xlabel("Time (s)", fontsize=9)
                 ax2.set_ylabel("Amplitude (μV)", fontsize=9)
                 ax2.grid(True, alpha=0.3)
 
@@ -359,7 +358,7 @@ class PreviewWidget(QWidget):
                     self.band_power_widget.clear()
 
             else:
-                # Μόνο το αρχικό σήμα αν υπάρχει σφάλμα
+                # Only original signal if there is an error
                 ax = self.figure.add_subplot(111)
                 channel_idx = self.selected_channel_idx
                 channel_name = (
@@ -374,11 +373,11 @@ class PreviewWidget(QWidget):
                     linewidth=1,
                 )
                 ax.set_title(
-                    f"Αρχικό Σήμα - {channel_name} / Original Signal - {channel_name}",
+                    f"Original Signal - {channel_name}",
                     fontsize=12,
                     color=self.theme["text"],
                 )
-                ax.set_xlabel("Χρόνος (s) / Time (s)", fontsize=10)
+                ax.set_xlabel("Time (s)", fontsize=10)
                 ax.set_ylabel("Amplitude (μV)", fontsize=10)
                 ax.grid(True, alpha=0.3)
 
@@ -389,17 +388,17 @@ class PreviewWidget(QWidget):
             self.canvas.draw()
 
         except Exception as e:
-            print(f"Σφάλμα στην ενημέρωση preview: {str(e)}")
+            print(f"Error updating preview: {str(e)}")
             self.show_error_plot(str(e))
 
     def show_error_plot(self, error_msg: str):
-        """Εμφάνιση μηνύματος σφάλματος"""
+        """Display error message"""
         self.figure.clear()
         ax = self.figure.add_subplot(111)
         ax.text(
             0.5,
             0.5,
-            f"Σφάλμα στην προεπισκόπηση:\n{error_msg}",
+            f"Preview error:\n{error_msg}",
             ha="center",
             va="center",
             fontsize=10,
@@ -419,24 +418,24 @@ class ComponentDisplayWidget(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        # Οριζόντια διάταξη για time-series και topomap
+        # Horizontal layout for time-series and topomap
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
 
-        # Figure για time-series (αριστερά)
+        # Figure for time-series (left)
         self.timeseries_figure = Figure(figsize=(4, 2.5), dpi=90)
         self.timeseries_canvas = CustomCanvas(self.timeseries_figure)
-        layout.addWidget(self.timeseries_canvas, 2)  # 2/3 του χώρου
+        layout.addWidget(self.timeseries_canvas, 2)  # 2/3 of space
 
-        # Figure για topomap (δεξιά)
+        # Figure for topomap (right)
         self.topomap_figure = Figure(figsize=(2.5, 2.5), dpi=90)
         self.topomap_canvas = CustomCanvas(self.topomap_figure)
-        layout.addWidget(self.topomap_canvas, 1)  # 1/3 του χώρου
+        layout.addWidget(self.topomap_canvas, 1)  # 1/3 of space
 
     def plot_component(self, ica, raw, is_artifact, component_info):
         try:
-            # 1. Time-series plot (αριστερά)
+            # 1. Time-series plot (left)
             self.timeseries_figure.clear()
             ax_time = self.timeseries_figure.add_subplot(111)
 
@@ -460,14 +459,14 @@ class ComponentDisplayWidget(QWidget):
             ax_time.set_ylabel("Amplitude", fontsize=8)
             self.timeseries_figure.tight_layout(pad=0.3)
 
-            # 2. Topographic map (δεξιά)
+            # 2. Topographic map (right)
             self.topomap_figure.clear()
             ax_topo = self.topomap_figure.add_subplot(111)
 
-            # Λήψη των spatial patterns της συνιστώσας
+            # Get spatial patterns of the component
             component_weights = ica.get_components()[:, self.component_idx]
 
-            # Τοπογραφική απεικόνιση με MNE
+            # Topographic display with MNE
             import mne.viz
 
             mne.viz.plot_topomap(
@@ -486,7 +485,7 @@ class ComponentDisplayWidget(QWidget):
             self.topomap_figure.tight_layout(pad=0.3)
 
         except Exception as e:
-            # Σε περίπτωση σφάλματος, εμφάνιση μηνύματος και στα δύο plots
+            # In case of error, display message in both plots
             self.timeseries_figure.clear()
             ax_time = self.timeseries_figure.add_subplot(111)
             ax_time.text(
@@ -511,7 +510,7 @@ class ComponentDisplayWidget(QWidget):
                 fontsize=8,
             )
 
-        # Ανανέωση και των δύο canvas
+        # Refresh both canvases
         self.timeseries_canvas.draw()
         self.topomap_canvas.draw()
 
@@ -526,7 +525,7 @@ class ComponentDisplayWidget(QWidget):
             method: Analysis method name ("ICA" or "PCA")
         """
         try:
-            # 1. Time-series plot (αριστερά)
+            # 1. Time-series plot (left)
             self.timeseries_figure.clear()
             ax_time = self.timeseries_figure.add_subplot(111)
 
@@ -552,7 +551,7 @@ class ComponentDisplayWidget(QWidget):
             ax_time.set_ylabel("Amplitude", fontsize=8)
             self.timeseries_figure.tight_layout(pad=0.3)
 
-            # 2. Topographic map (δεξιά)
+            # 2. Topographic map (right)
             self.topomap_figure.clear()
             ax_topo = self.topomap_figure.add_subplot(111)
 
@@ -561,7 +560,7 @@ class ComponentDisplayWidget(QWidget):
             if components is not None:
                 component_weights = components[:, self.component_idx]
 
-                # Τοπογραφική απεικόνιση με MNE
+                # Topographic display with MNE
                 import mne.viz
 
                 mne.viz.plot_topomap(
@@ -659,16 +658,16 @@ class ICAComponentSelector(QWidget):
         main_layout.setSpacing(15)
 
         header_layout = QHBoxLayout()
-        self.title_label = QLabel("🔍 Επιλογή Συνιστωσών για Αφαίρεση")
+        self.title_label = QLabel("🔍 Select Components for Removal")
         self.title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         header_layout.addWidget(self.title_label)
         header_layout.addStretch()
         main_layout.addLayout(header_layout)
 
         controls_layout = QHBoxLayout()
-        self.select_suggested_btn = QPushButton("Επιλογή Προτεινόμενων")
-        self.select_all_btn = QPushButton("Επιλογή Όλων")
-        self.select_none_btn = QPushButton("Καμία Επιλογή")
+        self.select_suggested_btn = QPushButton("Select Suggested")
+        self.select_all_btn = QPushButton("Select All")
+        self.select_none_btn = QPushButton("Clear Selection")
         controls_layout.addWidget(self.select_suggested_btn)
         controls_layout.addWidget(self.select_all_btn)
         controls_layout.addWidget(self.select_none_btn)
@@ -693,12 +692,12 @@ class ICAComponentSelector(QWidget):
         self.scroll_area.setWidget(self.components_widget)
         main_layout.addWidget(self.scroll_area, 1)  # Μικρότερο stretch factor
 
-        # Προσθήκη του Preview Widget
+        # Add Preview Widget
         self.preview_widget = PreviewWidget(self.theme)
-        self.preview_widget.setMinimumHeight(300)  # Ελάχιστο ύψος για το preview
-        main_layout.addWidget(self.preview_widget, 1)  # Ίσος χώρος με το scroll area
+        self.preview_widget.setMinimumHeight(300)  # Minimum height for preview
+        main_layout.addWidget(self.preview_widget, 1)  # Equal space with scroll area
 
-        self.apply_btn = QPushButton("✅ Εφαρμογή Καθαρισμού και Αποθήκευση")
+        self.apply_btn = QPushButton("✅ Apply Cleaning and Save")
         self.apply_btn.setMinimumHeight(50)
         self.apply_btn.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         main_layout.addWidget(self.apply_btn)
@@ -710,18 +709,18 @@ class ICAComponentSelector(QWidget):
         self.select_suggested_btn.clicked.connect(self.select_suggested)
         self.apply_btn.clicked.connect(self.emit_selected_components)
 
-        # --- 3. ΑΦΑΙΡΟΥΜΕ ΤΟ ΠΑΛΙΟ EVENT FILTER ---
-        # Δεν χρειάζεται πλέον, αφού λύσαμε το πρόβλημα στην πηγή του.
-        # self.installEventFilter(self) <-- ΑΦΑΙΡΕΘΗΚΕ
+        # --- 3. REMOVED OLD EVENT FILTER ---
+        # No longer needed, since we solved the problem at the source.
+        # self.installEventFilter(self) <-- REMOVED
 
     def apply_styling(self):
-        # ... (Η συνάρτηση παραμένει ίδια)
-        btn_style = f"""
-            QPushButton {{
-                background-color: #5D6D7E; color: white; padding: 10px; 
+        # Style the buttons
+        btn_style = """
+            QPushButton {
+                background-color: #5D6D7E; color: white; padding: 10px;
                 border: none; font-size: 12px; border-radius: 6px;
-            }}
-            QPushButton:hover {{ background-color: #85929E; }}
+            }
+            QPushButton:hover { background-color: #85929E; }
         """
         self.select_all_btn.setStyleSheet(btn_style)
         self.select_none_btn.setStyleSheet(btn_style)
@@ -741,7 +740,7 @@ class ICAComponentSelector(QWidget):
         comp_layout = QHBoxLayout(comp_container)
         comp_layout.setContentsMargins(10, 5, 10, 5)
 
-        # Δημιουργούμε ένα κάθετο layout για το checkbox και το νέο κουμπί
+        # Create vertical layout for checkbox and new button
         controls_layout = QVBoxLayout()
 
         # Use appropriate label based on analysis method
@@ -755,11 +754,11 @@ class ICAComponentSelector(QWidget):
                 widget, state
             )
         )
-        checkbox.toggled.connect(self._on_checkbox_toggled)  # Προσθήκη για preview
+        checkbox.toggled.connect(self._on_checkbox_toggled)  # Add for preview
         self.checkboxes[i] = checkbox
 
-        # Το νέο κουμπί "Ανάλυση"
-        details_btn = QPushButton("🔎 Ανάλυση")
+        # The new "Analyze" button
+        details_btn = QPushButton("🔎 Analyze")
         details_btn.setStyleSheet(
             f"""
             QPushButton {{
@@ -780,7 +779,7 @@ class ICAComponentSelector(QWidget):
         )
         details_btn.clicked.connect(
             lambda state, idx=i: self.show_component_properties(idx)
-        )  # Σύνδεση με τη νέα συνάρτηση
+        )  # Connect to new function
 
         controls_layout.addWidget(checkbox)
         controls_layout.addWidget(details_btn)
@@ -795,7 +794,7 @@ class ICAComponentSelector(QWidget):
                 self.processor, self.raw, is_artifact, self.analysis_method
             )
 
-        comp_layout.addLayout(controls_layout)  # Προσθέτουμε το layout με τα controls
+        comp_layout.addLayout(controls_layout)  # Add layout with controls
         comp_layout.addWidget(plot_widget, 1)
         self.components_layout.addWidget(comp_container)
 
@@ -859,8 +858,8 @@ class ICAComponentSelector(QWidget):
         """Called when any checkbox is toggled - starts the preview update timer"""
         # Check if we have data to work with (ICA or processor)
         if (self.ica or self.processor) and self.raw:
-            # Restart the timer - αν ο χρήστης κάνει γρήγορες αλλαγές,
-            # περιμένουμε 500ms από την τελευταία αλλαγή
+            # Restart the timer - if the user makes quick changes,
+            # wait 500ms from the last change
             self.preview_timer.stop()
             self.preview_timer.start(500)
 
@@ -872,15 +871,15 @@ class ICAComponentSelector(QWidget):
         if not self.ica and not self.processor:
             return
 
-        # Ακύρωσε το τυχόν προηγούμενο thread αν τρέχει ακόμα
+        # Cancel any previous thread if still running
         if self.preview_thread and self.preview_thread.isRunning():
             self.preview_thread.quit()
             self.preview_thread.wait()
 
-        # Πάρε τις τρέχουσες επιλεγμένες συνιστώσες
+        # Get currently selected components
         selected_components = [i for i, cb in self.checkboxes.items() if cb.isChecked()]
 
-        # Δημιούργησε και ξεκίνησε το νέο thread
+        # Create and start new thread
         self.preview_thread = PreviewUpdateThread(
             self.ica,
             self.raw,
@@ -936,9 +935,7 @@ class ICAComponentSelector(QWidget):
             self.n_components = 0
 
         # Update title based on method
-        self.title_label.setText(
-            f"🔍 Επιλογή {analysis_method} Συνιστωσών για Αφαίρεση"
-        )
+        self.title_label.setText(f"🔍 Select {analysis_method} Components for Removal")
 
         # Clear existing components
         while self.components_layout.count():
@@ -963,9 +960,9 @@ class ICAComponentSelector(QWidget):
 
     def _create_spectrogram_plot(self, component_idx):
         """
-        Δημιουργεί spectrogram γράφημα για τη συγκεκριμένη συνιστώσα.
-        Το spectrogram είναι ιδανικό για τον εντοπισμό μυϊκών artifacts που
-        εμφανίζονται ως σύντομες εκρήξεις ενέργειας σε ευρύ φάσμα συχνοτήτων.
+        Creates a spectrogram plot for the specific component.
+        The spectrogram is ideal for detecting muscle artifacts that
+        appear as short bursts of energy across a wide frequency range.
         Works for both ICA and PCA.
         """
         try:
@@ -982,13 +979,13 @@ class ICAComponentSelector(QWidget):
             component_data = sources[component_idx]
             comp_label = "IC" if self.analysis_method == "ICA" else "PC"
 
-            # Παράμετροι για το spectrogram
-            fs = self.raw.info["sfreq"]  # Συχνότητα δειγματολήψίας
+            # Parameters for spectrogram
+            fs = self.raw.info["sfreq"]  # Sampling frequency
 
-            # Υπολογισμός spectrogram
-            # Χρησιμοποιούμε παράθυρο που δίνει καλή ανάλυση χρόνου-συχνότητας
-            nperseg = min(1024, len(component_data) // 8)  # Μέγεθος παραθύρου
-            noverlap = nperseg // 2  # Επικάλυψη παραθύρων
+            # Calculate spectrogram
+            # Using window that gives good time-frequency resolution
+            nperseg = min(1024, len(component_data) // 8)  # Window size
+            noverlap = nperseg // 2  # Window overlap
 
             frequencies, times, Sxx = signal.spectrogram(
                 component_data,
@@ -998,54 +995,52 @@ class ICAComponentSelector(QWidget):
                 scaling="density",
             )
 
-            # Δημιουργία figure
+            # Create figure
             fig = Figure(figsize=(10, 4), dpi=100)
             ax = fig.add_subplot(111)
 
-            # Εμφάνιση spectrogram σε dB scale για καλύτερη οπτικοποίηση
-            Sxx_db = 10 * np.log10(
-                Sxx + 1e-12
-            )  # Προσθέτουμε μικρή τιμή για αποφυγή log(0)
+            # Display spectrogram in dB scale for better visualization
+            Sxx_db = 10 * np.log10(Sxx + 1e-12)  # Add small value to avoid log(0)
 
-            # Δημιουργία του spectrogram plot
+            # Create the spectrogram plot
             im = ax.pcolormesh(
                 times, frequencies, Sxx_db, shading="gouraud", cmap="viridis"
             )
 
-            # Ρύθμιση αξόνων και ετικετών
-            ax.set_ylabel("Συχνότητα (Hz) / Frequency (Hz)", fontsize=10)
-            ax.set_xlabel("Χρόνος (s) / Time (s)", fontsize=10)
+            # Set axes and labels
+            ax.set_ylabel("Frequency (Hz)", fontsize=10)
+            ax.set_xlabel("Time (s)", fontsize=10)
             ax.set_title(
-                f"Spectrogram - {comp_label} {component_idx}\n(Ανάλυση Χρόνου-Συχνότητας για Εντοπισμό Μυϊκών Artifacts)",
+                f"Spectrogram - {comp_label} {component_idx}\n(Time-Frequency Analysis for Muscle Artifact Detection)",
                 fontsize=11,
                 color=self.theme.get("text", "#000000"),
             )
 
-            # Περιορισμός συχνοτήτων στο ενδιαφέρον εύρος (0-100 Hz τυπικά για EEG)
+            # Limit frequencies to range of interest (0-100 Hz typical for EEG)
             ax.set_ylim(0, min(100, fs / 2))
 
-            # Προσθήκη colorbar
-            cbar = fig.colorbar(im, ax=ax, label="Ισχύς (dB) / Power (dB)")
+            # Add colorbar
+            cbar = fig.colorbar(im, ax=ax, label="Power (dB)")
             cbar.ax.tick_params(labelsize=8)
 
-            # Grid για καλύτερη αναγνωσιμότητα
+            # Grid for better readability
             ax.grid(True, alpha=0.3)
 
-            # Τελική διαμόρφωση
+            # Final layout
             fig.tight_layout(pad=2.0)
 
             return fig
 
         except Exception as e:
-            print(f"Σφάλμα στη δημιουργία spectrogram: {str(e)}")
+            print(f"Error creating spectrogram: {str(e)}")
 
-            # Σε περίπτωση σφάλματος, δημιουργούμε ένα figure με μήνυμα σφάλματος
+            # In case of error, create a figure with error message
             fig = Figure(figsize=(10, 4), dpi=100)
             ax = fig.add_subplot(111)
             ax.text(
                 0.5,
                 0.5,
-                f"Σφάλμα στη δημιουργία Spectrogram:\n{str(e)}",
+                f"Error creating Spectrogram:\n{str(e)}",
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
@@ -1053,7 +1048,7 @@ class ICAComponentSelector(QWidget):
                 color="red",
             )
             ax.set_title(
-                f"Spectrogram - IC {component_idx} (Σφάλμα)",
+                f"Spectrogram - IC {component_idx} (Error)",
                 color=self.theme.get("text", "#000000"),
             )
             ax.set_xticks([])
@@ -1063,8 +1058,8 @@ class ICAComponentSelector(QWidget):
 
     def show_component_properties(self, component_idx):
         """
-        Δημιουργεί και εμφανίζει ένα νέο παράθυρο με τις ιδιότητες της συνιστώσας.
-        Περιλαμβάνει τοπογραφία, PSD και Spectrogram για πλήρη ανάλυση.
+        Creates and displays a new window with the component properties.
+        Includes topography, PSD and Spectrogram for full analysis.
         Works for both ICA and PCA analysis.
         """
         # Check we have data to work with
@@ -1078,8 +1073,8 @@ class ICAComponentSelector(QWidget):
         # For ICA, use MNE's built-in plot_properties
         # For PCA, create custom plots
         if self.ica is not None:
-            # Το MNE δημιουργεί τα γραφήματα. Το show=False είναι κρίσιμο
-            # για να πάρουμε τα figures αντί να τα εμφανίσει μόνο του.
+            # MNE creates the plots. show=False is critical
+            # to get the figures instead of displaying them directly.
             figures = self.ica.plot_properties(
                 self.raw, picks=component_idx, show=False
             )
@@ -1088,36 +1083,36 @@ class ICAComponentSelector(QWidget):
             # For PCA, create custom property plots
             figures = self._create_pca_property_plots(component_idx)
 
-        # Δημιουργούμε το spectrogram γράφημα
+        # Create spectrogram plot
         spectrogram_fig = self._create_spectrogram_plot(component_idx)
 
-        # Δημιουργούμε ένα νέο παράθυρο διαλόγου (pop-up)
+        # Create new dialog window (pop-up)
         dialog = QDialog(self)
         dialog.setWindowTitle(
-            f"Λεπτομερής Ανάλυση Συνιστώσας {comp_label} {component_idx} / Detailed Analysis of Component {comp_label} {component_idx}"
+            f"Detailed Analysis of Component {comp_label} {component_idx}"
         )
-        dialog.setMinimumSize(1000, 800)  # Μεγαλύτερο παράθυρο για το επιπλέον γράφημα
+        dialog.setMinimumSize(1000, 800)  # Larger window for extra plot
         dialog_layout = QVBoxLayout(dialog)
 
-        # Προσθήκη τίτλου
-        title_label = QLabel(f"🔬 Ανάλυση Συνιστώσας {comp_label} {component_idx}")
+        # Add title
+        title_label = QLabel(f"🔬 Component {comp_label} {component_idx} Analysis")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setStyleSheet(
             f"color: {self.theme['text']}; margin: 10px; text-align: center;"
         )
         dialog_layout.addWidget(title_label)
 
-        # Για κάθε figure που έφτιαξε το MNE ή custom, δημιουργούμε έναν καμβά
+        # For each figure created by MNE or custom, create a canvas
         for fig in figures:
             canvas = FigureCanvas(fig)
             dialog_layout.addWidget(canvas)
 
-        # Προσθήκη του spectrogram στο τέλος
+        # Add spectrogram at the end
         if spectrogram_fig:
             spectrogram_canvas = FigureCanvas(spectrogram_fig)
             dialog_layout.addWidget(spectrogram_canvas)
 
-        # Εμφανίζουμε το παράθυρο
+        # Show the window
         dialog.exec()
 
     def _create_pca_property_plots(self, component_idx):

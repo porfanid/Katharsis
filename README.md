@@ -6,146 +6,146 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![GitHub Pages](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://porfanid.github.io/Katharsis/)
 
-> **Επαγγελματικός καθαρισμός EEG δεδομένων με προηγμένη ICA/PCA τεχνολογία**
+> **Professional EEG data cleaning with advanced ICA/PCA technology**
 
-Το **Katharsis** είναι μια εφαρμογή για τον αυτόματο καθαρισμό artifacts από δεδομένα EEG. Χρησιμοποιεί τεχνικές Independent Component Analysis (ICA) ή Principal Component Analysis (PCA) για τον εντοπισμό και την αφαίρεση artifacts που προέρχονται από βλεφαρισμούς, μυικές κινήσεις και άλλες πηγές θορύβου.
+**Katharsis** is an application for automatic artifact cleaning from EEG data. It uses Independent Component Analysis (ICA) or Principal Component Analysis (PCA) techniques to detect and remove artifacts originating from eye blinks, muscle movements, and other noise sources.
 
-[🌐 **Επίσημη Ιστοσελίδα**](https://porfanid.github.io/Katharsis/) | [📥 **Κατέβασμα**](https://github.com/porfanid/Katharsis/releases/latest) | [📖 **Documentation**](#χρήση) | [🤝 **Contributing**](CONTRIBUTING.md)
+[🌐 **Official Website**](https://porfanid.github.io/Katharsis/) | [📥 **Download**](https://github.com/porfanid/Katharsis/releases/latest) | [📖 **Documentation**](#usage) | [🤝 **Contributing**](CONTRIBUTING.md)
 
-## ✨ Χαρακτηριστικά
+## ✨ Features
 
-### 🎯 Αυτόματος Εντοπισμός Artifacts
-- **EOG Detection**: Αυτόματος εντοπισμός βλεφαρισμών μέσω frontal καναλιών
-- **Στατιστική Ανάλυση**: Ανάλυση διακύμανσης, κυρτότητας και εύρους σήματος
-- **Πολλαπλές Μέθοδοι**: Συνδυασμός διαφορετικών αλγορίθμων εντοπισμού
+### 🎯 Automatic Artifact Detection
+- **EOG Detection**: Automatic eye blink detection via frontal channels
+- **Statistical Analysis**: Variance, kurtosis, and signal range analysis
+- **Multiple Methods**: Combination of different detection algorithms
 
-### 🔬 Προηγμένη ICA/PCA Ανάλυση
-- **Διπλή Μέθοδος**: Επιλογή μεταξύ ICA και PCA ανάλυσης
-- **FastICA Algorithm**: Γρήγορη και αποτελεσματική ανάλυση συνιστωσών
-- **Αυτόματη Βελτιστοποίηση**: Αυτόματος καθορισμός αριθμού συνιστωσών
-- **Οπτικοποίηση**: Διαδραστική προβολή ICA/PCA συνιστωσών
+### 🔬 Advanced ICA/PCA Analysis
+- **Dual Method**: Choice between ICA and PCA analysis
+- **FastICA Algorithm**: Fast and efficient component analysis
+- **Automatic Optimization**: Automatic determination of component count
+- **Visualization**: Interactive display of ICA/PCA components
 
-### 📊 Γραφικό Περιβάλλον
-- **Modern UI**: Σύγχρονο περιβάλλον με PyQt6
-- **Multi-screen Workflow**: Οργανωμένη ροή εργασίας
-- **Live Preview**: Άμεση προεπισκόπηση αποτελεσμάτων καθαρισμού
-- **Comparison View**: Σύγκριση πριν/μετά με στατιστικά
-- **Band Power Analysis**: Ανάλυση ζωνών συχνοτήτων EEG (Delta, Theta, Alpha, Beta, Gamma)
+### 📊 Graphical Interface
+- **Modern UI**: Modern interface with PyQt6
+- **Multi-screen Workflow**: Organized workflow
+- **Live Preview**: Immediate preview of cleaning results
+- **Comparison View**: Before/after comparison with statistics
+- **Band Power Analysis**: EEG frequency band analysis (Delta, Theta, Alpha, Beta, Gamma)
 
-### 📁 Υποστήριξη Formats
-- **EDF Files**: Πλήρης υποστήριξη European Data Format
-- **BDF Files**: Υποστήριξη BioSemi Data Format
+### 📁 Format Support
+- **EDF Files**: Full European Data Format support
+- **BDF Files**: BioSemi Data Format support
 - **FIF Files**: MNE-Python native format
-- **CSV Files**: Απλά αρχεία κειμένου με δεδομένα
+- **CSV Files**: Simple text files with data
 - **SET Files**: EEGLAB format compatibility
-- **Multi-device**: Συμβατότητα με Emotiv Insight 2 και άλλες συσκευές
-- **Channel Selection**: Επιλογή συγκεκριμένων καναλιών για ανάλυση
+- **Multi-device**: Compatibility with Emotiv Insight 2 and other devices
+- **Channel Selection**: Selection of specific channels for analysis
 
-## 🚀 Γρήγορη Εκκίνηση
+## 🚀 Quick Start
 
-### Απαιτήσεις Συστήματος
+### System Requirements
 
-- **Python**: 3.9 ή νεότερη έκδοση
-- **Λειτουργικό Σύστημα**: Windows 10/11, macOS 10.15+, Linux
-- **RAM**: Τουλάχιστον 4GB (8GB συνιστάται)
-- **Αποθηκευτικός Χώρος**: 500MB για εγκατάσταση
+- **Python**: 3.9 or newer
+- **Operating System**: Windows 10/11, macOS 10.15+, Linux
+- **RAM**: At least 4GB (8GB recommended)
+- **Storage**: 500MB for installation
 
-### Εγκατάσταση
+### Installation
 
-#### Μέθοδος 1: Κλωνοποίηση Repository (Συνιστάται)
+#### Method 1: Clone Repository (Recommended)
 
 ```bash
-# Κλωνοποίηση του repository
+# Clone the repository
 git clone https://github.com/porfanid/Katharsis.git
 cd Katharsis
 
-# Δημιουργία virtual environment
+# Create virtual environment
 python -m venv katharsis_env
 source katharsis_env/bin/activate  # Linux/Mac
-# ή
+# or
 katharsis_env\Scripts\activate     # Windows
 
-# Εγκατάσταση dependencies
+# Install dependencies
 pip install -r requirements.txt
 
-# Εκτέλεση εφαρμογής
+# Run application
 python eeg_gui_app.py
 ```
 
-#### Μέθοδος 2: Portable Package
+#### Method 2: Portable Package
 
-1. Κατεβάστε την [τελευταία έκδοση](https://github.com/porfanid/Katharsis/releases/latest)
-2. Εξάγετε το `katharsis-vX.X.X-portable.zip`
-3. Εκτελέστε `start_katharsis.bat` (Windows) ή `./start_katharsis.sh` (Linux/Mac)
+1. Download the [latest release](https://github.com/porfanid/Katharsis/releases/latest)
+2. Extract `katharsis-vX.X.X-portable.zip`
+3. Run `start_katharsis.bat` (Windows) or `./start_katharsis.sh` (Linux/Mac)
 
-### Πρώτη Χρήση
+### First Use
 
-1. **Επιλογή Αρχείου**: Κάντε κλικ στο "Επιλογή Αρχείου EDF για Ανάλυση"
-2. **Επιλογή Καναλιών**: Επιλέξτε τα EEG κανάλια προς ανάλυση
-3. **Επιλογή Μεθόδου**: Επιλέξτε ICA ή PCA για την ανάλυση
-4. **Ανάλυση**: Περιμένετε την ολοκλήρωση της ανάλυσης
-5. **Επιλογή Artifacts**: Επιλέξτε τις συνιστώσες προς αφαίρεση
-6. **Καθαρισμός**: Αποθηκεύστε το καθαρό αρχείο
+1. **Select File**: Click "Select EEG File for Analysis"
+2. **Select Channels**: Choose the EEG channels for analysis
+3. **Select Method**: Choose ICA or PCA for analysis
+4. **Analysis**: Wait for the analysis to complete
+5. **Select Artifacts**: Choose the components to remove
+6. **Clean**: Save the cleaned file
 
-## 📖 Χρήση
+## 📖 Usage
 
-### Βασική Ροή Εργασίας
+### Basic Workflow
 
 ```mermaid
 graph TD
-    A[Φόρτωση EEG αρχείου] --> B[Επιλογή Καναλιών]
-    B --> C[Επιλογή Μεθόδου ICA/PCA]
-    C --> D[Ανάλυση Συνιστωσών]
-    D --> E[Εντοπισμός Artifacts]
-    E --> F[Επιλογή Συνιστωσών]
-    F --> G[Αφαίρεση Artifacts]
-    G --> H[Αποθήκευση Καθαρού Αρχείου]
+    A[Load EEG file] --> B[Select Channels]
+    B --> C[Select ICA/PCA Method]
+    C --> D[Component Analysis]
+    D --> E[Artifact Detection]
+    E --> F[Component Selection]
+    F --> G[Artifact Removal]
+    G --> H[Save Clean File]
 ```
 
-### Λεπτομερής Οδηγός
+### Detailed Guide
 
-#### 1. Φόρτωση Δεδομένων
+#### 1. Data Loading
 
 ```python
-# Υποστηριζόμενα formats
+# Supported formats
 supported_import_formats = ['.edf', '.bdf', '.fif', '.csv', '.set']
 # Note: BDF export not supported by MNE's export function
 supported_export_formats = ['.edf', '.fif', '.csv', '.set']
 sampling_rates = ['128 Hz', '256 Hz', '512 Hz', '1024 Hz']
 ```
 
-#### 2. Επιλογή Καναλιών
+#### 2. Channel Selection
 
-- **Αυτόματη Ανίχνευση**: Το σύστημα εντοπίζει EEG κανάλια αυτόματα
-- **Χειροκίνητη Επιλογή**: Επιλέξτε συγκεκριμένα κανάλια
-- **10-20 System**: Υποστήριξη τυπικών θέσεων ηλεκτροδίων
+- **Automatic Detection**: The system automatically detects EEG channels
+- **Manual Selection**: Select specific channels
+- **10-20 System**: Support for standard electrode positions
 
-#### 3. ICA/PCA Παράμετροι
+#### 3. ICA/PCA Parameters
 
 ```python
-# Προεπιλεγμένες παράμετροι ICA
+# Default ICA parameters
 ica_params = {
-    'n_components': None,  # Αυτόματος καθορισμός
+    'n_components': None,  # Automatic determination
     'method': 'fastica',
     'max_iter': 1000,
     'random_state': 42
 }
 
-# Προεπιλεγμένες παράμετροι PCA
+# Default PCA parameters
 pca_params = {
-    'n_components': None,  # Αυτόματος καθορισμός
+    'n_components': None,  # Automatic determination
     'random_state': 42,
     'svd_solver': 'full'
 }
 ```
 
-#### 4. Φιλτράρισμα
+#### 4. Filtering
 
-- **High-pass**: 1.0 Hz (αφαίρεση DC offset)
-- **Low-pass**: 40.0 Hz (αφαίρεση high-frequency noise)
-- **Notch**: 50/60 Hz (προαιρετικό για line noise)
+- **High-pass**: 1.0 Hz (DC offset removal)
+- **Low-pass**: 40.0 Hz (high-frequency noise removal)
+- **Notch**: 50/60 Hz (optional for line noise)
 
-#### 5. Κριτήρια Εντοπισμού
+#### 5. Detection Criteria
 
 ```python
 detection_criteria = {
@@ -156,35 +156,35 @@ detection_criteria = {
 }
 ```
 
-### Παραδείγματα Κώδικα
+### Code Examples
 
 #### Programmatic Usage
 
 ```python
 from backend import EEGArtifactCleaningService
 
-# Δημιουργία service με ICA (default)
+# Create service with ICA (default)
 service = EEGArtifactCleaningService(analysis_method="ICA")
 
-# Ή με PCA
+# Or with PCA
 service = EEGArtifactCleaningService(analysis_method="PCA")
 
-# Φόρτωση αρχείου (υποστηρίζει EDF, BDF, FIF, CSV, SET)
+# Load file (supports EDF, BDF, FIF, CSV, SET)
 result = service.load_and_prepare_file('data.edf')
 if result['success']:
-    print(f"Φορτώθηκαν {len(result['channels'])} κανάλια")
+    print(f"Loaded {len(result['channels'])} channels")
 
-# Ανάλυση (ICA ή PCA ανάλογα με το analysis_method)
+# Analysis (ICA or PCA depending on analysis_method)
 analysis_result = service.fit_analysis()
 if analysis_result['success']:
-    print(f"{analysis_result['method']} με {analysis_result['n_components']} συνιστώσες")
+    print(f"{analysis_result['method']} with {analysis_result['n_components']} components")
 
-# Εντοπισμός artifacts
+# Artifact detection
 detection = service.detect_artifacts()
 suggested = detection['suggested_artifacts']
-print(f"Βρέθηκαν {len(suggested)} artifacts")
+print(f"Found {len(suggested)} artifacts")
 
-# Καθαρισμός
+# Cleaning
 cleaned = service.apply_artifact_removal(suggested)
 service.save_cleaned_data(cleaned['cleaned_data'], 'clean_data.edf')
 ```
@@ -197,12 +197,12 @@ from backend.ica_processor import ICAProcessor
 from backend.pca_processor import PCAProcessor
 from backend.artifact_detector import ArtifactDetector
 
-# Δημιουργία custom pipeline
+# Create custom pipeline
 backend = EEGBackendCore()
 
-# Επιλογή ICA ή PCA
+# Select ICA or PCA
 ica = ICAProcessor(n_components=5)
-# ή
+# or
 pca = PCAProcessor(n_components=5)
 
 detector = ArtifactDetector(variance_threshold=1.5)
@@ -211,13 +211,13 @@ detector = ArtifactDetector(variance_threshold=1.5)
 result = backend.load_file('data.edf', ['AF3', 'AF4', 'Pz'])
 filtered_data = backend.get_filtered_data()
 
-# Χρήση ICA
+# Using ICA
 ica.fit(filtered_data)
 artifacts, methods = detector.detect_artifacts_multi_method(
     ica, filtered_data, max_components=2
 )
 
-# Ή χρήση PCA
+# Or using PCA
 pca.fit(filtered_data)
 artifacts, methods = detector.detect_artifacts_multi_method(
     pca, filtered_data, max_components=2
@@ -229,10 +229,10 @@ artifacts, methods = detector.detect_artifacts_multi_method(
 ```python
 from backend.band_power_analyzer import BandPowerAnalyzer
 
-# Δημιουργία analyzer
+# Create analyzer
 analyzer = BandPowerAnalyzer()
 
-# Υπολογισμός ισχύος ζωνών για ένα κανάλι
+# Calculate band power for a channel
 band_powers = analyzer.compute_band_power_for_raw(raw_data, channel_idx=0)
 print(f"Delta: {band_powers['Delta']:.1f}%")
 print(f"Theta: {band_powers['Theta']:.1f}%")
@@ -240,13 +240,13 @@ print(f"Alpha: {band_powers['Alpha']:.1f}%")
 print(f"Beta: {band_powers['Beta']:.1f}%")
 print(f"Gamma: {band_powers['Gamma']:.1f}%")
 
-# Σύγκριση πριν/μετά τον καθαρισμό
+# Compare before/after cleaning
 comparison = analyzer.compute_band_power_comparison(
     original_raw, cleaned_raw, channel_idx=0
 )
 ```
 
-## 🔧 Αλγόριθμοι και Τεχνολογία
+## 🔧 Algorithms and Technology
 
 ### Independent Component Analysis (ICA)
 
@@ -282,14 +282,14 @@ class PCAProcessor:
 ### Artifact Detection Methods
 
 1. **EOG Detection** (ICA-specific)
-   - Χρήση frontal καναλιών (AF3, AF4)
-   - Cross-correlation με reference signal
-   - Amplitude και frequency analysis
+   - Using frontal channels (AF3, AF4)
+   - Cross-correlation with reference signal
+   - Amplitude and frequency analysis
 
-2. **Statistical Analysis** (Κοινό για ICA/PCA)
-   - **Variance**: Υψηλή διακύμανση = artifacts
-   - **Kurtosis**: Μη-Gaussian κατανομή = artifacts  
-   - **Range**: Μεγάλο εύρος = artifacts
+2. **Statistical Analysis** (Common for ICA/PCA)
+   - **Variance**: High variance = artifacts
+   - **Kurtosis**: Non-Gaussian distribution = artifacts  
+   - **Range**: Large range = artifacts
 
 3. **PCA-Specific Methods**
    - Explained variance ratio analysis
@@ -297,8 +297,8 @@ class PCAProcessor:
    - Component loading analysis
 
 4. **Machine Learning**
-   - Feature extraction από components
-   - Classification με pre-trained models
+   - Feature extraction from components
+   - Classification with pre-trained models
    - Confidence scoring
 
 ### Signal Processing Pipeline
@@ -313,12 +313,12 @@ flowchart LR
     F --> G[Clean EEG]
 ```
 
-## 📊 Αποτελέσματα
+## 📊 Results
 
-### Τυπικά Στατιστικά
+### Typical Statistics
 
 ```
-Τυπική απόκλιση ανά κανάλι (μV):
+Standard deviation per channel (μV):
 ┌─────────┬────────┬────────┬─────────────┐
 │ Channel │ Before │ After  │ Improvement │
 ├─────────┼────────┼────────┼─────────────┤
@@ -329,17 +329,17 @@ flowchart LR
 │ AF4     │ 42.42  │ 22.02  │ 48.1%       │
 └─────────┴────────┴────────┴─────────────┘
 
-Μέση μείωση θορύβου: 63.8%
+Average noise reduction: 63.8%
 ```
 
 ### Benchmark Tests
 
-- **Processing Time**: ~30-60 δευτερόλεπτα για 5min recording
-- **Memory Usage**: <2GB για typical EEG files
-- **Accuracy**: >90% στον εντοπισμό EOG artifacts
-- **False Positives**: <5% για τυπικά EEG δεδομένα
+- **Processing Time**: ~30-60 seconds for 5min recording
+- **Memory Usage**: <2GB for typical EEG files
+- **Accuracy**: >90% for EOG artifact detection
+- **False Positives**: <5% for typical EEG data
 
-## 🏗️ Αρχιτεκτονική
+## 🏗️ Architecture
 
 ### Project Structure
 
@@ -401,13 +401,13 @@ Katharsis/
 ### Running Tests
 
 ```bash
-# Όλα τα tests
+# All tests
 python -m pytest tests/ -v
 
-# Με coverage report
+# With coverage report
 python -m pytest tests/ --cov=backend --cov=components --cov-report=html
 
-# Συγκεκριμένο test module
+# Specific test module
 python -m pytest tests/test_backend.py -v
 
 # Performance tests
@@ -425,7 +425,7 @@ python -m pytest tests/test_performance.py -v
 ### Test Coverage
 
 ```bash
-# Τρέχουσα κάλυψη
+# Current coverage
 Backend Coverage: 85%
 Components Coverage: 78%
 Overall Coverage: 82%
@@ -435,10 +435,10 @@ Overall Coverage: 82%
 
 ### GitHub Releases
 
-Αυτόματη δημιουργία releases όταν δημιουργείται νέο tag:
+Automatic release creation when a new tag is created:
 
 ```bash
-# Δημιουργία νέας έκδοσης
+# Create new release
 git tag -a v1.2.0 -m "Release version 1.2.0"
 git push origin v1.2.0
 ```
@@ -462,40 +462,40 @@ CMD ["python", "eeg_gui_app.py"]
 
 ## 🤝 Contributing
 
-Καλωσορίζουμε συνεισφορές! Δείτε το [CONTRIBUTING.md](CONTRIBUTING.md) για λεπτομερείς οδηγίες.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions.
 
-### Quick Start για Contributors
+### Quick Start for Contributors
 
-1. **Fork** το repository
-2. **Clone** το fork σας
-3. **Δημιουργήστε** feature branch
-4. **Υλοποιήστε** τις αλλαγές σας
-5. **Προσθέστε** tests
-6. **Submit** pull request
+1. **Fork** the repository
+2. **Clone** your fork
+3. **Create** a feature branch
+4. **Implement** your changes
+5. **Add** tests
+6. **Submit** a pull request
 
 ### Development Setup
 
 ```bash
-# Εγκατάσταση development dependencies
+# Install development dependencies
 pip install -r requirements-dev.txt
 
 # Pre-commit hooks
 pre-commit install
 
 # Development server
-python -m flask run --debug  # Αν χρησιμοποιείτε web interface
+python -m flask run --debug  # If using web interface
 ```
 
 ## 🐛 Issues & Support
 
-### Αναφορά Bugs
+### Bug Reports
 
-Χρησιμοποιήστε το [GitHub Issues](https://github.com/porfanid/Katharsis/issues) με το template:
+Use [GitHub Issues](https://github.com/porfanid/Katharsis/issues) with the template:
 
 ```markdown
-**Bug Description**: Σύντομη περιγραφή
-**Steps to Reproduce**: Βήματα αναπαραγωγής
-**Expected Behavior**: Αναμενόμενη συμπεριφορά
+**Bug Description**: Brief description
+**Steps to Reproduce**: Steps to reproduce
+**Expected Behavior**: Expected behavior
 **Environment**:
 - OS: Windows/Mac/Linux
 - Python: X.X.X
@@ -504,10 +504,10 @@ python -m flask run --debug  # Αν χρησιμοποιείτε web interface
 
 ### Feature Requests
 
-Προτείνετε νέα χαρακτηριστικά με:
-- **Use Case**: Γιατί χρειάζεται;
-- **Implementation**: Πώς θα υλοποιηθεί;
-- **Impact**: Τί θα αλλάξει;
+Propose new features with:
+- **Use Case**: Why is it needed?
+- **Implementation**: How will it be implemented?
+- **Impact**: What will change?
 
 ### Support Channels
 
@@ -518,7 +518,7 @@ python -m flask run --debug  # Αν χρησιμοποιείτε web interface
 
 ## 📄 License
 
-Αυτό το project διανέμεται υπό την [MIT License](LICENSE.md).
+This project is distributed under the [MIT License](LICENSE.md).
 
 ```
 MIT License
@@ -544,7 +544,7 @@ copies or substantial portions of the Software.
 
 ### Contributors
 
-Ευχαριστούμε όλους τους contributors που έχουν συνεισφέρει στο project:
+Thanks to all contributors who have contributed to the project:
 
 <!-- Contributors will be automatically added here by GitHub Actions -->
 
@@ -559,25 +559,25 @@ copies or substantial portions of the Software.
 
 ### Inspiration
 
-Αυτό το project εμπνεύστηκε από την ανάγκη για εύχρηστα εργαλεία καθαρισμού EEG δεδομένων στην ερευνητική κοινότητα.
+This project was inspired by the need for user-friendly EEG data cleaning tools in the research community.
 
 ## 📈 Roadmap
 
-### v1.1.0 (Επόμενη Έκδοση)
+### v1.1.0 (Next Release)
 - [ ] Advanced artifact detection with ML
 - [ ] Batch processing capability
 - [ ] Plugin system for custom algorithms
 
-### v1.2.0 (Μελλοντική)
+### v1.2.0 (Future)
 - [ ] Real-time processing
 - [ ] Cloud processing integration
 - [ ] Advanced visualization tools
 - [ ] Multi-language support
 
-### v2.0.0 (Μακροπρόθεσμα)
+### v2.0.0 (Long-term)
 - [ ] Web-based interface
 - [ ] Collaborative analysis features
-- [ ] API για third-party integration
+- [ ] API for third-party integration
 - [ ] Mobile companion app
 
 ## 📊 Analytics
@@ -590,16 +590,16 @@ copies or substantial portions of the Software.
 
 ### Performance Metrics
 
-- **Load Time**: < 3 δευτερόλεπτα
-- **Processing Speed**: ~5MB/min για EEG data
-- **Memory Efficiency**: < 2GB για τυπικά αρχεία
+- **Load Time**: < 3 seconds
+- **Processing Speed**: ~5MB/min for EEG data
+- **Memory Efficiency**: < 2GB for typical files
 - **CPU Usage**: < 50% single-core utilization
 
 ---
 
 <div align="center">
 
-**Δημιουργήθηκε από τον [Pavlos Orfanidis](https://orfanidis.net.gr) με ❤️ για την ερευνητική κοινότητα**
+**Created by [Pavlos Orfanidis](https://orfanidis.net.gr) with ❤️ for the research community**
 
 [🌐 Website](https://porfanid.github.io/Katharsis/) • [📥 Download](https://github.com/porfanid/Katharsis/releases/latest) • [📚 Docs](https://porfanid.github.io/Katharsis/) • [🐛 Issues](https://github.com/porfanid/Katharsis/issues) • [💬 Discussions](https://github.com/porfanid/Katharsis/discussions)
 

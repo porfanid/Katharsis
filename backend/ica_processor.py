@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-ICA Processor - Independent Component Analysis για EEG artifact cleaning
-======================================================================
+ICA Processor - Independent Component Analysis for EEG artifact cleaning
+=========================================================================
 
-Υλοποιεί τη μέθοδο Ανάλυσης Ανεξάρτητων Συνιστωσών (ICA) για:
-- Εκπαίδευση ICA μοντέλων σε EEG δεδομένα
-- Αναγνώριση artifacts (βλεφαρισμοί, κίνηση, μυικά)
-- Απομάκρυνση επιλεγμένων συνιστωσών
-- Αποκατάσταση καθαρών σημάτων
+Implements Independent Component Analysis (ICA) method for:
+- Training ICA models on EEG data
+- Identifying artifacts (blinks, movement, muscle)
+- Removing selected components
+- Reconstructing clean signals
 
 Author: porfanid
 Version: 1.1
@@ -27,28 +27,28 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 class ICAProcessor(BaseComponentProcessor):
     """
-    Επεξεργαστής ICA για εντοπισμό και αφαίρεση artifacts
+    ICA Processor for artifact detection and removal.
 
-    Χρησιμοποιεί την FastICA αλγόριθμο για την ανάλυση των EEG σημάτων σε
-    ανεξάρτητες συνιστώσες, επιτρέποντας τον εντοπισμό και την αφαίρεση
-    artifacts όπως βλεφαρισμοί, κίνηση και μυικά σήματα.
+    Uses the FastICA algorithm for analyzing EEG signals into
+    independent components, enabling the detection and removal of
+    artifacts such as eye blinks, movement and muscle signals.
 
     Attributes:
-        n_components (int): Αριθμός ICA συνιστωσών
-        random_state (int): Seed για αναπαραγωγιμότητα
-        ica (mne.preprocessing.ICA): Το εκπαιδευμένο ICA μοντέλο
-        raw_data (mne.io.Raw): Τα δεδομένα εκπαίδευσης
-        components_info (dict): Πληροφορίες για τις συνιστώσες
+        n_components (int): Number of ICA components
+        random_state (int): Seed for reproducibility
+        ica (mne.preprocessing.ICA): The trained ICA model
+        raw_data (mne.io.Raw): The training data
+        components_info (dict): Information about the components
     """
 
     def __init__(self, n_components: int = None, random_state: int = 42):
         """
-        Αρχικοποίηση ICA processor
+        Initialize ICA processor.
 
         Args:
-            n_components (int, optional): Αριθμός ICA συνιστωσών.
-                                        Αν None, καθορίζεται αυτόματα.
-            random_state (int): Seed για αναπαραγωγιμότητα
+            n_components (int, optional): Number of ICA components.
+                                        If None, determined automatically.
+            random_state (int): Seed for reproducibility
         """
         super().__init__(n_components, random_state)
         self.ica: Optional[mne.preprocessing.ICA] = None
@@ -67,29 +67,29 @@ class ICAProcessor(BaseComponentProcessor):
 
     def fit_ica(self, raw: mne.io.Raw) -> bool:
         """
-        Εκπαίδευση ICA μοντέλου
+        Train ICA model.
 
-        Εκπαιδεύει ένα ICA μοντέλο στα παρεχόμενα EEG δεδομένα χρησιμοποιώντας
-        τον FastICA αλγόριθμο. Το μοντέλο αναλύει τα σήματα σε ανεξάρτητες
-        συνιστώσες που αντιπροσωπεύουν διαφορετικές πηγές δραστηριότητας.
+        Trains an ICA model on the provided EEG data using
+        the FastICA algorithm. The model decomposes signals into
+        independent components representing different activity sources.
 
         Args:
-            raw (mne.io.Raw): Φιλτραρισμένα Raw EEG δεδομένα
+            raw (mne.io.Raw): Filtered Raw EEG data
 
         Returns:
-            bool: True εάν η εκπαίδευση ήταν επιτυχής, False αλλιώς
+            bool: True if training was successful, False otherwise
         """
         try:
             self.raw_data = raw.copy()
 
-            # Αυτόματος προσδιορισμός αριθμού συνιστωσών αν δεν δοθεί
+            # Automatic determination of component count if not provided
             if self.n_components is None:
                 self.n_components = min(len(raw.ch_names), len(raw.ch_names))
             else:
-                # Βεβαιώνουμε ότι δεν υπερβαίνουμε τον αριθμό των καναλιών
+                # Ensure we don't exceed the number of channels
                 self.n_components = min(self.n_components, len(raw.ch_names))
 
-            # Δημιουργία και εκπαίδευση ICA
+            # Create and train ICA
             self.ica = mne.preprocessing.ICA(
                 n_components=self.n_components,
                 method="fastica",
@@ -103,21 +103,21 @@ class ICAProcessor(BaseComponentProcessor):
             else:
                 raise RuntimeError("ICA initialization failed")
 
-            # Υπολογισμός πληροφοριών συνιστωσών
+            # Calculate component information
             self._calculate_component_info()
 
             return True
 
         except Exception as e:
-            print(f"Σφάλμα κατά την εκπαίδευση ICA: {str(e)}")
+            print(f"Error during ICA training: {str(e)}")
             return False
 
     def _calculate_component_info(self):
         """
-        Υπολογισμός στατιστικών πληροφοριών για κάθε ICA συνιστώσα
+        Calculate statistical information for each ICA component.
 
-        Υπολογίζει βασικά στατιστικά για κάθε συνιστώσα όπως διακύμανση,
-        κύρτωση, εύρος, κλπ. που χρησιμοποιούνται για τον εντοπισμό artifacts.
+        Calculates basic statistics for each component such as variance,
+        kurtosis, range, etc. used for artifact detection.
         """
         if self.ica is None or self.raw_data is None:
             return
@@ -139,13 +139,13 @@ class ICAProcessor(BaseComponentProcessor):
 
     def get_component_info(self, component_idx: int) -> Dict[str, float]:
         """
-        Επιστροφή πληροφοριών για συγκεκριμένη συνιστώσα
+        Return information for a specific component.
 
         Args:
-            component_idx (int): Δείκτης συνιστώσας (0-based)
+            component_idx (int): Component index (0-based)
 
         Returns:
-            Dict[str, float]: Dictionary με στατιστικές πληροφορίες όπως
+            Dict[str, float]: Dictionary with statistical information such as
                             variance, kurtosis, range, std, mean, rms, skewness
         """
         default_info: Dict[str, float] = {}
@@ -153,24 +153,24 @@ class ICAProcessor(BaseComponentProcessor):
 
     def get_all_components_info(self) -> Dict[int, Dict[str, float]]:
         """
-        Επιστροφή πληροφοριών όλων των συνιστωσών
+        Return information for all components.
 
         Returns:
-            Dict[int, Dict[str, float]]: Dictionary με πληροφορίες όλων των συνιστωσών
+            Dict[int, Dict[str, float]]: Dictionary with information for all components
         """
         return self.components_info
 
     def get_component_data(self, component_idx: int) -> Optional[np.ndarray]:
         """
-        Επιστροφή δεδομένων συγκεκριμένης συνιστώσας
+        Return data for a specific component.
 
-        Εξάγει τη χρονοσειρά της επιλεγμένης ICA συνιστώσας.
+        Extracts the time series of the selected ICA component.
 
         Args:
-            component_idx (int): Δείκτης συνιστώσας
+            component_idx (int): Component index
 
         Returns:
-            Optional[np.ndarray]: Δεδομένα συνιστώσας ως 1D array ή None αν αποτύχει
+            Optional[np.ndarray]: Component data as 1D array or None if failed
         """
         if self.ica is None or self.raw_data is None:
             return None
@@ -185,53 +185,53 @@ class ICAProcessor(BaseComponentProcessor):
         self, components_to_remove: List[int]
     ) -> Optional[mne.io.Raw]:
         """
-        Εφαρμογή αφαίρεσης artifacts
+        Apply artifact removal.
 
-        Αφαιρεί τις επιλεγμένες ICA συνιστώσες από τα αρχικά δεδομένα,
-        αποκαθιστώντας το καθαρό σήμα χωρίς τα artifacts.
+        Removes the selected ICA components from the original data,
+        reconstructing the clean signal without the artifacts.
 
         Args:
-            components_to_remove (List[int]): Λίστα με δείκτες συνιστωσών προς αφαίρεση
+            components_to_remove (List[int]): List of component indices to remove
 
         Returns:
-            Optional[mne.io.Raw]: Καθαρισμένα Raw δεδομένα ή None αν αποτύχει
+            Optional[mne.io.Raw]: Cleaned Raw data or None if failed
         """
         if self.ica is None or self.raw_data is None:
             return None
 
         try:
-            # Δημιουργία αντιγράφου για καθαρισμό
+            # Create copy for cleaning
             cleaned_raw = self.raw_data.copy()
 
-            # Ορισμός συνιστωσών προς αφαίρεση
+            # Set components to remove
             self.ica.exclude = components_to_remove
 
-            # Εφαρμογή καθαρισμού
+            # Apply cleaning
             cleaned_raw = self.ica.apply(cleaned_raw, verbose=False)
 
             return cleaned_raw
 
         except Exception as e:
-            print(f"Σφάλμα κατά τον καθαρισμό: {str(e)}")
+            print(f"Error during cleaning: {str(e)}")
             return None
 
     def get_ica_object(self) -> Optional[mne.preprocessing.ICA]:
         """
-        Επιστροφή του ICA αντικειμένου
+        Return the ICA object.
 
         Returns:
-            Optional[mne.preprocessing.ICA]: Το εκπαιδευμένο ICA μοντέλο ή None
+            Optional[mne.preprocessing.ICA]: The trained ICA model or None
         """
         return self.ica
 
     def get_sources_data(self) -> Optional[np.ndarray]:
         """
-        Επιστροφή όλων των ICA sources
+        Return all ICA sources.
 
-        Εξάγει όλες τις ICA συνιστώσες ως πίνακα δεδομένων.
+        Extracts all ICA components as a data matrix.
 
         Returns:
-            Optional[np.ndarray]: Πίνακας με shape (n_components, n_timepoints) ή None
+            Optional[np.ndarray]: Matrix with shape (n_components, n_timepoints) or None
         """
         if self.ica is None or self.raw_data is None:
             return None
@@ -239,13 +239,13 @@ class ICAProcessor(BaseComponentProcessor):
         return self.ica.get_sources(self.raw_data).get_data()
 
     def get_mixing_matrix(self) -> Optional[np.ndarray]:
-        """Επιστροφή του mixing matrix"""
+        """Return the mixing matrix."""
         if self.ica is None:
             return None
         return self.ica.mixing_
 
     def get_unmixing_matrix(self) -> Optional[np.ndarray]:
-        """Επιστροφή του unmixing matrix"""
+        """Return the unmixing matrix."""
         if self.ica is None:
             return None
         return self.ica.unmixing_

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Comparison Screen Widget - "Before & After" Visual Comparison
-Οθόνη Σύγκρισης - Οπτική Σύγκριση "Πριν & Μετά"
 """
 
 from typing import Any, Dict, List, Optional
@@ -24,10 +23,9 @@ from .results_display import ResultsDisplayWidget
 class ComparisonScreen(QWidget):
     """
     Full screen widget for Before & After comparison
-    Πλήρη οθόνη για σύγκριση Πριν & Μετά
     """
 
-    # Signal για επιστροφή στην αρχική οθόνη
+    # Signal for return to home screen
     return_to_home = pyqtSignal()
 
     def __init__(self, theme: Dict[str, str], parent=None):
@@ -36,7 +34,7 @@ class ComparisonScreen(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        """Δημιουργία UI για την οθόνη σύγκρισης"""
+        """Create UI for the comparison screen"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
@@ -56,9 +54,7 @@ class ComparisonScreen(QWidget):
         )
 
         # Return to home button
-        self.return_button = QPushButton(
-            "🏠 Επιστροφή στην Αρχική / Επεξεργασία Νέου Αρχείου"
-        )
+        self.return_button = QPushButton("🏠 Return to Home / Process New File")
         self.return_button.setMinimumHeight(50)
         self.return_button.setMinimumWidth(400)
         self.return_button.setFont(QFont("Arial", 12, QFont.Weight.Bold))
@@ -106,16 +102,16 @@ class ComparisonScreen(QWidget):
         output_file: str = "",
     ):
         """
-        Ενημέρωση οθόνης σύγκρισης με τα δεδομένα καθαρισμού
+        Update comparison screen with cleaning data
 
         Args:
-            original_data: Αρχικά δεδομένα EEG
-            cleaned_data: Καθαρισμένα δεδομένα EEG
-            original_stats: Στατιστικά αρχικών δεδομένων
-            cleaned_stats: Στατιστικά καθαρισμένων δεδομένων
-            components_removed: Λίστα συνιστωσών που αφαιρέθηκαν
-            input_file: Αρχείο εισόδου
-            output_file: Αρχείο εξόδου
+            original_data: Original EEG data
+            cleaned_data: Cleaned EEG data
+            original_stats: Statistics of original data
+            cleaned_stats: Statistics of cleaned data
+            components_removed: List of removed components
+            input_file: Input file
+            output_file: Output file
         """
         self.results_widget.update_results(
             original_data=original_data,
@@ -128,5 +124,5 @@ class ComparisonScreen(QWidget):
         )
 
     def clear_comparison(self):
-        """Καθαρισμός οθόνης σύγκρισης"""
+        """Clear comparison screen"""
         self.results_widget.clear_results()

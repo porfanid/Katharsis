@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """
-Results Display Widget - Εμφάνιση αποτελεσμάτων καθαρισμού
 Results Display Widget - Display cleaning results and statistics
 """
 
@@ -28,23 +27,23 @@ from PyQt6.QtWidgets import (
 
 
 class StatisticsTableWidget(QWidget):
-    """Widget για εμφάνιση στατιστικών πινάκων"""
+    """Widget for displaying statistics tables"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setup_ui()
 
     def setup_ui(self):
-        """Δημιουργία UI"""
+        """Create UI"""
         layout = QVBoxLayout(self)
 
-        # Τίτλος
-        title_label = QLabel("📊 Στατιστικά Αποτελέσματα Καθαρισμού")
+        # Title
+        title_label = QLabel("📊 Cleaning Results Statistics")
         title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         title_label.setStyleSheet("color: #2c3e50; margin: 10px;")
         layout.addWidget(title_label)
 
-        # Πίνακας στατιστικών
+        # Statistics table
         self.table = QTableWidget()
         self.table.setStyleSheet(
             """
@@ -76,39 +75,39 @@ class StatisticsTableWidget(QWidget):
         cleaned_stats: Dict[str, Dict[str, float]],
     ):
         """
-        Ενημέρωση πίνακα στατιστικών
+        Update statistics table
 
         Args:
-            original_stats: Στατιστικά αρχικών δεδομένων
-            cleaned_stats: Στατιστικά καθαρισμένων δεδομένων
+            original_stats: Statistics of original data
+            cleaned_stats: Statistics of cleaned data
         """
         channels = list(original_stats.keys())
 
-        # Ορισμός στηλών
+        # Define columns
         headers = [
-            "Κανάλι",
-            "Αρχικό RMS (μV)",
-            "Καθαρό RMS (μV)",
-            "Μείωση (%)",
-            "Αρχικό Εύρος",
-            "Καθαρό Εύρος",
+            "Channel",
+            "Original RMS (μV)",
+            "Clean RMS (μV)",
+            "Reduction (%)",
+            "Original Range",
+            "Clean Range",
         ]
 
         self.table.setRowCount(len(channels))
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
 
-        # Συμπλήρωση δεδομένων
+        # Fill data
         for row, channel in enumerate(channels):
             orig_stats = original_stats[channel]
             clean_stats = cleaned_stats[channel]
 
-            # Υπολογισμός μείωσης θορύβου
+            # Calculate noise reduction
             orig_rms = orig_stats["rms"]
             clean_rms = clean_stats["rms"]
             reduction = ((orig_rms - clean_rms) / orig_rms) * 100 if orig_rms > 0 else 0
 
-            # Δεδομένα για κάθε στήλη
+            # Data for each column
             row_data = [
                 channel,
                 f"{orig_rms:.1f}",
@@ -122,39 +121,39 @@ class StatisticsTableWidget(QWidget):
                 item = QTableWidgetItem(str(data))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-                # Χρωματισμός βάσει μείωσης
-                if col == 3:  # Στήλη μείωσης
+                # Color based on reduction
+                if col == 3:  # Reduction column
                     if reduction > 50:
-                        item.setBackground(QColor("#d5f4e6"))  # Πράσινο για καλή μείωση
+                        item.setBackground(
+                            QColor("#d5f4e6")
+                        )  # Green for good reduction
                     elif reduction > 25:
                         item.setBackground(
                             QColor("#fff3cd")
-                        )  # Κίτρινο για μέτρια μείωση
+                        )  # Yellow for moderate reduction
                     else:
-                        item.setBackground(
-                            QColor("#f8d7da")
-                        )  # Κόκκινο για χαμηλή μείωση
+                        item.setBackground(QColor("#f8d7da"))  # Red for low reduction
 
                 self.table.setItem(row, col, item)
 
-        # Προσαρμογή στηλών
+        # Adjust columns
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
 
 
 class ComparisonPlotWidget(QWidget):
-    """Widget για οπτικοποίηση σύγκρισης πριν/μετά"""
+    """Widget for before/after comparison visualization"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setup_ui()
 
     def setup_ui(self):
-        """Δημιουργία UI"""
+        """Create UI"""
         layout = QVBoxLayout(self)
 
-        # Τίτλος
-        title_label = QLabel("📈 Σύγκριση Σημάτων: Πριν vs Μετά τον Καθαρισμό")
+        # Title
+        title_label = QLabel("📈 Signal Comparison: Before vs After Cleaning")
         title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         title_label.setStyleSheet("color: #2c3e50; margin: 10px;")
         layout.addWidget(title_label)
@@ -171,34 +170,34 @@ class ComparisonPlotWidget(QWidget):
         time_window: float = 10.0,
     ):
         """
-        Οπτικοποίηση σύγκρισης δεδομένων
+        Visualize data comparison
 
         Args:
-            original_data: Αρχικά δεδομένα
-            cleaned_data: Καθαρισμένα δεδομένα
-            time_window: Παράθυρο χρόνου για οπτικοποίηση (δευτερόλεπτα)
+            original_data: Original data
+            cleaned_data: Cleaned data
+            time_window: Time window for visualization (seconds)
         """
         self.figure.clear()
 
         try:
-            # Λήψη δεδομένων
-            orig_data = original_data.get_data() * 1e6  # Μετατροπή σε μV
+            # Get data
+            orig_data = original_data.get_data() * 1e6  # Convert to μV
             clean_data = cleaned_data.get_data() * 1e6
 
-            # Χρονικός άξονας
+            # Time axis
             times = original_data.times
             max_samples = int(time_window * original_data.info["sfreq"])
             display_times = times[:max_samples]
 
-            # Κανάλια
+            # Channels
             channels = original_data.ch_names
             n_channels = len(channels)
 
-            # Δημιουργία subplots
+            # Create subplots
             for i, channel in enumerate(channels):
                 ax = self.figure.add_subplot(n_channels, 1, i + 1)
 
-                # Δεδομένα για οπτικοποίηση
+                # Data for visualization
                 orig_display = orig_data[i, :max_samples]
                 clean_display = clean_data[i, :max_samples]
 
@@ -209,7 +208,7 @@ class ComparisonPlotWidget(QWidget):
                     color="#e74c3c",
                     alpha=0.7,
                     linewidth=1.5,
-                    label="Αρχικό σήμα",
+                    label="Original signal",
                 )
                 ax.plot(
                     display_times,
@@ -217,15 +216,18 @@ class ComparisonPlotWidget(QWidget):
                     color="#27ae60",
                     alpha=0.8,
                     linewidth=1.5,
-                    label="Καθαρό σήμα",
+                    label="Clean signal",
                 )
 
-                # Στυλ
+                # Style
                 ax.set_title(
-                    f"Κανάλι {channel}", fontsize=10, color="#2c3e50", fontweight="bold"
+                    f"Channel {channel}",
+                    fontsize=10,
+                    color="#2c3e50",
+                    fontweight="bold",
                 )
                 ax.set_xlabel(
-                    "Χρόνος (s)" if i == n_channels - 1 else "",
+                    "Time (s)" if i == n_channels - 1 else "",
                     fontsize=9,
                     color="#2c3e50",
                 )
@@ -233,7 +235,7 @@ class ComparisonPlotWidget(QWidget):
                 ax.grid(True, alpha=0.3)
                 ax.tick_params(labelsize=8, colors="#2c3e50")
 
-                # Legend μόνο στο πρώτο plot
+                # Legend only on first plot
                 if i == 0:
                     ax.legend(loc="upper right", fontsize=8)
 
@@ -245,31 +247,31 @@ class ComparisonPlotWidget(QWidget):
             ax.text(
                 0.5,
                 0.5,
-                f"Σφάλμα οπτικοποίησης: {str(e)}",
+                f"Visualization error: {str(e)}",
                 horizontalalignment="center",
                 verticalalignment="center",
                 transform=ax.transAxes,
                 color="red",
                 fontsize=12,
             )
-            ax.set_title("Σφάλμα Οπτικοποίησης")
+            ax.set_title("Visualization Error")
 
         self.canvas.draw()
 
 
 class ResultsDisplayWidget(QWidget):
-    """Κεντρικό widget για εμφάνιση αποτελεσμάτων"""
+    """Central widget for displaying results"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setup_ui()
 
     def setup_ui(self):
-        """Δημιουργία UI"""
+        """Create UI"""
         layout = QVBoxLayout(self)
 
         # Header
-        header_label = QLabel("🎯 Αποτελέσματα Καθαρισμού EEG Artifacts")
+        header_label = QLabel("🎯 EEG Artifact Cleaning Results")
         header_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         header_label.setStyleSheet(
             """
@@ -298,8 +300,8 @@ class ResultsDisplayWidget(QWidget):
         layout.addWidget(self.summary_widget)
 
     def create_summary_widget(self) -> QWidget:
-        """Δημιουργία widget περίληψης"""
-        group_box = QGroupBox("📋 Περίληψη Επεξεργασίας")
+        """Create summary widget"""
+        group_box = QGroupBox("📋 Processing Summary")
         group_box.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         group_box.setStyleSheet(
             """
@@ -320,11 +322,11 @@ class ResultsDisplayWidget(QWidget):
 
         layout = QGridLayout(group_box)
 
-        # Labels για περίληψη
-        self.file_label = QLabel("Αρχείο: -")
-        self.components_label = QLabel("Συνιστώσες που αφαιρέθηκαν: -")
-        self.avg_reduction_label = QLabel("Μέση μείωση θορύβου: -")
-        self.status_label = QLabel("Κατάσταση: -")
+        # Labels for summary
+        self.file_label = QLabel("File: -")
+        self.components_label = QLabel("Components removed: -")
+        self.avg_reduction_label = QLabel("Average noise reduction: -")
+        self.status_label = QLabel("Status: -")
 
         labels = [
             self.file_label,
@@ -351,25 +353,25 @@ class ResultsDisplayWidget(QWidget):
         output_file: str = "",
     ):
         """
-        Ενημέρωση εμφάνισης αποτελεσμάτων
+        Update results display
 
         Args:
-            original_data: Αρχικά δεδομένα
-            cleaned_data: Καθαρισμένα δεδομένα
-            original_stats: Στατιστικά αρχικών δεδομένων
-            cleaned_stats: Στατιστικά καθαρισμένων δεδομένων
-            components_removed: Συνιστώσες που αφαιρέθηκαν
-            input_file: Αρχείο εισόδου
-            output_file: Αρχείο εξόδου
+            original_data: Original data
+            cleaned_data: Cleaned data
+            original_stats: Statistics of original data
+            cleaned_stats: Statistics of cleaned data
+            components_removed: Components that were removed
+            input_file: Input file
+            output_file: Output file
         """
         try:
-            # Ενημέρωση στατιστικών
+            # Update statistics
             self.statistics_widget.update_statistics(original_stats, cleaned_stats)
 
-            # Ενημέρωση οπτικοποίησης
+            # Update visualization
             self.comparison_widget.plot_comparison(original_data, cleaned_data)
 
-            # Υπολογισμός μέσης μείωσης
+            # Calculate average reduction
             total_reduction = 0
             channels = list(original_stats.keys())
 
@@ -382,43 +384,41 @@ class ResultsDisplayWidget(QWidget):
 
             avg_reduction = total_reduction / len(channels) if channels else 0
 
-            # Ενημέρωση περίληψης
+            # Update summary
             import os
 
-            filename = os.path.basename(input_file) if input_file else "Άγνωστο"
+            filename = os.path.basename(input_file) if input_file else "Unknown"
 
-            self.file_label.setText(f"Αρχείο: {filename}")
-            self.components_label.setText(
-                f"Συνιστώσες που αφαιρέθηκαν: {components_removed}"
-            )
+            self.file_label.setText(f"File: {filename}")
+            self.components_label.setText(f"Components removed: {components_removed}")
             self.avg_reduction_label.setText(
-                f"Μέση μείωση θορύβου: {avg_reduction:.1f}%"
+                f"Average noise reduction: {avg_reduction:.1f}%"
             )
-            self.status_label.setText("Κατάσταση: ✅ Καθαρισμός ολοκληρώθηκε επιτυχώς")
+            self.status_label.setText("Status: ✅ Cleaning completed successfully")
 
-            # Χρωματισμός status βάσει αποτελέσματος
+            # Color status based on result
             if avg_reduction > 50:
-                color = "#27ae60"  # Πράσινο για εξαιρετικό αποτέλεσμα
+                color = "#27ae60"  # Green for excellent result
             elif avg_reduction > 25:
-                color = "#f39c12"  # Πορτοκαλί για καλό αποτέλεσμα
+                color = "#f39c12"  # Orange for good result
             else:
-                color = "#e74c3c"  # Κόκκινο για χαμηλό αποτέλεσμα
+                color = "#e74c3c"  # Red for low result
 
             self.status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
 
         except Exception as e:
-            # Εμφάνιση σφάλματος
-            self.status_label.setText(f"Κατάσταση: ❌ Σφάλμα: {str(e)}")
+            # Display error
+            self.status_label.setText(f"Status: ❌ Error: {str(e)}")
             self.status_label.setStyleSheet("color: #e74c3c; font-weight: bold;")
 
     def clear_results(self):
-        """Καθαρισμός εμφάνισης αποτελεσμάτων"""
+        """Clear results display"""
         self.statistics_widget.table.setRowCount(0)
         self.comparison_widget.figure.clear()
         self.comparison_widget.canvas.draw()
 
-        self.file_label.setText("Αρχείο: -")
-        self.components_label.setText("Συνιστώσες που αφαιρέθηκαν: -")
-        self.avg_reduction_label.setText("Μέση μείωση θορύβου: -")
-        self.status_label.setText("Κατάσταση: -")
+        self.file_label.setText("File: -")
+        self.components_label.setText("Components removed: -")
+        self.avg_reduction_label.setText("Average noise reduction: -")
+        self.status_label.setText("Status: -")
         self.status_label.setStyleSheet("color: #34495e;")

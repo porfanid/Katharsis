@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Band Power Analyzer - Ανάλυση ισχύος ζωνών συχνοτήτων EEG
-=========================================================
+Band Power Analyzer - EEG Frequency Band Power Analysis
+========================================================
 
-Υπολογίζει την ποσοστιαία κατανομή ισχύος στις διαφορετικές ζώνες
-συχνοτήτων EEG (Delta, Theta, Alpha, Beta, Gamma).
+Calculates the percentage distribution of power in different EEG
+frequency bands (Delta, Theta, Alpha, Beta, Gamma).
 
 EEG Frequency Bands:
 - Delta (0.5–4 Hz): Deep sleep
