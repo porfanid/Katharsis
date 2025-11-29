@@ -237,7 +237,7 @@ Examples:
 
 - The project is bilingual (Greek and English) - maintain consistency with existing documentation
 - Supported file formats for import: EDF, BDF, FIF, CSV, SET (EEGLAB)
-- Supported file formats for export: EDF, FIF, CSV, SET
+- Supported file formats for export: EDF, FIF, CSV, SET (Note: BDF export is not supported by MNE's export function)
 - ICA uses FastICA algorithm via MNE-Python and scikit-learn
 - PCA uses sklearn.decomposition.PCA
 - Signal processing pipeline: Raw EEG → Band-pass Filter (1-40 Hz) → ICA/PCA → Artifact Removal → Clean EEG

@@ -109,6 +109,7 @@ graph TD
 ```python
 # Υποστηριζόμενα formats
 supported_import_formats = ['.edf', '.bdf', '.fif', '.csv', '.set']
+# Note: BDF export not supported by MNE's export function
 supported_export_formats = ['.edf', '.fif', '.csv', '.set']
 sampling_rates = ['128 Hz', '256 Hz', '512 Hz', '1024 Hz']
 ```
@@ -563,9 +564,9 @@ copies or substantial portions of the Software.
 ## 📈 Roadmap
 
 ### v1.1.0 (Επόμενη Έκδοση)
-- [ ] Advanced artifact detection με ML
+- [ ] Advanced artifact detection with ML
 - [ ] Batch processing capability
-- [ ] Plugin system για custom algorithms
+- [ ] Plugin system for custom algorithms
 
 ### v1.2.0 (Μελλοντική)
 - [ ] Real-time processing
