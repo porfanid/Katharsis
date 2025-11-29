@@ -3,11 +3,10 @@
 Channel Selector Component - Interactive channel selection interface
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-import mne
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPalette, QPen, QPixmap
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -17,7 +16,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QSplitter,
@@ -573,9 +571,7 @@ class ChannelSelectorWidget(QWidget):
             self.select_detected_eeg()
 
         except Exception as e:
-            QMessageBox.critical(
-                self, "Error", f"Unable to load file:\n{str(e)}"
-            )
+            QMessageBox.critical(self, "Error", f"Unable to load file:\n{str(e)}")
 
     def create_channel_checkboxes(self):
         """Create checkboxes for all channels"""
@@ -737,15 +733,15 @@ class ChannelSelectorWidget(QWidget):
 
         msg = f"""
         Channel Selection Confirmation:
-        
+
         🧠 EEG Channels: {eeg_count}
         📊 Other Channels: {other_count}
         📈 Total: {len(selected_channels)}
         🔬 Analysis Method: {self.analysis_method}
-        
+
         Selected channels:
         {', '.join(selected_channels)}
-        
+
         Do you want to continue with these channels?
         """
 

@@ -775,9 +775,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 )
                 # Navigate to comparison screen (index 3)
                 self.stacked_widget.setCurrentIndex(3)
-                self.status_bar.showMessage(
-                    "Result comparison - Cleaning successful!"
-                )
+                self.status_bar.showMessage("Result comparison - Cleaning successful!")
             except Exception as e:
                 # Fallback to original message box if comparison screen fails
                 full_message = f"{message}\n\nSaved to:\n{results['output_file']}\n\nComparison screen error: {str(e)}"
@@ -877,13 +875,13 @@ def get_global_stylesheet(theme):
         QFileDialog {{
             background-color: {theme['background']};
         }}
-        QFileDialog QListView, 
+        QFileDialog QListView,
         QFileDialog QTreeView {{
             background-color: white;
             border: 1px solid {theme['border']};
             border-radius: 4px;
         }}
-        QFileDialog QTreeView::item:selected, 
+        QFileDialog QTreeView::item:selected,
         QFileDialog QListView::item:selected {{
             background-color: {theme['primary']};
             color: white;
@@ -898,7 +896,7 @@ def get_global_stylesheet(theme):
             color: {theme['text']};
             font-weight: bold;
         }}
-        QFileDialog QLineEdit, 
+        QFileDialog QLineEdit,
         QFileDialog QComboBox {{
             padding: 8px;
             border: 1px solid {theme['border']};
@@ -935,7 +933,7 @@ def get_global_stylesheet(theme):
             background-color: #d4e6f1;
             border-color: {theme['primary']};
         }}
-        
+
         /* Styling για το μενού που ανοίγει */
         QMenu {{
             background-color: white;
@@ -950,7 +948,7 @@ def get_global_stylesheet(theme):
             background-color: {theme['primary']};
             color: white;
         }}
-        
+
         /* Styling για τα παράθυρα διαλόγου */
         QMessageBox {{
              background-color: {theme['background']};

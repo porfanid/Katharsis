@@ -54,9 +54,7 @@ class ComparisonScreen(QWidget):
         )
 
         # Return to home button
-        self.return_button = QPushButton(
-            "🏠 Return to Home / Process New File"
-        )
+        self.return_button = QPushButton("🏠 Return to Home / Process New File")
         self.return_button.setMinimumHeight(50)
         self.return_button.setMinimumWidth(400)
         self.return_button.setFont(QFont("Arial", 12, QFont.Weight.Bold))

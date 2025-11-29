@@ -714,13 +714,13 @@ class ICAComponentSelector(QWidget):
         # self.installEventFilter(self) <-- REMOVED
 
     def apply_styling(self):
-        # ... (Η συνάρτηση παραμένει ίδια)
-        btn_style = f"""
-            QPushButton {{
-                background-color: #5D6D7E; color: white; padding: 10px; 
+        # Style the buttons
+        btn_style = """
+            QPushButton {
+                background-color: #5D6D7E; color: white; padding: 10px;
                 border: none; font-size: 12px; border-radius: 6px;
-            }}
-            QPushButton:hover {{ background-color: #85929E; }}
+            }
+            QPushButton:hover { background-color: #85929E; }
         """
         self.select_all_btn.setStyleSheet(btn_style)
         self.select_none_btn.setStyleSheet(btn_style)
@@ -935,9 +935,7 @@ class ICAComponentSelector(QWidget):
             self.n_components = 0
 
         # Update title based on method
-        self.title_label.setText(
-            f"🔍 Select {analysis_method} Components for Removal"
-        )
+        self.title_label.setText(f"🔍 Select {analysis_method} Components for Removal")
 
         # Clear existing components
         while self.components_layout.count():
@@ -1002,9 +1000,7 @@ class ICAComponentSelector(QWidget):
             ax = fig.add_subplot(111)
 
             # Display spectrogram in dB scale for better visualization
-            Sxx_db = 10 * np.log10(
-                Sxx + 1e-12
-            )  # Add small value to avoid log(0)
+            Sxx_db = 10 * np.log10(Sxx + 1e-12)  # Add small value to avoid log(0)
 
             # Create the spectrogram plot
             im = ax.pcolormesh(

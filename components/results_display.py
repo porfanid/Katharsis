@@ -124,15 +124,15 @@ class StatisticsTableWidget(QWidget):
                 # Color based on reduction
                 if col == 3:  # Reduction column
                     if reduction > 50:
-                        item.setBackground(QColor("#d5f4e6"))  # Green for good reduction
+                        item.setBackground(
+                            QColor("#d5f4e6")
+                        )  # Green for good reduction
                     elif reduction > 25:
                         item.setBackground(
                             QColor("#fff3cd")
                         )  # Yellow for moderate reduction
                     else:
-                        item.setBackground(
-                            QColor("#f8d7da")
-                        )  # Red for low reduction
+                        item.setBackground(QColor("#f8d7da"))  # Red for low reduction
 
                 self.table.setItem(row, col, item)
 
@@ -221,7 +221,10 @@ class ComparisonPlotWidget(QWidget):
 
                 # Style
                 ax.set_title(
-                    f"Channel {channel}", fontsize=10, color="#2c3e50", fontweight="bold"
+                    f"Channel {channel}",
+                    fontsize=10,
+                    color="#2c3e50",
+                    fontweight="bold",
                 )
                 ax.set_xlabel(
                     "Time (s)" if i == n_channels - 1 else "",
@@ -387,9 +390,7 @@ class ResultsDisplayWidget(QWidget):
             filename = os.path.basename(input_file) if input_file else "Unknown"
 
             self.file_label.setText(f"File: {filename}")
-            self.components_label.setText(
-                f"Components removed: {components_removed}"
-            )
+            self.components_label.setText(f"Components removed: {components_removed}")
             self.avg_reduction_label.setText(
                 f"Average noise reduction: {avg_reduction:.1f}%"
             )
