@@ -870,6 +870,33 @@ class TestMultiFormatImportExport(unittest.TestCase):
         raw = EEGDataManager.read_raw(csv_path)
         self.assertIsInstance(raw, mne.io.BaseRaw)
 
+    def test_export_raw_bdf(self):
+        """Έλεγχος εξαγωγής σε BDF format"""
+        bdf_path = self._create_temp_file(".bdf")
+        success = EEGDataManager.export_raw(self.test_raw, bdf_path)
+        self.assertTrue(success)
+        self.assertTrue(os.path.exists(bdf_path))
+
+        # Verify by reading back
+        raw = EEGDataManager.read_raw(bdf_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+
+    def test_export_raw_set(self):
+        """Έλεγχος εξαγωγής σε EEGLAB (.set) format"""
+        set_path = self._create_temp_file(".set")
+        success = EEGDataManager.export_raw(self.test_raw, set_path)
+        self.assertTrue(success)
+        self.assertTrue(os.path.exists(set_path))
+
+        # Verify by reading back
+        raw = EEGDataManager.read_raw(set_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+
+        # Cleanup additional files created by EEGLAB format
+        fdt_path = set_path.replace(".set", ".fdt")
+        if os.path.exists(fdt_path):
+            self.temp_files[".fdt"] = fdt_path
+
     def test_export_raw_unsupported_format(self):
         """Έλεγχος σφάλματος για μη υποστηριζόμενη μορφή εξαγωγής"""
         xyz_path = self._create_temp_file(".xyz")
@@ -892,6 +919,20 @@ class TestMultiFormatImportExport(unittest.TestCase):
         csv_path = self._create_temp_file(".csv")
         success = self.data_manager.save_cleaned_data(self.test_raw, csv_path)
         self.assertTrue(success)
+
+        # Test BDF
+        bdf_path = self._create_temp_file(".bdf")
+        success = self.data_manager.save_cleaned_data(self.test_raw, bdf_path)
+        self.assertTrue(success)
+
+        # Test SET
+        set_path = self._create_temp_file(".set")
+        success = self.data_manager.save_cleaned_data(self.test_raw, set_path)
+        self.assertTrue(success)
+        # Cleanup additional files created by EEGLAB format
+        fdt_path = set_path.replace(".set", ".fdt")
+        if os.path.exists(fdt_path):
+            self.temp_files[".fdt"] = fdt_path
 
 
 class TestMultiFormatBackendCore(unittest.TestCase):

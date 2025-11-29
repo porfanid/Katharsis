@@ -23,7 +23,10 @@ import pandas as pd
 
 # Supported file formats for import and export
 SUPPORTED_IMPORT_FORMATS = [".edf", ".bdf", ".fif", ".csv", ".set"]
-SUPPORTED_EXPORT_FORMATS = [".edf", ".fif", ".csv"]
+SUPPORTED_EXPORT_FORMATS = [".edf", ".bdf", ".fif", ".csv", ".set"]
+
+# Default sampling rate for CSV files without time column
+DEFAULT_SAMPLING_RATE = 256.0
 
 # Suppress MNE warnings for cleaner output
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -263,10 +266,20 @@ class EEGDataManager:
             # Calculate sampling frequency from time column
             if sfreq is None and len(time_data) > 1:
                 time_diff = np.diff(time_data)
-                sfreq = float(1.0 / np.median(time_diff))
+                median_diff = np.median(time_diff)
+                # Validate time difference is positive and non-zero
+                if median_diff > 0:
+                    sfreq = float(1.0 / median_diff)
+                else:
+                    sfreq = DEFAULT_SAMPLING_RATE
+                    warnings.warn(
+                        f"Invalid time differences in data, using default "
+                        f"sfreq={sfreq} Hz",
+                        UserWarning,
+                    )
         elif sfreq is None:
             # Default sampling frequency if not provided
-            sfreq = 256.0
+            sfreq = DEFAULT_SAMPLING_RATE
             warnings.warn(
                 f"Δεν βρέθηκε στήλη χρόνου, χρήση default sfreq={sfreq} Hz",
                 UserWarning,
@@ -277,6 +290,8 @@ class EEGDataManager:
         data = df.values.T
 
         # Convert to volts if data appears to be in microvolts
+        # EEG data typically ranges from -100 to +100 microvolts
+        # If max absolute value is greater than 1, assume data is in microvolts
         if np.max(np.abs(data)) > 1:
             data = data * 1e-6
 
@@ -464,7 +479,7 @@ class EEGDataManager:
         """
         Εξαγωγή raw δεδομένων σε διάφορες μορφές.
 
-        Υποστηρίζει: .edf, .fif, .csv
+        Υποστηρίζει: .edf, .bdf, .fif, .csv, .set
 
         Args:
             raw: Raw EEG δεδομένα
@@ -487,10 +502,16 @@ class EEGDataManager:
         try:
             if ext == ".edf":
                 raw.export(output_path, fmt="edf", overwrite=True, verbose=False)
+            elif ext == ".bdf":
+                # BDF uses the same export mechanism as EDF with auto format
+                raw.export(output_path, fmt="auto", overwrite=True, verbose=False)
             elif ext == ".fif":
                 raw.save(output_path, overwrite=True, verbose=False)
             elif ext == ".csv":
                 EEGDataManager._export_raw_csv(raw, output_path)
+            elif ext == ".set":
+                # EEGLAB format requires eeglabio package
+                raw.export(output_path, fmt="eeglab", overwrite=True, verbose=False)
             return True
         except Exception as e:
             print(f"Σφάλμα εξαγωγής: {str(e)}")
