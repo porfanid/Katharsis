@@ -921,16 +921,24 @@ class ICAComponentSelector(QWidget):
 
     def _create_spectrogram_plot(self, component_idx):
         """
-        Δημιουργεί spectrogram γράφημα για τη συγκεκριμένη ICA συνιστώσα.
+        Δημιουργεί spectrogram γράφημα για τη συγκεκριμένη συνιστώσα.
         Το spectrogram είναι ιδανικό για τον εντοπισμό μυϊκών artifacts που
         εμφανίζονται ως σύντομες εκρήξεις ενέργειας σε ευρύ φάσμα συχνοτήτων.
+        Works for both ICA and PCA.
         """
         try:
             from scipy import signal
 
-            # Λήψη των ICA sources
-            sources = self.ica.get_sources(self.raw).get_data()
+            # Get component data - use processor for both ICA and PCA
+            if self.processor is not None:
+                sources = self.processor.get_sources_data()
+            elif self.ica is not None:
+                sources = self.ica.get_sources(self.raw).get_data()
+            else:
+                return None
+
             component_data = sources[component_idx]
+            comp_label = "IC" if self.analysis_method == "ICA" else "PC"
 
             # Παράμετροι για το spectrogram
             fs = self.raw.info["sfreq"]  # Συχνότητα δειγματολήψίας
@@ -966,7 +974,7 @@ class ICAComponentSelector(QWidget):
             ax.set_ylabel("Συχνότητα (Hz) / Frequency (Hz)", fontsize=10)
             ax.set_xlabel("Χρόνος (s) / Time (s)", fontsize=10)
             ax.set_title(
-                f"Spectrogram - IC {component_idx}\n(Ανάλυση Χρόνου-Συχνότητας για Εντοπισμό Μυϊκών Artifacts)",
+                f"Spectrogram - {comp_label} {component_idx}\n(Ανάλυση Χρόνου-Συχνότητας για Εντοπισμό Μυϊκών Artifacts)",
                 fontsize=11,
                 color=self.theme.get("text", "#000000"),
             )
@@ -1015,13 +1023,26 @@ class ICAComponentSelector(QWidget):
         """
         Δημιουργεί και εμφανίζει ένα νέο παράθυρο με τις ιδιότητες της συνιστώσας.
         Περιλαμβάνει τοπογραφία, PSD και Spectrogram για πλήρη ανάλυση.
+        Works for both ICA and PCA analysis.
         """
-        if not self.ica or not self.raw:
+        # Check we have data to work with
+        if not self.raw:
+            return
+        if not self.ica and not self.processor:
             return
 
-        # Το MNE δημιουργεί τα γραφήματα. Το show=False είναι κρίσιμο
-        # για να πάρουμε τα figures αντί να τα εμφανίσει μόνο του.
-        figures = self.ica.plot_properties(self.raw, picks=component_idx, show=False)
+        comp_label = "IC" if self.analysis_method == "ICA" else "PC"
+
+        # For ICA, use MNE's built-in plot_properties
+        # For PCA, create custom plots
+        if self.ica is not None:
+            # Το MNE δημιουργεί τα γραφήματα. Το show=False είναι κρίσιμο
+            # για να πάρουμε τα figures αντί να τα εμφανίσει μόνο του.
+            figures = self.ica.plot_properties(self.raw, picks=component_idx, show=False)
+
+        else:
+            # For PCA, create custom property plots
+            figures = self._create_pca_property_plots(component_idx)
 
         # Δημιουργούμε το spectrogram γράφημα
         spectrogram_fig = self._create_spectrogram_plot(component_idx)
@@ -1029,21 +1050,20 @@ class ICAComponentSelector(QWidget):
         # Δημιουργούμε ένα νέο παράθυρο διαλόγου (pop-up)
         dialog = QDialog(self)
         dialog.setWindowTitle(
-            f"Λεπτομερής Ανάλυση Συνιστώσας IC {component_idx} / Detailed Analysis of Component IC {component_idx}"
+            f"Λεπτομερής Ανάλυση Συνιστώσας {comp_label} {component_idx} / Detailed Analysis of Component {comp_label} {component_idx}"
         )
         dialog.setMinimumSize(1000, 800)  # Μεγαλύτερο παράθυρο για το επιπλέον γράφημα
         dialog_layout = QVBoxLayout(dialog)
 
         # Προσθήκη τίτλου
-        title_label = QLabel(f"🔬 Ανάλυση Συνιστώσας IC {component_idx}")
+        title_label = QLabel(f"🔬 Ανάλυση Συνιστώσας {comp_label} {component_idx}")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setStyleSheet(
             f"color: {self.theme['text']}; margin: 10px; text-align: center;"
         )
         dialog_layout.addWidget(title_label)
 
-        # Για κάθε figure που έφτιαξε το MNE, δημιουργούμε έναν καμβά και τον
-        # προσθέτουμε στο παράθυρο.
+        # Για κάθε figure που έφτιαξε το MNE ή custom, δημιουργούμε έναν καμβά
         for fig in figures:
             canvas = FigureCanvas(fig)
             dialog_layout.addWidget(canvas)
@@ -1055,3 +1075,71 @@ class ICAComponentSelector(QWidget):
 
         # Εμφανίζουμε το παράθυρο
         dialog.exec()
+
+    def _create_pca_property_plots(self, component_idx):
+        """
+        Create property plots for PCA components (similar to ICA's plot_properties)
+        """
+        figures = []
+
+        try:
+            from scipy import signal
+
+            # Get component data from processor
+            sources = self.processor.get_sources_data()
+            comp_data = sources[component_idx]
+            sfreq = self.raw.info["sfreq"]
+
+            # Figure 1: Time series and topomap
+            fig1 = Figure(figsize=(10, 4), dpi=100)
+
+            # Time series
+            ax1 = fig1.add_subplot(121)
+            times = self.raw.times[: len(comp_data)]
+            ax1.plot(times, comp_data, linewidth=0.5)
+            ax1.set_xlabel("Time (s)")
+            ax1.set_ylabel("Amplitude")
+            ax1.set_title(f"PC {component_idx} - Time Series")
+            ax1.grid(True, alpha=0.3)
+
+            # Topomap
+            ax2 = fig1.add_subplot(122)
+            components = self.processor.get_components()
+            if components is not None:
+                import mne.viz
+
+                mne.viz.plot_topomap(
+                    components[:, component_idx],
+                    self.raw.info,
+                    axes=ax2,
+                    show=False,
+                    cmap="RdBu_r",
+                )
+                ax2.set_title(f"PC {component_idx} - Topomap")
+
+            fig1.tight_layout()
+            figures.append(fig1)
+
+            # Figure 2: PSD (Power Spectral Density)
+            fig2 = Figure(figsize=(10, 3), dpi=100)
+            ax3 = fig2.add_subplot(111)
+
+            freqs, psd = signal.welch(comp_data, fs=sfreq, nperseg=min(1024, len(comp_data)))
+            ax3.semilogy(freqs, psd)
+            ax3.set_xlabel("Frequency (Hz)")
+            ax3.set_ylabel("Power Spectral Density")
+            ax3.set_title(f"PC {component_idx} - Power Spectrum")
+            ax3.set_xlim(0, min(50, sfreq / 2))
+            ax3.grid(True, alpha=0.3)
+
+            fig2.tight_layout()
+            figures.append(fig2)
+
+        except Exception as e:
+            # Create error figure
+            fig = Figure(figsize=(10, 4), dpi=100)
+            ax = fig.add_subplot(111)
+            ax.text(0.5, 0.5, f"Error creating plots: {e}", ha="center", va="center")
+            figures.append(fig)
+
+        return figures
