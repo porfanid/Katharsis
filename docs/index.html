@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Katharsis - Επαγγελματικός καθαρισμός EEG δεδομένων με ICA τεχνολογία">
-    <meta name="keywords" content="EEG, artifact cleaning, ICA, neuroscience, brain signals, καθαρισμός EEG">
+    <meta name="description" content="Katharsis - Επαγγελματικός καθαρισμός EEG δεδομένων με ICA/PCA τεχνολογία">
+    <meta name="keywords" content="EEG, artifact cleaning, ICA, PCA, neuroscience, brain signals, καθαρισμός EEG, band power analysis">
     <title>Katharsis - EEG Artifact Cleaner Pro</title>
     
     <style>
@@ -309,7 +309,7 @@
         <div class="container">
             <h1>Katharsis</h1>
             <p class="subtitle">Επαγγελματικός Καθαρισμός EEG Δεδομένων</p>
-            <p>Αυτόματη αφαίρεση artifacts από EEG σήματα με προηγμένη ICA τεχνολογία</p>
+            <p>Αυτόματη αφαίρεση artifacts από EEG σήματα με προηγμένη ICA/PCA τεχνολογία</p>
             <br>
             <a href="#download" class="cta-button">Δωρεάν Λήψη</a>
         </div>
@@ -326,13 +326,13 @@
                 </div>
                 <div class="feature">
                     <div class="feature-icon">🔬</div>
-                    <h3>ICA Ανάλυση</h3>
-                    <p>Προηγμένη Independent Component Analysis για την ανάλυση των EEG σημάτων σε ανεξάρτητες συνιστώσες.</p>
+                    <h3>ICA/PCA Ανάλυση</h3>
+                    <p>Επιλογή μεταξύ Independent Component Analysis (ICA) και Principal Component Analysis (PCA) για την ανάλυση των EEG σημάτων.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">📊</div>
                     <h3>Οπτικοποίηση</h3>
-                    <p>Διαδραστική οπτικοποίηση των ICA συνιστωσών με δυνατότητα επιλογής και σύγκρισης αποτελεσμάτων.</p>
+                    <p>Διαδραστική οπτικοποίηση συνιστωσών με δυνατότητα επιλογής και σύγκρισης αποτελεσμάτων.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">⚡</div>
@@ -341,13 +341,13 @@
                 </div>
                 <div class="feature">
                     <div class="feature-icon">📁</div>
-                    <h3>EDF Support</h3>
-                    <p>Πλήρης υποστήριξη αρχείων EDF από συσκευές EEG όπως το Emotiv Insight και άλλες.</p>
+                    <h3>Πολλαπλές Μορφές</h3>
+                    <p>Υποστήριξη πολλαπλών μορφών αρχείων: EDF, BDF, FIF, CSV, SET (EEGLAB) από συσκευές EEG.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">📈</div>
-                    <h3>Στατιστική Ανάλυση</h3>
-                    <p>Λεπτομερή στατιστικά και μετρήσεις αποτελεσματικότητας για την αξιολόγηση του καθαρισμού.</p>
+                    <h3>Ανάλυση Ζωνών Συχνοτήτων</h3>
+                    <p>Ανάλυση ισχύος ζωνών EEG (Delta, Theta, Alpha, Beta, Gamma) με σύγκριση πριν/μετά τον καθαρισμό.</p>
                 </div>
             </div>
         </div>
@@ -358,7 +358,7 @@
             <h2>Εικόνες από την Εφαρμογή</h2>
             <div class="screenshot-container">
                 <img src="../live_preview_feature_demo.png" alt="Katharsis EEG Artifact Cleaner Screenshot" loading="lazy">
-                <p style="margin-top: 1rem; color: #666;">Διαδραστικό περιβάλλον επιλογής ICA συνιστωσών με live preview</p>
+                <p style="margin-top: 1rem; color: #666;">Διαδραστικό περιβάλλον επιλογής ICA/PCA συνιστωσών με live preview</p>
             </div>
         </div>
     </section>
@@ -370,28 +370,30 @@
                 <div class="spec">
                     <h3>🐍 Γλώσσα Προγραμματισμού</h3>
                     <ul>
-                        <li>Python 3.8+</li>
+                        <li>Python 3.9+</li>
                         <li>PyQt6 για GUI</li>
                         <li>MNE-Python για EEG ανάλυση</li>
-                        <li>Scikit-learn για ICA</li>
+                        <li>Scikit-learn για ICA/PCA</li>
                     </ul>
                 </div>
                 <div class="spec">
-                    <h3>📊 Υποστηριζόμενα Formats</h3>
+                    <h3>📊 Υποστηριζόμενες Μορφές</h3>
                     <ul>
                         <li>EDF (European Data Format)</li>
-                        <li>Emotiv Insight 2 συμβατό</li>
-                        <li>10-20 electrode system</li>
-                        <li>Multi-channel recording</li>
+                        <li>BDF (BioSemi Data Format)</li>
+                        <li>FIF (MNE-Python format)</li>
+                        <li>CSV (Comma-Separated Values)</li>
+                        <li>SET (EEGLAB format)</li>
                     </ul>
                 </div>
                 <div class="spec">
                     <h3>⚙️ Αλγόριθμοι</h3>
                     <ul>
-                        <li>FastICA Algorithm</li>
+                        <li>FastICA / PCA Algorithm</li>
                         <li>Band-pass φιλτράρισμα 1-40 Hz</li>
                         <li>Στατιστική ανάλυση (κύρτωση, διακύμανση)</li>
                         <li>Αυτόματος εντοπισμός EOG</li>
+                        <li>Ανάλυση ζωνών συχνοτήτων EEG</li>
                     </ul>
                 </div>
                 <div class="spec">
@@ -436,7 +438,7 @@
     <footer>
         <div class="container">
             <p>&copy; 2024 Katharsis EEG Artifact Cleaner. Ανοιχτός πηγαίος κώδικας κάτω από MIT License.</p>
-            <p>Δημιουργήθηκε για την ερευνητική κοινότητα με ❤️</p>
+            <p>Δημιουργήθηκε από τον <a href="https://orfanidis.net.gr" style="color: #007AFF;">Pavlos Orfanidis</a> για την ερευνητική κοινότητα με ❤️</p>
         </div>
     </footer>
 

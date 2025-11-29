@@ -4,7 +4,7 @@ This document provides guidelines for GitHub Copilot and the Copilot coding agen
 
 ## Project Overview
 
-Katharsis is a Python application for automatic EEG artifact cleaning using Independent Component Analysis (ICA) or Principal Component Analysis (PCA). It features a PyQt6 GUI and processes EDF (European Data Format) files. The application supports modular component analysis with a switch to choose between ICA and PCA methods.
+Katharsis is a Python application for automatic EEG artifact cleaning using Independent Component Analysis (ICA) or Principal Component Analysis (PCA). It features a PyQt6 GUI and processes multiple EEG file formats (EDF, BDF, FIF, CSV, SET). The application supports modular component analysis with a switch to choose between ICA and PCA methods, and includes EEG frequency band power analysis.
 
 ## Technology Stack
 
@@ -21,16 +21,18 @@ Katharsis is a Python application for automatic EEG artifact cleaning using Inde
 ```
 Katharsis/
 ├── backend/                 # Core processing logic
-│   ├── eeg_backend.py       # Data management & I/O
+│   ├── eeg_backend.py       # Data management & I/O (multi-format support)
 │   ├── base_processor.py    # Abstract base class for component processors
 │   ├── ica_processor.py     # ICA implementation
 │   ├── pca_processor.py     # PCA implementation
 │   ├── artifact_detector.py # Artifact detection algorithms (ICA & PCA)
+│   ├── band_power_analyzer.py # EEG frequency band analysis
 │   └── eeg_service.py       # Main service orchestration
 ├── components/              # GUI components (PyQt6)
 │   ├── channel_selector.py  # Channel selection widget
 │   ├── ica_selector.py      # Component selector (works for both ICA/PCA)
 │   ├── comparison_screen.py # Results comparison
+│   ├── band_power_display.py # Band power visualization widget
 │   └── results_display.py   # Results visualization
 ├── tests/                   # Test suite
 │   ├── test_backend.py      # Backend tests (ICA, PCA, service)
@@ -234,9 +236,12 @@ Examples:
 ## Important Notes
 
 - The project is bilingual (Greek and English) - maintain consistency with existing documentation
-- EDF files are the primary supported format
+- Supported file formats for import: EDF, BDF, FIF, CSV, SET (EEGLAB)
+- Supported file formats for export: EDF, FIF, CSV, SET
 - ICA uses FastICA algorithm via MNE-Python and scikit-learn
 - PCA uses sklearn.decomposition.PCA
 - Signal processing pipeline: Raw EEG → Band-pass Filter (1-40 Hz) → ICA/PCA → Artifact Removal → Clean EEG
 - Detection criteria include variance, kurtosis, range, and EOG correlation thresholds (ICA) or explained variance ratio (PCA)
 - The GUI provides a switch to select between ICA (default) and PCA analysis methods
+- Band power analysis provides frequency band percentages (Delta, Theta, Alpha, Beta, Gamma)
+- Project created by Pavlos Orfanidis (https://orfanidis.net.gr)
