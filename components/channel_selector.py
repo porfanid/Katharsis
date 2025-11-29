@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Channel Selector Component - Interactive channel selection interface
-Στοιχείο Επιλογής Καναλιών - Διαδραστική διεπαφή επιλογής καναλιών
 """
 
 from typing import Any, Dict, List, Optional
@@ -235,7 +234,7 @@ class FileInfoWidget(QFrame):
         layout = QVBoxLayout(self)
 
         # Title
-        title = QLabel("📄 Πληροφορίες Αρχείου")
+        title = QLabel("📄 File Information")
         title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         title.setStyleSheet(f"color: {self.theme['primary']};")
         layout.addWidget(title)
@@ -269,13 +268,13 @@ class FileInfoWidget(QFrame):
     ):
         """Update file information display"""
         info_text = f"""
-📁 Αρχείο: {file_path.split('/')[-1]}
-📊 Συνολικά Κανάλια: {len(all_channels)}
-⚡ Συχνότητα Δειγματοληψίας: {sampling_rate} Hz
-⏱️ Διάρκεια: {duration:.1f} δευτερόλεπτα
-🧠 Επιλεγμένα EEG: {channel_count}
+📁 File: {file_path.split('/')[-1]}
+📊 Total Channels: {len(all_channels)}
+⚡ Sampling Rate: {sampling_rate} Hz
+⏱️ Duration: {duration:.1f} seconds
+🧠 Selected EEG: {channel_count}
 
-Όλα τα διαθέσιμα κανάλια:
+All available channels:
 {', '.join(all_channels)}
         """.strip()
         self.info_text.setPlainText(info_text)
@@ -305,7 +304,7 @@ class ChannelSelectorWidget(QWidget):
         main_layout.setSpacing(15)
 
         # Title
-        title = QLabel("🧠 Επιλογή Καναλιών EEG")
+        title = QLabel("🧠 EEG Channel Selection")
         title.setFont(QFont("Arial", 24, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(f"color: {self.theme['primary']}; margin: 10px;")
@@ -313,8 +312,8 @@ class ChannelSelectorWidget(QWidget):
 
         # Description
         self.description = QLabel(
-            "Επιλέξτε τα κανάλια EEG που θέλετε να συμπεριλάβετε στην ανάλυση.\n"
-            "Συνιστώνται τουλάχιστον 3 κανάλια για βέλτιστα αποτελέσματα."
+            "Select the EEG channels you want to include in the analysis.\n"
+            "At least 3 channels are recommended for optimal results."
         )
         self.description.setFont(QFont("Arial", 12))
         self.description.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -324,7 +323,7 @@ class ChannelSelectorWidget(QWidget):
         main_layout.addWidget(self.description)
 
         # Analysis Method Selector (ICA/PCA toggle)
-        method_group = QGroupBox("🔬 Μέθοδος Ανάλυσης / Analysis Method")
+        method_group = QGroupBox("🔬 Analysis Method")
         method_group.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         method_group.setStyleSheet(
             f"""
@@ -369,7 +368,7 @@ class ChannelSelectorWidget(QWidget):
 
         # Method description label
         self.method_info_label = QLabel(
-            "ICA: Καλύτερη για εντοπισμό βλεφαρισμών και μυϊκών artifacts"
+            "ICA: Best for detecting eye blinks and muscle artifacts"
         )
         self.method_info_label.setFont(QFont("Arial", 10))
         self.method_info_label.setStyleSheet(
@@ -397,7 +396,7 @@ class ChannelSelectorWidget(QWidget):
 
         # Search box
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("🔍 Αναζήτηση καναλιών...")
+        self.search_box.setPlaceholderText("🔍 Search channels...")
         self.search_box.setFont(QFont("Arial", 11))
         self.search_box.textChanged.connect(self.filter_channels)
         self.search_box.setStyleSheet(
@@ -419,7 +418,7 @@ class ChannelSelectorWidget(QWidget):
         filter_layout.addWidget(self.search_box)
 
         # Quick selection buttons
-        select_all_btn = QPushButton("Επιλογή Όλων")
+        select_all_btn = QPushButton("Select All")
         select_all_btn.clicked.connect(self.select_all_eeg)
         select_all_btn.setStyleSheet(
             f"""
@@ -438,7 +437,7 @@ class ChannelSelectorWidget(QWidget):
         )
         filter_layout.addWidget(select_all_btn)
 
-        clear_all_btn = QPushButton("Καθαρισμός")
+        clear_all_btn = QPushButton("Clear All")
         clear_all_btn.clicked.connect(self.clear_all)
         clear_all_btn.setStyleSheet(
             f"""
@@ -491,7 +490,7 @@ class ChannelSelectorWidget(QWidget):
         bottom_layout = QHBoxLayout()
 
         # Selection counter
-        self.selection_label = QLabel("📊 Επιλεγμένα: 0 κανάλια")
+        self.selection_label = QLabel("📊 Selected: 0 channels")
         self.selection_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.selection_label.setStyleSheet(f"color: {self.theme['text']};")
         bottom_layout.addWidget(self.selection_label)
@@ -499,7 +498,7 @@ class ChannelSelectorWidget(QWidget):
         bottom_layout.addStretch()
 
         # Action buttons
-        self.continue_btn = QPushButton("✅ Συνέχεια με Επιλεγμένα Κανάλια")
+        self.continue_btn = QPushButton("✅ Continue with Selected Channels")
         self.continue_btn.setMinimumHeight(45)
         self.continue_btn.setMinimumWidth(250)
         self.continue_btn.setFont(QFont("Arial", 12, QFont.Weight.Bold))
@@ -575,7 +574,7 @@ class ChannelSelectorWidget(QWidget):
 
         except Exception as e:
             QMessageBox.critical(
-                self, "Σφάλμα", f"Αδυναμία φόρτωσης αρχείου:\n{str(e)}"
+                self, "Error", f"Unable to load file:\n{str(e)}"
             )
 
     def create_channel_checkboxes(self):
@@ -591,7 +590,7 @@ class ChannelSelectorWidget(QWidget):
 
         # EEG channels first (recommended)
         if self.eeg_channels:
-            eeg_group = QGroupBox("🧠 Προτεινόμενα EEG Κανάλια")
+            eeg_group = QGroupBox("🧠 Recommended EEG Channels")
             eeg_group.setFont(QFont("Arial", 12, QFont.Weight.Bold))
             eeg_group.setStyleSheet(
                 f"""
@@ -632,7 +631,7 @@ class ChannelSelectorWidget(QWidget):
 
         # Other channels
         if self.other_channels:
-            other_group = QGroupBox("📊 Άλλα Διαθέσιμα Κανάλια")
+            other_group = QGroupBox("📊 Other Available Channels")
             other_group.setFont(QFont("Arial", 12, QFont.Weight.Bold))
             other_group.setStyleSheet(
                 f"""
@@ -702,7 +701,7 @@ class ChannelSelectorWidget(QWidget):
     def update_selection_count(self):
         """Update selection counter and enable/disable continue button"""
         selected_count = len(self.get_selected_channels())
-        self.selection_label.setText(f"📊 Επιλεγμένα: {selected_count} κανάλια")
+        self.selection_label.setText(f"📊 Selected: {selected_count} channels")
 
         # Enable continue button only if at least 3 channels are selected
         self.continue_btn.setEnabled(selected_count >= 3)
@@ -727,8 +726,8 @@ class ChannelSelectorWidget(QWidget):
         if len(selected_channels) < 3:
             QMessageBox.warning(
                 self,
-                "Ανεπαρκή Κανάλια",
-                f"Παρακαλώ επιλέξτε τουλάχιστον 3 κανάλια για αξιόπιστη ανάλυση {self.analysis_method}.",
+                "Insufficient Channels",
+                f"Please select at least 3 channels for reliable {self.analysis_method} analysis.",
             )
             return
 
@@ -737,22 +736,22 @@ class ChannelSelectorWidget(QWidget):
         other_count = len(selected_channels) - eeg_count
 
         msg = f"""
-        Επιβεβαίωση Επιλογής Καναλιών:
+        Channel Selection Confirmation:
         
-        🧠 EEG Κανάλια: {eeg_count}
-        📊 Άλλα Κανάλια: {other_count}
-        📈 Συνολικά: {len(selected_channels)}
-        🔬 Μέθοδος Ανάλυσης: {self.analysis_method}
+        🧠 EEG Channels: {eeg_count}
+        📊 Other Channels: {other_count}
+        📈 Total: {len(selected_channels)}
+        🔬 Analysis Method: {self.analysis_method}
         
-        Επιλεγμένα κανάλια:
+        Selected channels:
         {', '.join(selected_channels)}
         
-        Θέλετε να συνεχίσετε με αυτά τα κανάλια;
+        Do you want to continue with these channels?
         """
 
         reply = QMessageBox.question(
             self,
-            "Επιβεβαίωση Επιλογής",
+            "Confirm Selection",
             msg.strip(),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
@@ -766,12 +765,12 @@ class ChannelSelectorWidget(QWidget):
         if is_pca:
             self.analysis_method = "PCA"
             self.method_info_label.setText(
-                "PCA: Ταχύτερη, ιδανική για γρήγορη προκαταρκτική ανάλυση"
+                "PCA: Faster, ideal for quick preliminary analysis"
             )
         else:
             self.analysis_method = "ICA"
             self.method_info_label.setText(
-                "ICA: Καλύτερη για εντοπισμό βλεφαρισμών και μυϊκών artifacts"
+                "ICA: Best for detecting eye blinks and muscle artifacts"
             )
 
     def get_analysis_method(self) -> str:
