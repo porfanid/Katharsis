@@ -700,6 +700,279 @@ class TestEEGArtifactCleaningServicePCA(unittest.TestCase):
         self.assertEqual(summary["analysis_method"], "PCA")
 
 
+class TestMultiFormatImportExport(unittest.TestCase):
+    """Έλεγχοι για υποστήριξη πολλαπλών formats (EDF, BDF, FIF, CSV, SET)"""
+
+    def setUp(self):
+        """Προετοιμασία test δεδομένων"""
+        self.data_manager = EEGDataManager()
+
+        # Create synthetic EEG data for testing
+        self.sfreq = 128.0
+        self.duration = 10.0  # 10 seconds
+        self.n_samples = int(self.sfreq * self.duration)
+        self.ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        # Create raw data
+        data = np.random.randn(len(self.ch_names), self.n_samples) * 1e-5
+        info = mne.create_info(ch_names=self.ch_names, sfreq=self.sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(data, info)
+
+        # Create temp files for different formats
+        self.temp_files = {}
+
+    def tearDown(self):
+        """Καθαρισμός μετά από tests"""
+        for path in self.temp_files.values():
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def _create_temp_file(self, suffix):
+        """Helper to create temp files"""
+        f = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        path = f.name
+        f.close()
+        self.temp_files[suffix] = path
+        return path
+
+    def test_get_supported_import_formats(self):
+        """Έλεγχος λήψης υποστηριζόμενων formats εισαγωγής"""
+        formats = EEGDataManager.get_supported_import_formats()
+        self.assertIn(".edf", formats)
+        self.assertIn(".bdf", formats)
+        self.assertIn(".fif", formats)
+        self.assertIn(".csv", formats)
+        self.assertIn(".set", formats)
+
+    def test_get_supported_export_formats(self):
+        """Έλεγχος λήψης υποστηριζόμενων formats εξαγωγής"""
+        formats = EEGDataManager.get_supported_export_formats()
+        self.assertIn(".edf", formats)
+        self.assertIn(".fif", formats)
+        self.assertIn(".csv", formats)
+
+    def test_read_raw_edf(self):
+        """Έλεγχος ανάγνωσης EDF αρχείου με read_raw"""
+        edf_path = self._create_temp_file(".edf")
+        self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
+
+        raw = EEGDataManager.read_raw(edf_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+        self.assertEqual(raw.info["sfreq"], self.sfreq)
+        self.assertEqual(len(raw.ch_names), len(self.ch_names))
+        self.assertGreater(raw.n_times, 0)
+
+    def test_read_raw_fif(self):
+        """Έλεγχος ανάγνωσης FIF αρχείου με read_raw"""
+        fif_path = self._create_temp_file(".fif")
+        self.test_raw.save(fif_path, overwrite=True, verbose=False)
+
+        raw = EEGDataManager.read_raw(fif_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+        self.assertEqual(raw.info["sfreq"], self.sfreq)
+        self.assertGreater(raw.n_times, 0)
+
+    def test_read_raw_csv(self):
+        """Έλεγχος ανάγνωσης CSV αρχείου με read_raw"""
+        csv_path = self._create_temp_file(".csv")
+
+        # Export to CSV manually
+        import pandas as pd
+
+        data = self.test_raw.get_data().T  # (n_samples, n_channels)
+        times = self.test_raw.times
+        df = pd.DataFrame(data, columns=self.ch_names)
+        df.insert(0, "time", times)
+        df.to_csv(csv_path, index=False)
+
+        raw = EEGDataManager.read_raw(csv_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+        self.assertEqual(len(raw.ch_names), len(self.ch_names))
+        self.assertGreater(raw.n_times, 0)
+
+    def test_read_raw_unsupported_format(self):
+        """Έλεγχος σφάλματος για μη υποστηριζόμενη μορφή"""
+        # Create a temp file with unsupported extension
+        xyz_path = self._create_temp_file(".xyz")
+        with open(xyz_path, "w") as f:
+            f.write("dummy data")
+
+        with self.assertRaises(ValueError):
+            EEGDataManager.read_raw(xyz_path)
+
+    def test_read_raw_file_not_found(self):
+        """Έλεγχος σφάλματος όταν το αρχείο δεν βρίσκεται"""
+        with self.assertRaises(FileNotFoundError):
+            EEGDataManager.read_raw("nonexistent.edf")
+
+    def test_load_raw_file(self):
+        """Έλεγχος φόρτωσης αρχείου με load_raw_file"""
+        edf_path = self._create_temp_file(".edf")
+        self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
+
+        raw, channels = EEGDataManager.load_raw_file(edf_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+        self.assertEqual(channels, self.ch_names)
+
+    def test_load_file_info(self):
+        """Έλεγχος λήψης πληροφοριών αρχείου"""
+        edf_path = self._create_temp_file(".edf")
+        self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
+
+        info = EEGDataManager.load_file_info(edf_path)
+        self.assertTrue(info["success"])
+        self.assertEqual(info["n_channels"], len(self.ch_names))
+        self.assertEqual(info["sampling_rate"], self.sfreq)
+        self.assertIn("n_annotations", info)
+        self.assertEqual(info["format"], ".edf")
+
+    def test_validate_file(self):
+        """Έλεγχος επικύρωσης αρχείου"""
+        edf_path = self._create_temp_file(".edf")
+        self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
+
+        info = EEGDataManager.validate_file(edf_path)
+        self.assertTrue(info["valid"])
+        self.assertEqual(info["n_channels"], len(self.ch_names))
+        self.assertIn("n_annotations", info)
+        self.assertEqual(info["format"], ".edf")
+
+    def test_export_raw_edf(self):
+        """Έλεγχος εξαγωγής σε EDF format"""
+        edf_path = self._create_temp_file(".edf")
+        success = EEGDataManager.export_raw(self.test_raw, edf_path)
+        self.assertTrue(success)
+        self.assertTrue(os.path.exists(edf_path))
+
+        # Verify by reading back
+        raw = EEGDataManager.read_raw(edf_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+
+    def test_export_raw_fif(self):
+        """Έλεγχος εξαγωγής σε FIF format"""
+        fif_path = self._create_temp_file(".fif")
+        success = EEGDataManager.export_raw(self.test_raw, fif_path)
+        self.assertTrue(success)
+        self.assertTrue(os.path.exists(fif_path))
+
+        # Verify by reading back
+        raw = EEGDataManager.read_raw(fif_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+
+    def test_export_raw_csv(self):
+        """Έλεγχος εξαγωγής σε CSV format"""
+        csv_path = self._create_temp_file(".csv")
+        success = EEGDataManager.export_raw(self.test_raw, csv_path)
+        self.assertTrue(success)
+        self.assertTrue(os.path.exists(csv_path))
+
+        # Verify by reading back
+        raw = EEGDataManager.read_raw(csv_path)
+        self.assertIsInstance(raw, mne.io.BaseRaw)
+
+    def test_export_raw_unsupported_format(self):
+        """Έλεγχος σφάλματος για μη υποστηριζόμενη μορφή εξαγωγής"""
+        xyz_path = self._create_temp_file(".xyz")
+        with self.assertRaises(ValueError):
+            EEGDataManager.export_raw(self.test_raw, xyz_path)
+
+    def test_save_cleaned_data_multiple_formats(self):
+        """Έλεγχος αποθήκευσης σε διαφορετικές μορφές"""
+        # Test EDF
+        edf_path = self._create_temp_file(".edf")
+        success = self.data_manager.save_cleaned_data(self.test_raw, edf_path)
+        self.assertTrue(success)
+
+        # Test FIF
+        fif_path = self._create_temp_file(".fif")
+        success = self.data_manager.save_cleaned_data(self.test_raw, fif_path)
+        self.assertTrue(success)
+
+        # Test CSV
+        csv_path = self._create_temp_file(".csv")
+        success = self.data_manager.save_cleaned_data(self.test_raw, csv_path)
+        self.assertTrue(success)
+
+
+class TestMultiFormatBackendCore(unittest.TestCase):
+    """Έλεγχοι για EEGBackendCore με πολλαπλά formats"""
+
+    def setUp(self):
+        """Προετοιμασία test δεδομένων"""
+        self.backend = EEGBackendCore()
+
+        # Create synthetic EEG data
+        self.sfreq = 128.0
+        self.duration = 10.0
+        self.n_samples = int(self.sfreq * self.duration)
+        self.ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        data = np.random.randn(len(self.ch_names), self.n_samples) * 1e-5
+        info = mne.create_info(ch_names=self.ch_names, sfreq=self.sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(data, info)
+
+        self.temp_files = {}
+
+    def tearDown(self):
+        """Καθαρισμός"""
+        for path in self.temp_files.values():
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def _create_temp_file(self, suffix):
+        """Helper to create temp files"""
+        f = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        path = f.name
+        f.close()
+        self.temp_files[suffix] = path
+        return path
+
+    def test_load_file_edf(self):
+        """Έλεγχος φόρτωσης EDF μέσω EEGBackendCore"""
+        edf_path = self._create_temp_file(".edf")
+        self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
+
+        result = self.backend.load_file(edf_path)
+        self.assertTrue(result["success"])
+        self.assertEqual(result["channels"], self.ch_names)
+        self.assertEqual(result["sampling_rate"], self.sfreq)
+        self.assertIn("n_annotations", result)
+
+    def test_load_file_fif(self):
+        """Έλεγχος φόρτωσης FIF μέσω EEGBackendCore"""
+        fif_path = self._create_temp_file(".fif")
+        self.test_raw.save(fif_path, overwrite=True, verbose=False)
+
+        result = self.backend.load_file(fif_path)
+        self.assertTrue(result["success"])
+        self.assertIn("n_annotations", result)
+
+    def test_load_file_csv(self):
+        """Έλεγχος φόρτωσης CSV μέσω EEGBackendCore"""
+        import pandas as pd
+
+        csv_path = self._create_temp_file(".csv")
+        data = self.test_raw.get_data().T
+        times = self.test_raw.times
+        df = pd.DataFrame(data, columns=self.ch_names)
+        df.insert(0, "time", times)
+        df.to_csv(csv_path, index=False)
+
+        result = self.backend.load_file(csv_path)
+        self.assertTrue(result["success"])
+        self.assertIn("n_annotations", result)
+
+    def test_get_file_info_multi_format(self):
+        """Έλεγχος λήψης πληροφοριών αρχείου σε πολλαπλά formats"""
+        edf_path = self._create_temp_file(".edf")
+        self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
+
+        info = self.backend.get_file_info(edf_path)
+        self.assertTrue(info["success"])
+        self.assertIn("format", info)
+        self.assertEqual(info["format"], ".edf")
+
+
 if __name__ == "__main__":
     # Run tests
     unittest.main(verbosity=2)
