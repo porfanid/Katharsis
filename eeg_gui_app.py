@@ -610,16 +610,21 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 f"Αδυναμία φόρτωσης αρχείου για επιλογή καναλιών:\n{str(e)}",
             )
 
-    def on_channels_selected(self, selected_channels):
+    def on_channels_selected(self, selected_channels, analysis_method="ICA"):
         """
         Χειρισμός επιλογής καναλιών και έναρξη επεξεργασίας
 
-        Αποθηκεύει τα επιλεγμένα κανάλια και ξεκινά την επεξεργασία των δεδομένων.
+        Αποθηκεύει τα επιλεγμένα κανάλια και τη μέθοδο ανάλυσης,
+        και ξεκινά την επεξεργασία των δεδομένων.
 
         Args:
             selected_channels (List[str]): Λίστα επιλεγμένων καναλιών
+            analysis_method (str): Μέθοδος ανάλυσης ("ICA" ή "PCA")
         """
         self.selected_channels = selected_channels
+        self.analysis_method = analysis_method
+        # Set the analysis method in the service
+        self.service.set_analysis_method(analysis_method)
         self.start_processing()
 
     def start_processing(self):

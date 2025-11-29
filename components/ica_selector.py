@@ -40,11 +40,20 @@ class PreviewUpdateThread(QThread):
 
     preview_ready = pyqtSignal(object, object)  # (original_raw, cleaned_raw)
 
-    def __init__(self, ica, raw, components_to_remove: List[int]):
+    def __init__(
+        self,
+        ica,
+        raw,
+        components_to_remove: List[int],
+        processor=None,
+        analysis_method="ICA",
+    ):
         super().__init__()
         self.ica = ica
         self.raw = raw
         self.components_to_remove = components_to_remove
+        self.processor = processor
+        self.analysis_method = analysis_method
 
     def run(self):
         try:
@@ -53,18 +62,30 @@ class PreviewUpdateThread(QThread):
                 self.preview_ready.emit(self.raw, self.raw)
                 return
 
-            # Δημιουργία αντιγράφου για καθαρισμό
-            cleaned_raw = self.raw.copy()
+            # Use processor if available (for PCA and generic ICA)
+            if self.processor is not None:
+                cleaned_raw = self.processor.apply_artifact_removal(
+                    self.components_to_remove
+                )
+                self.preview_ready.emit(self.raw, cleaned_raw)
+                return
 
-            # Ορισμός συνιστωσών προς αφαίρεση
-            ica_copy = self.ica.copy()
-            ica_copy.exclude = self.components_to_remove
+            # Fallback to ICA-specific handling (for backward compatibility)
+            if self.ica is not None:
+                # Δημιουργία αντιγράφου για καθαρισμό
+                cleaned_raw = self.raw.copy()
 
-            # Εφαρμογή καθαρισμού
-            cleaned_raw = ica_copy.apply(cleaned_raw, verbose=False)
+                # Ορισμός συνιστωσών προς αφαίρεση
+                ica_copy = self.ica.copy()
+                ica_copy.exclude = self.components_to_remove
 
-            # Εκπομπή των αποτελεσμάτων
-            self.preview_ready.emit(self.raw, cleaned_raw)
+                # Εφαρμογή καθαρισμού
+                cleaned_raw = ica_copy.apply(cleaned_raw, verbose=False)
+
+                # Εκπομπή των αποτελεσμάτων
+                self.preview_ready.emit(self.raw, cleaned_raw)
+            else:
+                self.preview_ready.emit(self.raw, None)
 
         except Exception as e:
             print(f"Σφάλμα στο preview thread: {str(e)}")
@@ -452,20 +473,135 @@ class ComponentDisplayWidget(QWidget):
         self.timeseries_canvas.draw()
         self.topomap_canvas.draw()
 
+    def plot_component_generic(self, processor, raw, is_artifact, method="PCA"):
+        """
+        Plot component using generic processor (works for PCA)
+
+        Args:
+            processor: Component processor (PCAProcessor or similar)
+            raw: Raw EEG data
+            is_artifact: Whether this component is suggested as artifact
+            method: Analysis method name ("ICA" or "PCA")
+        """
+        try:
+            # 1. Time-series plot (αριστερά)
+            self.timeseries_figure.clear()
+            ax_time = self.timeseries_figure.add_subplot(111)
+
+            sources = processor.get_sources_data()
+            comp_data = sources[self.component_idx]
+            times = raw.times[: len(comp_data)]
+            color = (
+                self.theme.get("danger", "#e74c3c")
+                if is_artifact
+                else self.theme.get("success", "#27ae60")
+            )
+
+            comp_label = "IC" if method == "ICA" else "PC"
+
+            ax_time.plot(times, comp_data, color=color, linewidth=1)
+            ax_time.set_title(
+                f"{comp_label} {self.component_idx} - Time Series",
+                fontsize=9,
+                color=self.theme["text"],
+            )
+            ax_time.grid(True, linestyle="--", alpha=0.5)
+            ax_time.set_xlabel("Time (s)", fontsize=8)
+            ax_time.set_ylabel("Amplitude", fontsize=8)
+            self.timeseries_figure.tight_layout(pad=0.3)
+
+            # 2. Topographic map (δεξιά)
+            self.topomap_figure.clear()
+            ax_topo = self.topomap_figure.add_subplot(111)
+
+            # Get spatial patterns from processor
+            components = processor.get_components()
+            if components is not None:
+                component_weights = components[:, self.component_idx]
+
+                # Τοπογραφική απεικόνιση με MNE
+                import mne.viz
+
+                mne.viz.plot_topomap(
+                    component_weights,
+                    raw.info,
+                    axes=ax_topo,
+                    show=False,
+                    cmap="RdBu_r",
+                    sensors=True,
+                )
+                ax_topo.set_title(
+                    f"{comp_label} {self.component_idx} - Topomap",
+                    fontsize=9,
+                    color=self.theme["text"],
+                )
+            else:
+                ax_topo.text(
+                    0.5,
+                    0.5,
+                    "No spatial data",
+                    ha="center",
+                    va="center",
+                    fontsize=10,
+                )
+                ax_topo.set_title(
+                    f"{comp_label} {self.component_idx}",
+                    fontsize=9,
+                    color=self.theme["text"],
+                )
+
+            self.topomap_figure.tight_layout(pad=0.3)
+
+        except Exception as e:
+            # Error handling
+            self.timeseries_figure.clear()
+            ax_time = self.timeseries_figure.add_subplot(111)
+            ax_time.text(
+                0.5,
+                0.5,
+                f"Time series error: {e}",
+                ha="center",
+                va="center",
+                color="red",
+                fontsize=8,
+            )
+
+            self.topomap_figure.clear()
+            ax_topo = self.topomap_figure.add_subplot(111)
+            ax_topo.text(
+                0.5,
+                0.5,
+                f"Topomap error: {e}",
+                ha="center",
+                va="center",
+                color="red",
+                fontsize=8,
+            )
+
+        # Refresh canvases
+        self.timeseries_canvas.draw()
+        self.topomap_canvas.draw()
+
 
 class ICAComponentSelector(QWidget):
+    """Component selector widget that works for both ICA and PCA analysis"""
+
     components_selected = pyqtSignal(list)
 
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
         self.theme = theme
-        self.ica = None
+        self.ica = None  # Can be ICA object or None for PCA
+        self.pca = None  # PCA processor for PCA analysis
+        self.processor = None  # Generic processor reference
         self.raw = None
         self.suggested_artifacts = []
         self.checkboxes = {}
         self.component_widgets = {}
         self.components_info = {}
         self.explanations = {}
+        self.analysis_method = "ICA"  # Track current method
+        self.n_components = 0  # Track number of components
 
         # Preview functionality
         self.preview_timer = QTimer()
@@ -481,9 +617,9 @@ class ICAComponentSelector(QWidget):
         main_layout.setSpacing(15)
 
         header_layout = QHBoxLayout()
-        title_label = QLabel("🔍 Επιλογή ICA Συνιστωσών για Αφαίρεση")
-        title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-        header_layout.addWidget(title_label)
+        self.title_label = QLabel("🔍 Επιλογή Συνιστωσών για Αφαίρεση")
+        self.title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
+        header_layout.addWidget(self.title_label)
         header_layout.addStretch()
         main_layout.addLayout(header_layout)
 
@@ -566,7 +702,9 @@ class ICAComponentSelector(QWidget):
         # Δημιουργούμε ένα κάθετο layout για το checkbox και το νέο κουμπί
         controls_layout = QVBoxLayout()
 
-        checkbox = QCheckBox(f" IC {i}")
+        # Use appropriate label based on analysis method
+        comp_label = "IC" if self.analysis_method == "ICA" else "PC"
+        checkbox = QCheckBox(f" {comp_label} {i}")
         checkbox.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         checkbox.setChecked(is_artifact)
         checkbox.setStyleSheet(f"color: {self.theme['text_light']}; border: none;")
@@ -607,7 +745,13 @@ class ICAComponentSelector(QWidget):
         controls_layout.addStretch()
 
         plot_widget = ComponentDisplayWidget(i, self.theme)
-        plot_widget.plot_component(self.ica, self.raw, is_artifact, {})
+        # Pass the appropriate data for plotting
+        if self.ica is not None:
+            plot_widget.plot_component(self.ica, self.raw, is_artifact, {})
+        elif self.processor is not None:
+            plot_widget.plot_component_generic(
+                self.processor, self.raw, is_artifact, self.analysis_method
+            )
 
         comp_layout.addLayout(controls_layout)  # Προσθέτουμε το layout με τα controls
         comp_layout.addWidget(plot_widget, 1)
@@ -671,7 +815,8 @@ class ICAComponentSelector(QWidget):
 
     def _on_checkbox_toggled(self):
         """Called when any checkbox is toggled - starts the preview update timer"""
-        if self.ica and self.raw:
+        # Check if we have data to work with (ICA or processor)
+        if (self.ica or self.processor) and self.raw:
             # Restart the timer - αν ο χρήστης κάνει γρήγορες αλλαγές,
             # περιμένουμε 500ms από την τελευταία αλλαγή
             self.preview_timer.stop()
@@ -679,7 +824,10 @@ class ICAComponentSelector(QWidget):
 
     def _start_preview_update(self):
         """Starts the background thread to compute the cleaned signal"""
-        if not self.ica or not self.raw:
+        if not self.raw:
+            return
+
+        if not self.ica and not self.processor:
             return
 
         # Ακύρωσε το τυχόν προηγούμενο thread αν τρέχει ακόμα
@@ -692,43 +840,83 @@ class ICAComponentSelector(QWidget):
 
         # Δημιούργησε και ξεκίνησε το νέο thread
         self.preview_thread = PreviewUpdateThread(
-            self.ica, self.raw, selected_components
+            self.ica,
+            self.raw,
+            selected_components,
+            processor=self.processor,
+            analysis_method=self.analysis_method,
         )
         self.preview_thread.preview_ready.connect(self.preview_widget.update_preview)
         self.preview_thread.start()
 
     def set_ica_data(
         self,
-        ica,
-        raw,
-        suggested_artifacts,
+        ica=None,
+        pca=None,
+        processor=None,
+        raw=None,
+        suggested_artifacts=None,
         components_info=None,
         explanations=None,
+        analysis_method="ICA",
         **kwargs,
     ):
-        # ... (Η συνάρτηση παραμένει ίδια με προσθήκη αρχικού preview)
+        """
+        Set component data for visualization
+
+        Supports both ICA and PCA analysis methods.
+
+        Args:
+            ica: MNE ICA object (for ICA analysis)
+            pca: sklearn PCA object (for PCA analysis)
+            processor: Generic component processor
+            raw: Raw EEG data
+            suggested_artifacts: List of suggested artifact component indices
+            components_info: Dictionary with component statistics
+            explanations: Dictionary with artifact explanations
+            analysis_method: "ICA" or "PCA"
+        """
         self.ica = ica
+        self.pca = pca
+        self.processor = processor
         self.raw = raw
-        self.suggested_artifacts = suggested_artifacts
+        self.suggested_artifacts = suggested_artifacts or []
         self.components_info = components_info or {}
         self.explanations = explanations or {}
+        self.analysis_method = analysis_method
 
+        # Determine number of components based on analysis method
+        if ica is not None:
+            self.n_components = ica.n_components_
+        elif processor is not None:
+            self.n_components = processor.n_components
+        else:
+            self.n_components = 0
+
+        # Update title based on method
+        self.title_label.setText(
+            f"🔍 Επιλογή {analysis_method} Συνιστωσών για Αφαίρεση"
+        )
+
+        # Clear existing components
         while self.components_layout.count():
             item = self.components_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         self.checkboxes.clear()
         self.component_widgets.clear()
-        for i in range(self.ica.n_components_):
+
+        # Create component widgets
+        for i in range(self.n_components):
             self.create_single_component_widget(i)
         self.components_layout.addStretch(1)
 
-        # Ενημέρωση του preview widget με τα δεδομένα καναλιών και callback
+        # Update preview widget with channel data and callback
         self.preview_widget.set_channel_data(raw)
         self.preview_widget.set_update_callback(self._start_preview_update)
 
-        # Ενημέρωση του αρχικού preview με τις προτεινόμενες συνιστώσες
-        if suggested_artifacts:
+        # Update initial preview with suggested components
+        if self.suggested_artifacts:
             self._start_preview_update()
 
     def _create_spectrogram_plot(self, component_idx):

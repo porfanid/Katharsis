@@ -10,6 +10,7 @@ import mne
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPixmap
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QFrame,
     QGridLayout,
@@ -20,6 +21,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSplitter,
     QTextEdit,
@@ -146,9 +148,10 @@ class FileInfoWidget(QFrame):
 
 
 class ChannelSelectorWidget(QWidget):
-    """Main channel selection widget"""
+    """Main channel selection widget with analysis method selection"""
 
-    channels_selected = pyqtSignal(list)  # Emits list of selected channel names
+    # Emits tuple of (selected channel names, analysis method)
+    channels_selected = pyqtSignal(list, str)
 
     def __init__(self, theme: Dict[str, str]):
         super().__init__()
@@ -158,6 +161,7 @@ class ChannelSelectorWidget(QWidget):
         self.channel_checkboxes = {}
         self.current_file = ""
         self.raw_data = None
+        self.analysis_method = "ICA"  # Default to ICA
 
         self.setup_ui()
 
@@ -174,16 +178,103 @@ class ChannelSelectorWidget(QWidget):
         main_layout.addWidget(title)
 
         # Description
-        description = QLabel(
+        self.description = QLabel(
             "Επιλέξτε τα κανάλια EEG που θέλετε να συμπεριλάβετε στην ανάλυση.\n"
-            "Συνιστώνται τουλάχιστον 3 κανάλια για βέλτιστα αποτελέσματα ICA."
+            "Συνιστώνται τουλάχιστον 3 κανάλια για βέλτιστα αποτελέσματα."
         )
-        description.setFont(QFont("Arial", 12))
-        description.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        description.setStyleSheet(
+        self.description.setFont(QFont("Arial", 12))
+        self.description.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.description.setStyleSheet(
             f"color: {self.theme['text_light']}; margin-bottom: 15px;"
         )
-        main_layout.addWidget(description)
+        main_layout.addWidget(self.description)
+
+        # Analysis Method Selector (ICA/PCA toggle)
+        method_group = QGroupBox("🔬 Μέθοδος Ανάλυσης / Analysis Method")
+        method_group.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        method_group.setStyleSheet(
+            f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 2px solid {self.theme['primary']};
+                border-radius: 8px;
+                margin: 5px 0px;
+                padding: 15px;
+                background-color: white;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: {self.theme['primary']};
+                background-color: white;
+            }}
+        """
+        )
+        method_layout = QHBoxLayout(method_group)
+        method_layout.setSpacing(20)
+
+        # Radio buttons for ICA/PCA selection
+        self.ica_radio = QRadioButton("🧠 ICA (Independent Component Analysis)")
+        self.ica_radio.setFont(QFont("Arial", 11))
+        self.ica_radio.setChecked(True)  # Default to ICA
+        self.ica_radio.setStyleSheet(
+            f"""
+            QRadioButton {{
+                padding: 8px;
+                color: {self.theme['text']};
+            }}
+            QRadioButton:checked {{
+                font-weight: bold;
+                color: {self.theme['primary']};
+            }}
+            QRadioButton::indicator {{
+                width: 18px;
+                height: 18px;
+            }}
+        """
+        )
+
+        self.pca_radio = QRadioButton("📊 PCA (Principal Component Analysis)")
+        self.pca_radio.setFont(QFont("Arial", 11))
+        self.pca_radio.setStyleSheet(
+            f"""
+            QRadioButton {{
+                padding: 8px;
+                color: {self.theme['text']};
+            }}
+            QRadioButton:checked {{
+                font-weight: bold;
+                color: {self.theme['primary']};
+            }}
+            QRadioButton::indicator {{
+                width: 18px;
+                height: 18px;
+            }}
+        """
+        )
+
+        # Button group for exclusive selection
+        self.method_button_group = QButtonGroup(self)
+        self.method_button_group.addButton(self.ica_radio)
+        self.method_button_group.addButton(self.pca_radio)
+        self.method_button_group.buttonClicked.connect(self._on_method_changed)
+
+        method_layout.addWidget(self.ica_radio)
+        method_layout.addWidget(self.pca_radio)
+        method_layout.addStretch()
+
+        # Method description label
+        self.method_info_label = QLabel(
+            "ICA: Καλύτερη για εντοπισμό βλεφαρισμών και μυϊκών artifacts"
+        )
+        self.method_info_label.setFont(QFont("Arial", 10))
+        self.method_info_label.setStyleSheet(
+            f"color: {self.theme['text_light']}; font-style: italic;"
+        )
+        method_layout.addWidget(self.method_info_label)
+
+        main_layout.addWidget(method_group)
 
         # Create splitter for layout
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -530,7 +621,7 @@ class ChannelSelectorWidget(QWidget):
             QMessageBox.warning(
                 self,
                 "Ανεπαρκή Κανάλια",
-                "Παρακαλώ επιλέξτε τουλάχιστον 3 κανάλια για αξιόπιστη ανάλυση ICA.",
+                f"Παρακαλώ επιλέξτε τουλάχιστον 3 κανάλια για αξιόπιστη ανάλυση {self.analysis_method}.",
             )
             return
 
@@ -544,6 +635,7 @@ class ChannelSelectorWidget(QWidget):
         🧠 EEG Κανάλια: {eeg_count}
         📊 Άλλα Κανάλια: {other_count}
         📈 Συνολικά: {len(selected_channels)}
+        🔬 Μέθοδος Ανάλυσης: {self.analysis_method}
         
         Επιλεγμένα κανάλια:
         {', '.join(selected_channels)}
@@ -560,4 +652,21 @@ class ChannelSelectorWidget(QWidget):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.channels_selected.emit(selected_channels)
+            self.channels_selected.emit(selected_channels, self.analysis_method)
+
+    def _on_method_changed(self, button):
+        """Handle analysis method change"""
+        if button == self.ica_radio:
+            self.analysis_method = "ICA"
+            self.method_info_label.setText(
+                "ICA: Καλύτερη για εντοπισμό βλεφαρισμών και μυϊκών artifacts"
+            )
+        else:
+            self.analysis_method = "PCA"
+            self.method_info_label.setText(
+                "PCA: Ταχύτερη, ιδανική για γρήγορη προκαταρκτική ανάλυση"
+            )
+
+    def get_analysis_method(self) -> str:
+        """Get the selected analysis method"""
+        return self.analysis_method
