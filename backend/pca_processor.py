@@ -83,10 +83,15 @@ class PCAProcessor(BaseComponentProcessor):
             self._original_data = data.copy()
 
             # Determine number of components
+            # PCA can have at most min(n_channels, n_samples) components
+            n_channels = len(raw.ch_names)
+            n_samples = data.shape[1]
+            max_components = min(n_channels, n_samples)
+
             if self.n_components is None:
-                self.n_components = min(len(raw.ch_names), len(raw.ch_names))
+                self.n_components = n_channels
             else:
-                self.n_components = min(self.n_components, len(raw.ch_names))
+                self.n_components = min(self.n_components, max_components)
 
             # Create and fit PCA
             self.pca = PCA(

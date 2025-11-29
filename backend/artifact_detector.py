@@ -318,7 +318,8 @@ class ArtifactDetector:
                 total_weights = np.sum(comp_weights)
 
                 # Αν > 50% των βαρών είναι σε frontal καναλιά, πιθανό EOG artifact
-                if frontal_weights / total_weights > 0.5:
+                # Guard against division by zero
+                if total_weights > 0 and frontal_weights / total_weights > 0.5:
                     artifacts.append(comp_idx)
 
             return artifacts
