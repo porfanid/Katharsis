@@ -4,6 +4,11 @@ GUI Components Package Initialization
 Αρχικοποίηση Package Στοιχείων GUI
 """
 
+from .band_power_display import (
+    BandPowerBarWidget,
+    BandPowerComparisonWidget,
+    BandPowerDisplayWidget,
+)
 from .channel_selector import ChannelSelectorWidget
 from .comparison_screen import ComparisonScreen
 from .ica_selector import ComponentDisplayWidget, ICAComponentSelector
@@ -21,4 +26,7 @@ __all__ = [
     "ComparisonPlotWidget",
     "ComparisonScreen",
     "ChannelSelectorWidget",
+    "BandPowerDisplayWidget",
+    "BandPowerBarWidget",
+    "BandPowerComparisonWidget",
 ]

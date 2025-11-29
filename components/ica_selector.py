@@ -103,6 +103,7 @@ class PreviewWidget(QWidget):
         self.selected_channel_idx = 0
         self.channel_names = []
         self.update_callback = None  # Callback για ενημέρωση preview
+        self.band_power_analyzer = None  # Will be set on first use
         self.setup_ui()
 
     def setup_ui(self):
@@ -201,10 +202,23 @@ class PreviewWidget(QWidget):
 
         layout.addLayout(header_layout)
 
-        # Canvas για τα γραφήματα
-        self.figure = Figure(figsize=(12, 6), dpi=80)
+        # Horizontal layout for signal plots and band power display
+        content_layout = QHBoxLayout()
+
+        # Canvas για τα γραφήματα (left side)
+        self.figure = Figure(figsize=(10, 6), dpi=80)
         self.canvas = CustomCanvas(self.figure)
-        layout.addWidget(self.canvas)
+        content_layout.addWidget(self.canvas, stretch=3)
+
+        # Band power display (right side)
+        from .band_power_display import BandPowerComparisonWidget
+
+        self.band_power_widget = BandPowerComparisonWidget(self.theme)
+        self.band_power_widget.setMinimumWidth(300)
+        self.band_power_widget.setMaximumWidth(400)
+        content_layout.addWidget(self.band_power_widget, stretch=1)
+
+        layout.addLayout(content_layout)
 
         # Αρχική εμφάνιση κενού γραφήματος
         self.show_empty_plot()
@@ -263,6 +277,12 @@ class PreviewWidget(QWidget):
             original_data = original_raw.get_data()[:, :n_samples]
             time_points = np.arange(n_samples) / original_raw.info["sfreq"]
 
+            # Initialize band power analyzer if needed
+            if self.band_power_analyzer is None:
+                from backend.band_power_analyzer import BandPowerAnalyzer
+
+                self.band_power_analyzer = BandPowerAnalyzer()
+
             if cleaned_raw is not None:
                 cleaned_data = cleaned_raw.get_data()[:, :n_samples]
 
@@ -319,6 +339,21 @@ class PreviewWidget(QWidget):
                 ax2.set_ylabel("Amplitude (μV)", fontsize=9)
                 ax2.grid(True, alpha=0.3)
 
+                # Compute and display band power comparison
+                try:
+                    original_powers = self.band_power_analyzer.compute_band_power_for_raw(
+                        original_raw, channel_idx=channel_idx
+                    )
+                    cleaned_powers = self.band_power_analyzer.compute_band_power_for_raw(
+                        cleaned_raw, channel_idx=channel_idx
+                    )
+                    self.band_power_widget.update_comparison(
+                        original_powers, cleaned_powers
+                    )
+                except Exception as bp_error:
+                    print(f"Error computing band power: {bp_error}")
+                    self.band_power_widget.clear()
+
             else:
                 # Μόνο το αρχικό σήμα αν υπάρχει σφάλμα
                 ax = self.figure.add_subplot(111)
@@ -342,6 +377,9 @@ class PreviewWidget(QWidget):
                 ax.set_xlabel("Χρόνος (s) / Time (s)", fontsize=10)
                 ax.set_ylabel("Amplitude (μV)", fontsize=10)
                 ax.grid(True, alpha=0.3)
+
+                # Clear band power display when no cleaned data
+                self.band_power_widget.clear()
 
             self.figure.tight_layout(pad=1.0)
             self.canvas.draw()
