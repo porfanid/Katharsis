@@ -1045,9 +1045,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
 
         data = np.array([alpha_signal, mixed_signal, delta_signal]) * 1e-5
 
-        info = mne.create_info(
-            ch_names=self.ch_names, sfreq=self.sfreq, ch_types="eeg"
-        )
+        info = mne.create_info(ch_names=self.ch_names, sfreq=self.sfreq, ch_types="eeg")
         self.test_raw = mne.io.RawArray(data, info)
 
     def test_compute_band_power_welch(self):

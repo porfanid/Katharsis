@@ -341,11 +341,15 @@ class PreviewWidget(QWidget):
 
                 # Compute and display band power comparison
                 try:
-                    original_powers = self.band_power_analyzer.compute_band_power_for_raw(
-                        original_raw, channel_idx=channel_idx
+                    original_powers = (
+                        self.band_power_analyzer.compute_band_power_for_raw(
+                            original_raw, channel_idx=channel_idx
+                        )
                     )
-                    cleaned_powers = self.band_power_analyzer.compute_band_power_for_raw(
-                        cleaned_raw, channel_idx=channel_idx
+                    cleaned_powers = (
+                        self.band_power_analyzer.compute_band_power_for_raw(
+                            cleaned_raw, channel_idx=channel_idx
+                        )
                     )
                     self.band_power_widget.update_comparison(
                         original_powers, cleaned_powers
@@ -1076,7 +1080,9 @@ class ICAComponentSelector(QWidget):
         if self.ica is not None:
             # Το MNE δημιουργεί τα γραφήματα. Το show=False είναι κρίσιμο
             # για να πάρουμε τα figures αντί να τα εμφανίσει μόνο του.
-            figures = self.ica.plot_properties(self.raw, picks=component_idx, show=False)
+            figures = self.ica.plot_properties(
+                self.raw, picks=component_idx, show=False
+            )
 
         else:
             # For PCA, create custom property plots
@@ -1162,7 +1168,9 @@ class ICAComponentSelector(QWidget):
             fig2 = Figure(figsize=(10, 3), dpi=100)
             ax3 = fig2.add_subplot(111)
 
-            freqs, psd = signal.welch(comp_data, fs=sfreq, nperseg=min(1024, len(comp_data)))
+            freqs, psd = signal.welch(
+                comp_data, fs=sfreq, nperseg=min(1024, len(comp_data))
+            )
             ax3.semilogy(freqs, psd)
             ax3.set_xlabel("Frequency (Hz)")
             ax3.set_ylabel("Power Spectral Density")

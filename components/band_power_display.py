@@ -202,13 +202,9 @@ class BandPowerComparisonWidget(QWidget):
         layout.setSpacing(5)
 
         # Title
-        title_label = QLabel(
-            "📊 Σύγκριση Ζωνών Συχνοτήτων / Frequency Band Comparison"
-        )
+        title_label = QLabel("📊 Σύγκριση Ζωνών Συχνοτήτων / Frequency Band Comparison")
         title_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        title_label.setStyleSheet(
-            f"color: {self.theme.get('text', '#212529')};"
-        )
+        title_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
         layout.addWidget(title_label)
 
         # Figure for comparison plots
