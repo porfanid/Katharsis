@@ -870,16 +870,12 @@ class TestMultiFormatImportExport(unittest.TestCase):
         raw = EEGDataManager.read_raw(csv_path)
         self.assertIsInstance(raw, mne.io.BaseRaw)
 
-    def test_export_raw_bdf(self):
-        """Έλεγχος εξαγωγής σε BDF format"""
+    def test_export_raw_bdf_unsupported(self):
+        """Έλεγχος ότι BDF export δεν υποστηρίζεται"""
         bdf_path = self._create_temp_file(".bdf")
-        success = EEGDataManager.export_raw(self.test_raw, bdf_path)
-        self.assertTrue(success)
-        self.assertTrue(os.path.exists(bdf_path))
-
-        # Verify by reading back
-        raw = EEGDataManager.read_raw(bdf_path)
-        self.assertIsInstance(raw, mne.io.BaseRaw)
+        # BDF export is not supported by MNE
+        with self.assertRaises(ValueError):
+            EEGDataManager.export_raw(self.test_raw, bdf_path)
 
     def test_export_raw_set(self):
         """Έλεγχος εξαγωγής σε EEGLAB (.set) format"""
@@ -918,11 +914,6 @@ class TestMultiFormatImportExport(unittest.TestCase):
         # Test CSV
         csv_path = self._create_temp_file(".csv")
         success = self.data_manager.save_cleaned_data(self.test_raw, csv_path)
-        self.assertTrue(success)
-
-        # Test BDF
-        bdf_path = self._create_temp_file(".bdf")
-        success = self.data_manager.save_cleaned_data(self.test_raw, bdf_path)
         self.assertTrue(success)
 
         # Test SET
@@ -1012,6 +1003,178 @@ class TestMultiFormatBackendCore(unittest.TestCase):
         self.assertTrue(info["success"])
         self.assertIn("format", info)
         self.assertEqual(info["format"], ".edf")
+
+
+class TestBandPowerAnalyzer(unittest.TestCase):
+    """Έλεγχοι για BandPowerAnalyzer"""
+
+    def setUp(self):
+        """Προετοιμασία test δεδομένων"""
+        from backend import BandPowerAnalyzer
+
+        self.analyzer = BandPowerAnalyzer()
+
+        # Create test raw data with known frequency content
+        self.sfreq = 256.0  # Higher sampling rate for better frequency resolution
+        self.duration = 10.0
+        self.n_samples = int(self.sfreq * self.duration)
+        self.ch_names = ["AF3", "T7", "Pz"]
+
+        # Create signals with specific frequency content
+        time = np.linspace(0, self.duration, self.n_samples)
+
+        # Channel 1: Strong alpha (10 Hz)
+        alpha_signal = np.sin(2 * np.pi * 10 * time)
+
+        # Channel 2: Mix of theta (6 Hz) and beta (20 Hz)
+        mixed_signal = np.sin(2 * np.pi * 6 * time) + np.sin(2 * np.pi * 20 * time)
+
+        # Channel 3: Delta (2 Hz) dominant
+        delta_signal = 2 * np.sin(2 * np.pi * 2 * time) + 0.5 * np.random.randn(
+            self.n_samples
+        )
+
+        data = np.array([alpha_signal, mixed_signal, delta_signal]) * 1e-5
+
+        info = mne.create_info(ch_names=self.ch_names, sfreq=self.sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(data, info)
+
+    def test_compute_band_power_welch(self):
+        """Έλεγχος υπολογισμού band power με Welch"""
+        # Test with alpha dominant signal (10 Hz)
+        alpha_data = np.sin(2 * np.pi * 10 * np.linspace(0, 10, 2560))
+        powers = self.analyzer.compute_band_power_welch(alpha_data, sfreq=256.0)
+
+        self.assertIsInstance(powers, dict)
+        self.assertIn("Delta", powers)
+        self.assertIn("Theta", powers)
+        self.assertIn("Alpha", powers)
+        self.assertIn("Beta", powers)
+        self.assertIn("Gamma", powers)
+
+        # All percentages should sum to approximately 100%
+        # (may be slightly less due to spectral leakage or rounding)
+        total = sum(powers.values())
+        self.assertGreater(total, 85)  # Allow some leakage/rounding
+        self.assertLessEqual(total, 101)  # Should not exceed 100% + small error
+
+        # Alpha should be dominant for 10 Hz signal
+        self.assertGreater(powers["Alpha"], powers["Delta"])
+        self.assertGreater(powers["Alpha"], powers["Gamma"])
+
+    def test_compute_band_power_for_raw(self):
+        """Έλεγχος υπολογισμού band power από Raw data"""
+        powers = self.analyzer.compute_band_power_for_raw(self.test_raw, channel_idx=0)
+
+        self.assertIsInstance(powers, dict)
+        self.assertEqual(len(powers), 5)  # 5 frequency bands
+
+        # All values should be percentages
+        for band_name, power in powers.items():
+            self.assertGreaterEqual(power, 0)
+            self.assertLessEqual(power, 100)
+
+    def test_compute_band_power_time_series(self):
+        """Έλεγχος υπολογισμού band power σε χρονικά παράθυρα"""
+        time_points, band_powers = self.analyzer.compute_band_power_time_series(
+            self.test_raw, channel_idx=0, window_duration=1.0, overlap=0.5
+        )
+
+        self.assertIsInstance(time_points, np.ndarray)
+        self.assertIsInstance(band_powers, dict)
+
+        # Should have multiple time points
+        self.assertGreater(len(time_points), 1)
+
+        # Each band should have the same number of values as time points
+        for band_name, values in band_powers.items():
+            self.assertEqual(len(values), len(time_points))
+            # All values should be percentages
+            self.assertTrue(np.all(values >= 0))
+            self.assertTrue(np.all(values <= 100))
+
+    def test_compute_average_band_power(self):
+        """Έλεγχος υπολογισμού μέσης τιμής band power πολλαπλών καναλιών"""
+        powers = self.analyzer.compute_average_band_power(self.test_raw)
+
+        self.assertIsInstance(powers, dict)
+        self.assertEqual(len(powers), 5)
+
+        # All values should be percentages
+        for band_name, power in powers.items():
+            self.assertGreaterEqual(power, 0)
+            self.assertLessEqual(power, 100)
+
+    def test_compute_band_power_comparison(self):
+        """Έλεγχος σύγκρισης band power μεταξύ δύο σημάτων"""
+        # Create a "cleaned" version with reduced high frequency content
+        cleaned_raw = self.test_raw.copy()
+        cleaned_raw.filter(l_freq=1.0, h_freq=30.0, verbose=False)
+
+        comparison = self.analyzer.compute_band_power_comparison(
+            self.test_raw, cleaned_raw, channel_idx=0
+        )
+
+        self.assertIn("original", comparison)
+        self.assertIn("cleaned", comparison)
+
+        self.assertIsInstance(comparison["original"], dict)
+        self.assertIsInstance(comparison["cleaned"], dict)
+
+        # Both should have all 5 bands
+        self.assertEqual(len(comparison["original"]), 5)
+        self.assertEqual(len(comparison["cleaned"]), 5)
+
+    def test_get_band_colors(self):
+        """Έλεγχος χρωμάτων ζωνών"""
+        colors = self.analyzer.get_band_colors()
+
+        self.assertIsInstance(colors, dict)
+        self.assertEqual(len(colors), 5)
+
+        # All colors should be hex codes
+        for band_name, color in colors.items():
+            self.assertTrue(color.startswith("#"))
+            self.assertEqual(len(color), 7)
+
+    def test_get_band_descriptions(self):
+        """Έλεγχος περιγραφών ζωνών"""
+        descriptions = self.analyzer.get_band_descriptions()
+
+        self.assertIsInstance(descriptions, dict)
+        self.assertEqual(len(descriptions), 5)
+
+        # All descriptions should be non-empty strings
+        for band_name, desc in descriptions.items():
+            self.assertIsInstance(desc, str)
+            self.assertGreater(len(desc), 0)
+
+    def test_custom_bands(self):
+        """Έλεγχος χρήσης custom frequency bands"""
+        from backend import BandPowerAnalyzer
+
+        custom_bands = {
+            "Low": (0.5, 10.0),
+            "High": (10.0, 40.0),
+        }
+        custom_analyzer = BandPowerAnalyzer(bands=custom_bands)
+
+        powers = custom_analyzer.compute_band_power_for_raw(
+            self.test_raw, channel_idx=0
+        )
+
+        self.assertEqual(len(powers), 2)
+        self.assertIn("Low", powers)
+        self.assertIn("High", powers)
+
+    def test_empty_data_handling(self):
+        """Έλεγχος χειρισμού άδειων δεδομένων"""
+        empty_data = np.array([])
+        powers = self.analyzer.compute_band_power_welch(empty_data, sfreq=256.0)
+
+        # Should return zeros for all bands
+        for power in powers.values():
+            self.assertEqual(power, 0.0)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ Backend Package Initialization
 """
 
 from .artifact_detector import ArtifactDetector
+from .band_power_analyzer import BandPowerAnalyzer
 from .base_processor import BaseComponentProcessor
 from .eeg_backend import EEGBackendCore, EEGDataManager, EEGPreprocessor
 from .eeg_service import EEGArtifactCleaningService
@@ -20,4 +21,5 @@ __all__ = [
     "PCAProcessor",
     "ArtifactDetector",
     "EEGArtifactCleaningService",
+    "BandPowerAnalyzer",
 ]

@@ -7,8 +7,8 @@ Channel Selector Component - Interactive channel selection interface
 from typing import Any, Dict, List, Optional
 
 import mne
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect
-from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPixmap, QBrush, QPen
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPalette, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -123,14 +123,22 @@ class ToggleSwitch(QWidget):
         painter.drawRect(QRect(self.width() // 2, 0, 22, self.height()))
 
         # Draw labels
-        painter.setPen(QPen(QColor("white") if not self._is_checked else QColor("#6c757d")))
+        painter.setPen(
+            QPen(QColor("white") if not self._is_checked else QColor("#6c757d"))
+        )
         painter.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        painter.drawText(QRect(5, 0, self.width() // 2 - 5, self.height()),
-                         Qt.AlignmentFlag.AlignCenter, "ICA")
+        painter.drawText(
+            QRect(5, 0, self.width() // 2 - 5, self.height()),
+            Qt.AlignmentFlag.AlignCenter,
+            "ICA",
+        )
 
         painter.setPen(QPen(QColor("white") if self._is_checked else QColor("#6c757d")))
-        painter.drawText(QRect(self.width() // 2, 0, self.width() // 2 - 5, self.height()),
-                         Qt.AlignmentFlag.AlignCenter, "PCA")
+        painter.drawText(
+            QRect(self.width() // 2, 0, self.width() // 2 - 5, self.height()),
+            Qt.AlignmentFlag.AlignCenter,
+            "PCA",
+        )
 
         # Draw handle (sliding circle)
         handle_width = self.width() // 2 - 6
@@ -138,7 +146,9 @@ class ToggleSwitch(QWidget):
         handle_rect = QRect(int(self._handle_position), 3, handle_width, handle_height)
 
         # Handle shadow
-        shadow_rect = QRect(int(self._handle_position) + 2, 5, handle_width, handle_height)
+        shadow_rect = QRect(
+            int(self._handle_position) + 2, 5, handle_width, handle_height
+        )
         painter.setBrush(QBrush(QColor(0, 0, 0, 30)))
         painter.drawRoundedRect(shadow_rect, 19, 19)
 
