@@ -962,9 +962,9 @@ class ICAComponentSelector(QWidget):
 
     def _create_spectrogram_plot(self, component_idx):
         """
-        Δημιουργεί spectrogram γράφημα για τη συγκεκριμένη συνιστώσα.
-        Το spectrogram είναι ιδανικό για τον εντοπισμό μυϊκών artifacts που
-        εμφανίζονται ως σύντομες εκρήξεις ενέργειας σε ευρύ φάσμα συχνοτήτων.
+        Creates a spectrogram plot for the specific component.
+        The spectrogram is ideal for detecting muscle artifacts that
+        appear as short bursts of energy across a wide frequency range.
         Works for both ICA and PCA.
         """
         try:
@@ -981,13 +981,13 @@ class ICAComponentSelector(QWidget):
             component_data = sources[component_idx]
             comp_label = "IC" if self.analysis_method == "ICA" else "PC"
 
-            # Παράμετροι για το spectrogram
-            fs = self.raw.info["sfreq"]  # Συχνότητα δειγματολήψίας
+            # Parameters for spectrogram
+            fs = self.raw.info["sfreq"]  # Sampling frequency
 
-            # Υπολογισμός spectrogram
-            # Χρησιμοποιούμε παράθυρο που δίνει καλή ανάλυση χρόνου-συχνότητας
-            nperseg = min(1024, len(component_data) // 8)  # Μέγεθος παραθύρου
-            noverlap = nperseg // 2  # Επικάλυψη παραθύρων
+            # Calculate spectrogram
+            # Using window that gives good time-frequency resolution
+            nperseg = min(1024, len(component_data) // 8)  # Window size
+            noverlap = nperseg // 2  # Window overlap
 
             frequencies, times, Sxx = signal.spectrogram(
                 component_data,
@@ -997,54 +997,54 @@ class ICAComponentSelector(QWidget):
                 scaling="density",
             )
 
-            # Δημιουργία figure
+            # Create figure
             fig = Figure(figsize=(10, 4), dpi=100)
             ax = fig.add_subplot(111)
 
-            # Εμφάνιση spectrogram σε dB scale για καλύτερη οπτικοποίηση
+            # Display spectrogram in dB scale for better visualization
             Sxx_db = 10 * np.log10(
                 Sxx + 1e-12
-            )  # Προσθέτουμε μικρή τιμή για αποφυγή log(0)
+            )  # Add small value to avoid log(0)
 
-            # Δημιουργία του spectrogram plot
+            # Create the spectrogram plot
             im = ax.pcolormesh(
                 times, frequencies, Sxx_db, shading="gouraud", cmap="viridis"
             )
 
-            # Ρύθμιση αξόνων και ετικετών
-            ax.set_ylabel("Συχνότητα (Hz) / Frequency (Hz)", fontsize=10)
-            ax.set_xlabel("Χρόνος (s) / Time (s)", fontsize=10)
+            # Set axes and labels
+            ax.set_ylabel("Frequency (Hz)", fontsize=10)
+            ax.set_xlabel("Time (s)", fontsize=10)
             ax.set_title(
-                f"Spectrogram - {comp_label} {component_idx}\n(Ανάλυση Χρόνου-Συχνότητας για Εντοπισμό Μυϊκών Artifacts)",
+                f"Spectrogram - {comp_label} {component_idx}\n(Time-Frequency Analysis for Muscle Artifact Detection)",
                 fontsize=11,
                 color=self.theme.get("text", "#000000"),
             )
 
-            # Περιορισμός συχνοτήτων στο ενδιαφέρον εύρος (0-100 Hz τυπικά για EEG)
+            # Limit frequencies to range of interest (0-100 Hz typical for EEG)
             ax.set_ylim(0, min(100, fs / 2))
 
-            # Προσθήκη colorbar
-            cbar = fig.colorbar(im, ax=ax, label="Ισχύς (dB) / Power (dB)")
+            # Add colorbar
+            cbar = fig.colorbar(im, ax=ax, label="Power (dB)")
             cbar.ax.tick_params(labelsize=8)
 
-            # Grid για καλύτερη αναγνωσιμότητα
+            # Grid for better readability
             ax.grid(True, alpha=0.3)
 
-            # Τελική διαμόρφωση
+            # Final layout
             fig.tight_layout(pad=2.0)
 
             return fig
 
         except Exception as e:
-            print(f"Σφάλμα στη δημιουργία spectrogram: {str(e)}")
+            print(f"Error creating spectrogram: {str(e)}")
 
-            # Σε περίπτωση σφάλματος, δημιουργούμε ένα figure με μήνυμα σφάλματος
+            # In case of error, create a figure with error message
             fig = Figure(figsize=(10, 4), dpi=100)
             ax = fig.add_subplot(111)
             ax.text(
                 0.5,
                 0.5,
-                f"Σφάλμα στη δημιουργία Spectrogram:\n{str(e)}",
+                f"Error creating Spectrogram:\n{str(e)}",
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
@@ -1052,7 +1052,7 @@ class ICAComponentSelector(QWidget):
                 color="red",
             )
             ax.set_title(
-                f"Spectrogram - IC {component_idx} (Σφάλμα)",
+                f"Spectrogram - IC {component_idx} (Error)",
                 color=self.theme.get("text", "#000000"),
             )
             ax.set_xticks([])
@@ -1062,8 +1062,8 @@ class ICAComponentSelector(QWidget):
 
     def show_component_properties(self, component_idx):
         """
-        Δημιουργεί και εμφανίζει ένα νέο παράθυρο με τις ιδιότητες της συνιστώσας.
-        Περιλαμβάνει τοπογραφία, PSD και Spectrogram για πλήρη ανάλυση.
+        Creates and displays a new window with the component properties.
+        Includes topography, PSD and Spectrogram for full analysis.
         Works for both ICA and PCA analysis.
         """
         # Check we have data to work with
@@ -1077,8 +1077,8 @@ class ICAComponentSelector(QWidget):
         # For ICA, use MNE's built-in plot_properties
         # For PCA, create custom plots
         if self.ica is not None:
-            # Το MNE δημιουργεί τα γραφήματα. Το show=False είναι κρίσιμο
-            # για να πάρουμε τα figures αντί να τα εμφανίσει μόνο του.
+            # MNE creates the plots. show=False is critical
+            # to get the figures instead of displaying them directly.
             figures = self.ica.plot_properties(
                 self.raw, picks=component_idx, show=False
             )
@@ -1087,36 +1087,36 @@ class ICAComponentSelector(QWidget):
             # For PCA, create custom property plots
             figures = self._create_pca_property_plots(component_idx)
 
-        # Δημιουργούμε το spectrogram γράφημα
+        # Create spectrogram plot
         spectrogram_fig = self._create_spectrogram_plot(component_idx)
 
-        # Δημιουργούμε ένα νέο παράθυρο διαλόγου (pop-up)
+        # Create new dialog window (pop-up)
         dialog = QDialog(self)
         dialog.setWindowTitle(
-            f"Λεπτομερής Ανάλυση Συνιστώσας {comp_label} {component_idx} / Detailed Analysis of Component {comp_label} {component_idx}"
+            f"Detailed Analysis of Component {comp_label} {component_idx}"
         )
-        dialog.setMinimumSize(1000, 800)  # Μεγαλύτερο παράθυρο για το επιπλέον γράφημα
+        dialog.setMinimumSize(1000, 800)  # Larger window for extra plot
         dialog_layout = QVBoxLayout(dialog)
 
-        # Προσθήκη τίτλου
-        title_label = QLabel(f"🔬 Ανάλυση Συνιστώσας {comp_label} {component_idx}")
+        # Add title
+        title_label = QLabel(f"🔬 Component {comp_label} {component_idx} Analysis")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setStyleSheet(
             f"color: {self.theme['text']}; margin: 10px; text-align: center;"
         )
         dialog_layout.addWidget(title_label)
 
-        # Για κάθε figure που έφτιαξε το MNE ή custom, δημιουργούμε έναν καμβά
+        # For each figure created by MNE or custom, create a canvas
         for fig in figures:
             canvas = FigureCanvas(fig)
             dialog_layout.addWidget(canvas)
 
-        # Προσθήκη του spectrogram στο τέλος
+        # Add spectrogram at the end
         if spectrogram_fig:
             spectrogram_canvas = FigureCanvas(spectrogram_fig)
             dialog_layout.addWidget(spectrogram_canvas)
 
-        # Εμφανίζουμε το παράθυρο
+        # Show the window
         dialog.exec()
 
     def _create_pca_property_plots(self, component_idx):

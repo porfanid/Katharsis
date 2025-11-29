@@ -79,22 +79,22 @@ def run_all_tests():
     skipped = len(result.skipped) if hasattr(result, "skipped") else 0
     successful = total_tests - failures - errors - skipped
 
-    print(f"📊 Σύνολο tests: {total_tests}")
-    print(f"✅ Επιτυχή: {successful}")
-    print(f"❌ Αποτυχίες: {failures}")
-    print(f"🚫 Σφάλματα: {errors}")
-    print(f"⏭️  Παραλείφθηκαν: {skipped}")
+    print(f"📊 Total tests: {total_tests}")
+    print(f"✅ Successful: {successful}")
+    print(f"❌ Failures: {failures}")
+    print(f"🚫 Errors: {errors}")
+    print(f"⏭️  Skipped: {skipped}")
 
     success_rate = (successful / total_tests * 100) if total_tests > 0 else 0
-    print(f"📈 Ποσοστό επιτυχίας: {success_rate:.1f}%")
+    print(f"📈 Success rate: {success_rate:.1f}%")
 
     if result.failures:
-        print(f"\n❌ ΑΠΟΤΥΧΙΕΣ:")
+        print("\n❌ FAILURES:")
         for test, traceback in result.failures:
             print(f"  - {test}: {traceback.split('AssertionError:')[-1].strip()}")
 
     if result.errors:
-        print(f"\n🚫 ΣΦΑΛΜΑΤΑ:")
+        print("\n🚫 ERRORS:")
         for test, traceback in result.errors:
             print(f"  - {test}: {traceback.split('Exception:')[-1].strip()}")
 

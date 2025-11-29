@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Backend Package Initialization
-Αρχικοποίηση Backend Package
 """
 
 from .artifact_detector import ArtifactDetector

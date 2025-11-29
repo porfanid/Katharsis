@@ -28,10 +28,10 @@ from backend import (
 
 
 class TestEEGDataManager(unittest.TestCase):
-    """Έλεγχοι για EEGDataManager"""
+    """Tests for EEGDataManager"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.data_manager = EEGDataManager()
 
         # Create synthetic EEG data for testing
@@ -56,12 +56,12 @@ class TestEEGDataManager(unittest.TestCase):
         )
 
     def tearDown(self):
-        """Καθαρισμός μετά από tests"""
+        """Cleanup after tests"""
         if os.path.exists(self.temp_edf_path):
             os.unlink(self.temp_edf_path)
 
     def test_load_edf_file_success(self):
-        """Έλεγχος επιτυχούς φόρτωσης EDF"""
+        """Test επιτυχούς φόρτωσης EDF"""
         raw, channels = self.data_manager.load_edf_file(self.temp_edf_path)
 
         self.assertIsInstance(raw, mne.io.BaseRaw)
@@ -69,12 +69,12 @@ class TestEEGDataManager(unittest.TestCase):
         self.assertEqual(len(raw.ch_names), len(self.ch_names))
 
     def test_load_edf_file_not_found(self):
-        """Έλεγχος σφάλματος όταν το αρχείο δεν βρίσκεται"""
+        """Test σφάλματος όταν το αρχείο δεν βρίσκεται"""
         with self.assertRaises(FileNotFoundError):
             self.data_manager.load_edf_file("nonexistent_file.edf")
 
     def test_validate_edf_file_valid(self):
-        """Έλεγχος επικύρωσης έγκυρου EDF αρχείου"""
+        """Test επικύρωσης έγκυρου EDF αρχείου"""
         info = self.data_manager.validate_edf_file(self.temp_edf_path)
 
         self.assertTrue(info["valid"])
@@ -83,14 +83,14 @@ class TestEEGDataManager(unittest.TestCase):
         self.assertAlmostEqual(info["duration"], self.duration, places=1)
 
     def test_validate_edf_file_invalid(self):
-        """Έλεγχος επικύρωσης μη έγκυρου αρχείου"""
+        """Test επικύρωσης μη έγκυρου αρχείου"""
         info = self.data_manager.validate_edf_file("nonexistent_file.edf")
 
         self.assertFalse(info["valid"])
         self.assertIn("error", info)
 
     def test_save_cleaned_data(self):
-        """Έλεγχος αποθήκευσης δεδομένων"""
+        """Test αποθήκευσης δεδομένων"""
         temp_output = tempfile.NamedTemporaryFile(suffix=".edf", delete=False)
         temp_output_path = temp_output.name
         temp_output.close()
@@ -107,10 +107,10 @@ class TestEEGDataManager(unittest.TestCase):
 
 
 class TestEEGPreprocessor(unittest.TestCase):
-    """Έλεγχοι για EEGPreprocessor"""
+    """Tests for EEGPreprocessor"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.preprocessor = EEGPreprocessor()
 
         # Create test raw data
@@ -124,7 +124,7 @@ class TestEEGPreprocessor(unittest.TestCase):
         self.test_raw = mne.io.RawArray(data, info)
 
     def test_apply_bandpass_filter(self):
-        """Έλεγχος εφαρμογής ζωνοπερατού φίλτρου"""
+        """Test εφαρμογής ζωνοπερατού φίλτρου"""
         filtered_raw = self.preprocessor.apply_bandpass_filter(
             self.test_raw, low_freq=1.0, high_freq=40.0
         )
@@ -132,13 +132,13 @@ class TestEEGPreprocessor(unittest.TestCase):
         self.assertIsInstance(filtered_raw, mne.io.BaseRaw)
         self.assertEqual(len(filtered_raw.ch_names), len(self.test_raw.ch_names))
 
-        # Δεδομένα δεν πρέπει να είναι ίδια μετά το φιλτράρισμα
+        # Data should not be the same after filtering
         orig_data = self.test_raw.get_data()
         filt_data = filtered_raw.get_data()
         self.assertFalse(np.array_equal(orig_data, filt_data))
 
     def test_get_data_statistics(self):
-        """Έλεγχος υπολογισμού στατιστικών"""
+        """Test υπολογισμού στατιστικών"""
         stats = self.preprocessor.get_data_statistics(self.test_raw)
 
         self.assertIsInstance(stats, dict)
@@ -148,7 +148,7 @@ class TestEEGPreprocessor(unittest.TestCase):
             self.assertIn(ch_name, stats)
             ch_stats = stats[ch_name]
 
-            # Έλεγχος ύπαρξης όλων των στατιστικών
+            # Check all statistics exist
             expected_keys = ["mean", "std", "variance", "min", "max", "range", "rms"]
             for key in expected_keys:
                 self.assertIn(key, ch_stats)
@@ -156,10 +156,10 @@ class TestEEGPreprocessor(unittest.TestCase):
 
 
 class TestICAProcessor(unittest.TestCase):
-    """Έλεγχοι για ICAProcessor"""
+    """Tests for ICAProcessor"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.ica_processor = ICAProcessor(n_components=3)
 
         # Create test raw data with more samples for ICA
@@ -194,7 +194,7 @@ class TestICAProcessor(unittest.TestCase):
         self.test_raw = mne.io.RawArray(mixed_data, info)
 
     def test_fit_ica_success(self):
-        """Έλεγχος επιτυχούς εκπαίδευσης ICA"""
+        """Test επιτυχούς εκπαίδευσης ICA"""
         success = self.ica_processor.fit_ica(self.test_raw)
 
         self.assertTrue(success)
@@ -202,7 +202,7 @@ class TestICAProcessor(unittest.TestCase):
         self.assertEqual(len(self.ica_processor.components_info), 3)
 
     def test_get_component_info(self):
-        """Έλεγχος λήψης πληροφοριών συνιστώσας"""
+        """Test λήψης πληροφοριών συνιστώσας"""
         self.ica_processor.fit_ica(self.test_raw)
 
         info = self.ica_processor.get_component_info(0)
@@ -221,7 +221,7 @@ class TestICAProcessor(unittest.TestCase):
             self.assertIn(key, info)
 
     def test_get_component_data(self):
-        """Έλεγχος λήψης δεδομένων συνιστώσας"""
+        """Test λήψης δεδομένων συνιστώσας"""
         self.ica_processor.fit_ica(self.test_raw)
 
         comp_data = self.ica_processor.get_component_data(0)
@@ -229,7 +229,7 @@ class TestICAProcessor(unittest.TestCase):
         self.assertEqual(len(comp_data), len(self.test_raw.times))
 
     def test_apply_artifact_removal(self):
-        """Έλεγχος εφαρμογής αφαίρεσης artifacts"""
+        """Test εφαρμογής αφαίρεσης artifacts"""
         self.ica_processor.fit_ica(self.test_raw)
 
         # Remove first component
@@ -245,10 +245,10 @@ class TestICAProcessor(unittest.TestCase):
 
 
 class TestArtifactDetector(unittest.TestCase):
-    """Έλεγχοι για ArtifactDetector"""
+    """Tests for ArtifactDetector"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.detector = ArtifactDetector()
         self.ica_processor = ICAProcessor(n_components=3)
 
@@ -291,7 +291,7 @@ class TestArtifactDetector(unittest.TestCase):
         self.ica_processor.fit_ica(self.test_raw)
 
     def test_detect_statistical_artifacts(self):
-        """Έλεγχος στατιστικού εντοπισμού artifacts"""
+        """Test στατιστικού εντοπισμού artifacts"""
         artifacts = self.detector.detect_statistical_artifacts(self.ica_processor)
 
         self.assertIsInstance(artifacts, list)
@@ -299,19 +299,19 @@ class TestArtifactDetector(unittest.TestCase):
         self.assertGreaterEqual(len(artifacts), 0)
 
     def test_detect_muscle_artifacts(self):
-        """Έλεγχος εντοπισμού μυϊκών artifacts"""
+        """Test εντοπισμού μυϊκών artifacts"""
         artifacts = self.detector.detect_muscle_artifacts(self.ica_processor)
 
         self.assertIsInstance(artifacts, list)
 
     def test_detect_drift_artifacts(self):
-        """Έλεγχος εντοπισμού drift artifacts"""
+        """Test εντοπισμού drift artifacts"""
         artifacts = self.detector.detect_drift_artifacts(self.ica_processor)
 
         self.assertIsInstance(artifacts, list)
 
     def test_detect_artifacts_multi_method(self):
-        """Έλεγχος πολλαπλού εντοπισμού artifacts"""
+        """Test πολλαπλού εντοπισμού artifacts"""
         final_artifacts, methods_results = self.detector.detect_artifacts_multi_method(
             self.ica_processor, self.test_raw, max_components=2
         )
@@ -327,7 +327,7 @@ class TestArtifactDetector(unittest.TestCase):
             self.assertIsInstance(methods_results[method], list)
 
     def test_get_artifact_explanation(self):
-        """Έλεγχος επεξήγησης artifacts"""
+        """Test επεξήγησης artifacts"""
         _, methods_results = self.detector.detect_artifacts_multi_method(
             self.ica_processor, self.test_raw
         )
@@ -338,10 +338,10 @@ class TestArtifactDetector(unittest.TestCase):
 
 
 class TestEEGArtifactCleaningService(unittest.TestCase):
-    """Έλεγχοι για EEGArtifactCleaningService"""
+    """Tests for EEGArtifactCleaningService"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.service = EEGArtifactCleaningService()
 
         # Create test EDF file
@@ -362,12 +362,12 @@ class TestEEGArtifactCleaningService(unittest.TestCase):
         test_raw.export(self.temp_edf_path, fmt="edf", overwrite=True, verbose=False)
 
     def tearDown(self):
-        """Καθαρισμός μετά από tests"""
+        """Cleanup after tests"""
         if os.path.exists(self.temp_edf_path):
             os.unlink(self.temp_edf_path)
 
     def test_full_processing_pipeline(self):
-        """Έλεγχος πλήρους pipeline επεξεργασίας"""
+        """Test πλήρους pipeline επεξεργασίας"""
         # Load file
         load_result = self.service.load_and_prepare_file(self.temp_edf_path)
         self.assertTrue(load_result["success"])
@@ -393,7 +393,7 @@ class TestEEGArtifactCleaningService(unittest.TestCase):
         self.assertIn("raw", viz_data)
 
     def test_get_processing_summary(self):
-        """Έλεγχος περίληψης επεξεργασίας"""
+        """Test περίληψης επεξεργασίας"""
         summary = self.service.get_processing_summary()
 
         self.assertIsInstance(summary, dict)
@@ -410,7 +410,7 @@ class TestEEGArtifactCleaningService(unittest.TestCase):
             self.assertIn(key, summary)
 
     def test_reset_state(self):
-        """Έλεγχος επαναφοράς κατάστασης"""
+        """Test επαναφοράς κατάστασης"""
         # Process some data first
         self.service.load_and_prepare_file(self.temp_edf_path)
         self.service.fit_ica_analysis()
@@ -426,10 +426,10 @@ class TestEEGArtifactCleaningService(unittest.TestCase):
 
 
 class TestPCAProcessor(unittest.TestCase):
-    """Έλεγχοι για PCAProcessor"""
+    """Tests for PCAProcessor"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.pca_processor = PCAProcessor(n_components=3)
 
         # Create test raw data with more samples for PCA
@@ -464,7 +464,7 @@ class TestPCAProcessor(unittest.TestCase):
         self.test_raw = mne.io.RawArray(mixed_data, info)
 
     def test_fit_pca_success(self):
-        """Έλεγχος επιτυχούς εκπαίδευσης PCA"""
+        """Test επιτυχούς εκπαίδευσης PCA"""
         success = self.pca_processor.fit(self.test_raw)
 
         self.assertTrue(success)
@@ -472,7 +472,7 @@ class TestPCAProcessor(unittest.TestCase):
         self.assertEqual(len(self.pca_processor.components_info), 3)
 
     def test_get_component_info(self):
-        """Έλεγχος λήψης πληροφοριών συνιστώσας PCA"""
+        """Test λήψης πληροφοριών συνιστώσας PCA"""
         self.pca_processor.fit(self.test_raw)
 
         info = self.pca_processor.get_component_info(0)
@@ -491,7 +491,7 @@ class TestPCAProcessor(unittest.TestCase):
             self.assertIn(key, info)
 
     def test_get_component_data(self):
-        """Έλεγχος λήψης δεδομένων συνιστώσας PCA"""
+        """Test λήψης δεδομένων συνιστώσας PCA"""
         self.pca_processor.fit(self.test_raw)
 
         comp_data = self.pca_processor.get_component_data(0)
@@ -499,7 +499,7 @@ class TestPCAProcessor(unittest.TestCase):
         self.assertEqual(len(comp_data), len(self.test_raw.times))
 
     def test_apply_artifact_removal(self):
-        """Έλεγχος εφαρμογής αφαίρεσης artifacts με PCA"""
+        """Test εφαρμογής αφαίρεσης artifacts με PCA"""
         self.pca_processor.fit(self.test_raw)
 
         # Remove first component
@@ -514,7 +514,7 @@ class TestPCAProcessor(unittest.TestCase):
         self.assertFalse(np.array_equal(orig_data, clean_data))
 
     def test_get_explained_variance_ratio(self):
-        """Έλεγχος λήψης explained variance ratio"""
+        """Test λήψης explained variance ratio"""
         self.pca_processor.fit(self.test_raw)
 
         variance_ratio = self.pca_processor.get_explained_variance_ratio()
@@ -524,15 +524,15 @@ class TestPCAProcessor(unittest.TestCase):
         self.assertLessEqual(np.sum(variance_ratio), 1.01)
 
     def test_get_method_name(self):
-        """Έλεγχος ονόματος μεθόδου"""
+        """Test ονόματος μεθόδου"""
         self.assertEqual(self.pca_processor.get_method_name(), "PCA")
 
 
 class TestPCAArtifactDetection(unittest.TestCase):
-    """Έλεγχοι για PCA artifact detection"""
+    """Tests for PCA artifact detection"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.detector = ArtifactDetector()
         self.pca_processor = PCAProcessor(n_components=3)
 
@@ -569,31 +569,31 @@ class TestPCAArtifactDetection(unittest.TestCase):
         self.pca_processor.fit(self.test_raw)
 
     def test_detect_statistical_artifacts_pca(self):
-        """Έλεγχος στατιστικού εντοπισμού artifacts με PCA"""
+        """Test στατιστικού εντοπισμού artifacts με PCA"""
         artifacts = self.detector.detect_statistical_artifacts(self.pca_processor)
 
         self.assertIsInstance(artifacts, list)
 
     def test_detect_muscle_artifacts_pca(self):
-        """Έλεγχος εντοπισμού μυϊκών artifacts με PCA"""
+        """Test εντοπισμού μυϊκών artifacts με PCA"""
         artifacts = self.detector.detect_muscle_artifacts(self.pca_processor)
 
         self.assertIsInstance(artifacts, list)
 
     def test_detect_drift_artifacts_pca(self):
-        """Έλεγχος εντοπισμού drift artifacts με PCA"""
+        """Test εντοπισμού drift artifacts με PCA"""
         artifacts = self.detector.detect_drift_artifacts(self.pca_processor)
 
         self.assertIsInstance(artifacts, list)
 
     def test_detect_pca_variance_artifacts(self):
-        """Έλεγχος εντοπισμού variance artifacts με PCA"""
+        """Test εντοπισμού variance artifacts με PCA"""
         artifacts = self.detector.detect_pca_variance_artifacts(self.pca_processor)
 
         self.assertIsInstance(artifacts, list)
 
     def test_detect_pca_spatial_artifacts(self):
-        """Έλεγχος εντοπισμού spatial artifacts με PCA"""
+        """Test εντοπισμού spatial artifacts με PCA"""
         artifacts = self.detector.detect_pca_spatial_artifacts(
             self.pca_processor, self.test_raw
         )
@@ -601,7 +601,7 @@ class TestPCAArtifactDetection(unittest.TestCase):
         self.assertIsInstance(artifacts, list)
 
     def test_detect_artifacts_multi_method_pca(self):
-        """Έλεγχος πολλαπλού εντοπισμού artifacts με PCA"""
+        """Test πολλαπλού εντοπισμού artifacts με PCA"""
         final_artifacts, methods_results = self.detector.detect_artifacts_multi_method(
             self.pca_processor, self.test_raw, max_components=2
         )
@@ -616,7 +616,7 @@ class TestPCAArtifactDetection(unittest.TestCase):
         self.assertIn("statistical", methods_results)
 
     def test_get_artifact_explanation_pca(self):
-        """Έλεγχος επεξήγησης artifacts με PCA"""
+        """Test επεξήγησης artifacts με PCA"""
         _, methods_results = self.detector.detect_artifacts_multi_method(
             self.pca_processor, self.test_raw
         )
@@ -627,10 +627,10 @@ class TestPCAArtifactDetection(unittest.TestCase):
 
 
 class TestEEGArtifactCleaningServicePCA(unittest.TestCase):
-    """Έλεγχοι για EEGArtifactCleaningService με PCA"""
+    """Tests for EEGArtifactCleaningService με PCA"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.service = EEGArtifactCleaningService(analysis_method="PCA")
 
         # Create test EDF file
@@ -651,12 +651,12 @@ class TestEEGArtifactCleaningServicePCA(unittest.TestCase):
         test_raw.export(self.temp_edf_path, fmt="edf", overwrite=True, verbose=False)
 
     def tearDown(self):
-        """Καθαρισμός μετά από tests"""
+        """Cleanup after tests"""
         if os.path.exists(self.temp_edf_path):
             os.unlink(self.temp_edf_path)
 
     def test_pca_processing_pipeline(self):
-        """Έλεγχος πλήρους pipeline επεξεργασίας με PCA"""
+        """Test πλήρους pipeline επεξεργασίας με PCA"""
         # Load file
         load_result = self.service.load_and_prepare_file(self.temp_edf_path)
         self.assertTrue(load_result["success"])
@@ -681,7 +681,7 @@ class TestEEGArtifactCleaningServicePCA(unittest.TestCase):
         self.assertIn("pca", viz_data)
 
     def test_switch_analysis_method(self):
-        """Έλεγχος εναλλαγής μεθόδου ανάλυσης"""
+        """Test εναλλαγής μεθόδου ανάλυσης"""
         # Start with PCA
         self.assertEqual(self.service.analysis_method, "PCA")
 
@@ -694,17 +694,17 @@ class TestEEGArtifactCleaningServicePCA(unittest.TestCase):
         self.assertEqual(self.service.analysis_method, "PCA")
 
     def test_processing_summary_includes_method(self):
-        """Έλεγχος ότι η περίληψη περιέχει τη μέθοδο ανάλυσης"""
+        """Test ότι η περίληψη περιέχει τη μέθοδο ανάλυσης"""
         summary = self.service.get_processing_summary()
         self.assertIn("analysis_method", summary)
         self.assertEqual(summary["analysis_method"], "PCA")
 
 
 class TestMultiFormatImportExport(unittest.TestCase):
-    """Έλεγχοι για υποστήριξη πολλαπλών formats (EDF, BDF, FIF, CSV, SET)"""
+    """Tests for υποστήριξη πολλαπλών formats (EDF, BDF, FIF, CSV, SET)"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.data_manager = EEGDataManager()
 
         # Create synthetic EEG data for testing
@@ -722,7 +722,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.temp_files = {}
 
     def tearDown(self):
-        """Καθαρισμός μετά από tests"""
+        """Cleanup after tests"""
         for path in self.temp_files.values():
             if os.path.exists(path):
                 os.unlink(path)
@@ -736,7 +736,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         return path
 
     def test_get_supported_import_formats(self):
-        """Έλεγχος λήψης υποστηριζόμενων formats εισαγωγής"""
+        """Test λήψης υποστηριζόμενων formats εισαγωγής"""
         formats = EEGDataManager.get_supported_import_formats()
         self.assertIn(".edf", formats)
         self.assertIn(".bdf", formats)
@@ -745,14 +745,14 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertIn(".set", formats)
 
     def test_get_supported_export_formats(self):
-        """Έλεγχος λήψης υποστηριζόμενων formats εξαγωγής"""
+        """Test λήψης υποστηριζόμενων formats εξαγωγής"""
         formats = EEGDataManager.get_supported_export_formats()
         self.assertIn(".edf", formats)
         self.assertIn(".fif", formats)
         self.assertIn(".csv", formats)
 
     def test_read_raw_edf(self):
-        """Έλεγχος ανάγνωσης EDF αρχείου με read_raw"""
+        """Test ανάγνωσης EDF αρχείου με read_raw"""
         edf_path = self._create_temp_file(".edf")
         self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
 
@@ -763,7 +763,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertGreater(raw.n_times, 0)
 
     def test_read_raw_fif(self):
-        """Έλεγχος ανάγνωσης FIF αρχείου με read_raw"""
+        """Test ανάγνωσης FIF αρχείου με read_raw"""
         fif_path = self._create_temp_file(".fif")
         self.test_raw.save(fif_path, overwrite=True, verbose=False)
 
@@ -773,7 +773,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertGreater(raw.n_times, 0)
 
     def test_read_raw_csv(self):
-        """Έλεγχος ανάγνωσης CSV αρχείου με read_raw"""
+        """Test ανάγνωσης CSV αρχείου με read_raw"""
         csv_path = self._create_temp_file(".csv")
 
         # Export to CSV manually
@@ -791,7 +791,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertGreater(raw.n_times, 0)
 
     def test_read_raw_unsupported_format(self):
-        """Έλεγχος σφάλματος για μη υποστηριζόμενη μορφή"""
+        """Test σφάλματος για μη υποστηριζόμενη μορφή"""
         # Create a temp file with unsupported extension
         xyz_path = self._create_temp_file(".xyz")
         with open(xyz_path, "w") as f:
@@ -801,12 +801,12 @@ class TestMultiFormatImportExport(unittest.TestCase):
             EEGDataManager.read_raw(xyz_path)
 
     def test_read_raw_file_not_found(self):
-        """Έλεγχος σφάλματος όταν το αρχείο δεν βρίσκεται"""
+        """Test σφάλματος όταν το αρχείο δεν βρίσκεται"""
         with self.assertRaises(FileNotFoundError):
             EEGDataManager.read_raw("nonexistent.edf")
 
     def test_load_raw_file(self):
-        """Έλεγχος φόρτωσης αρχείου με load_raw_file"""
+        """Test φόρτωσης αρχείου με load_raw_file"""
         edf_path = self._create_temp_file(".edf")
         self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
 
@@ -815,7 +815,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertEqual(channels, self.ch_names)
 
     def test_load_file_info(self):
-        """Έλεγχος λήψης πληροφοριών αρχείου"""
+        """Test λήψης πληροφοριών αρχείου"""
         edf_path = self._create_temp_file(".edf")
         self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
 
@@ -827,7 +827,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertEqual(info["format"], ".edf")
 
     def test_validate_file(self):
-        """Έλεγχος επικύρωσης αρχείου"""
+        """Test επικύρωσης αρχείου"""
         edf_path = self._create_temp_file(".edf")
         self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
 
@@ -838,7 +838,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertEqual(info["format"], ".edf")
 
     def test_export_raw_edf(self):
-        """Έλεγχος εξαγωγής σε EDF format"""
+        """Test εξαγωγής σε EDF format"""
         edf_path = self._create_temp_file(".edf")
         success = EEGDataManager.export_raw(self.test_raw, edf_path)
         self.assertTrue(success)
@@ -849,7 +849,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertIsInstance(raw, mne.io.BaseRaw)
 
     def test_export_raw_fif(self):
-        """Έλεγχος εξαγωγής σε FIF format"""
+        """Test εξαγωγής σε FIF format"""
         fif_path = self._create_temp_file(".fif")
         success = EEGDataManager.export_raw(self.test_raw, fif_path)
         self.assertTrue(success)
@@ -860,7 +860,7 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertIsInstance(raw, mne.io.BaseRaw)
 
     def test_export_raw_csv(self):
-        """Έλεγχος εξαγωγής σε CSV format"""
+        """Test εξαγωγής σε CSV format"""
         csv_path = self._create_temp_file(".csv")
         success = EEGDataManager.export_raw(self.test_raw, csv_path)
         self.assertTrue(success)
@@ -871,14 +871,14 @@ class TestMultiFormatImportExport(unittest.TestCase):
         self.assertIsInstance(raw, mne.io.BaseRaw)
 
     def test_export_raw_bdf_unsupported(self):
-        """Έλεγχος ότι BDF export δεν υποστηρίζεται"""
+        """Test ότι BDF export δεν υποστηρίζεται"""
         bdf_path = self._create_temp_file(".bdf")
         # BDF export is not supported by MNE
         with self.assertRaises(ValueError):
             EEGDataManager.export_raw(self.test_raw, bdf_path)
 
     def test_export_raw_set(self):
-        """Έλεγχος εξαγωγής σε EEGLAB (.set) format"""
+        """Test εξαγωγής σε EEGLAB (.set) format"""
         set_path = self._create_temp_file(".set")
         success = EEGDataManager.export_raw(self.test_raw, set_path)
         self.assertTrue(success)
@@ -894,13 +894,13 @@ class TestMultiFormatImportExport(unittest.TestCase):
             self.temp_files[".fdt"] = fdt_path
 
     def test_export_raw_unsupported_format(self):
-        """Έλεγχος σφάλματος για μη υποστηριζόμενη μορφή εξαγωγής"""
+        """Test σφάλματος για μη υποστηριζόμενη μορφή εξαγωγής"""
         xyz_path = self._create_temp_file(".xyz")
         with self.assertRaises(ValueError):
             EEGDataManager.export_raw(self.test_raw, xyz_path)
 
     def test_save_cleaned_data_multiple_formats(self):
-        """Έλεγχος αποθήκευσης σε διαφορετικές μορφές"""
+        """Test αποθήκευσης σε διαφορετικές μορφές"""
         # Test EDF
         edf_path = self._create_temp_file(".edf")
         success = self.data_manager.save_cleaned_data(self.test_raw, edf_path)
@@ -927,10 +927,10 @@ class TestMultiFormatImportExport(unittest.TestCase):
 
 
 class TestMultiFormatBackendCore(unittest.TestCase):
-    """Έλεγχοι για EEGBackendCore με πολλαπλά formats"""
+    """Tests for EEGBackendCore με πολλαπλά formats"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         self.backend = EEGBackendCore()
 
         # Create synthetic EEG data
@@ -960,7 +960,7 @@ class TestMultiFormatBackendCore(unittest.TestCase):
         return path
 
     def test_load_file_edf(self):
-        """Έλεγχος φόρτωσης EDF μέσω EEGBackendCore"""
+        """Test φόρτωσης EDF μέσω EEGBackendCore"""
         edf_path = self._create_temp_file(".edf")
         self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
 
@@ -971,7 +971,7 @@ class TestMultiFormatBackendCore(unittest.TestCase):
         self.assertIn("n_annotations", result)
 
     def test_load_file_fif(self):
-        """Έλεγχος φόρτωσης FIF μέσω EEGBackendCore"""
+        """Test φόρτωσης FIF μέσω EEGBackendCore"""
         fif_path = self._create_temp_file(".fif")
         self.test_raw.save(fif_path, overwrite=True, verbose=False)
 
@@ -980,7 +980,7 @@ class TestMultiFormatBackendCore(unittest.TestCase):
         self.assertIn("n_annotations", result)
 
     def test_load_file_csv(self):
-        """Έλεγχος φόρτωσης CSV μέσω EEGBackendCore"""
+        """Test φόρτωσης CSV μέσω EEGBackendCore"""
         import pandas as pd
 
         csv_path = self._create_temp_file(".csv")
@@ -995,7 +995,7 @@ class TestMultiFormatBackendCore(unittest.TestCase):
         self.assertIn("n_annotations", result)
 
     def test_get_file_info_multi_format(self):
-        """Έλεγχος λήψης πληροφοριών αρχείου σε πολλαπλά formats"""
+        """Test λήψης πληροφοριών αρχείου σε πολλαπλά formats"""
         edf_path = self._create_temp_file(".edf")
         self.test_raw.export(edf_path, fmt="edf", overwrite=True, verbose=False)
 
@@ -1006,10 +1006,10 @@ class TestMultiFormatBackendCore(unittest.TestCase):
 
 
 class TestBandPowerAnalyzer(unittest.TestCase):
-    """Έλεγχοι για BandPowerAnalyzer"""
+    """Tests for BandPowerAnalyzer"""
 
     def setUp(self):
-        """Προετοιμασία test δεδομένων"""
+        """Prepare test data"""
         from backend import BandPowerAnalyzer
 
         self.analyzer = BandPowerAnalyzer()
@@ -1040,7 +1040,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
         self.test_raw = mne.io.RawArray(data, info)
 
     def test_compute_band_power_welch(self):
-        """Έλεγχος υπολογισμού band power με Welch"""
+        """Test υπολογισμού band power με Welch"""
         # Test with alpha dominant signal (10 Hz)
         alpha_data = np.sin(2 * np.pi * 10 * np.linspace(0, 10, 2560))
         powers = self.analyzer.compute_band_power_welch(alpha_data, sfreq=256.0)
@@ -1063,7 +1063,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
         self.assertGreater(powers["Alpha"], powers["Gamma"])
 
     def test_compute_band_power_for_raw(self):
-        """Έλεγχος υπολογισμού band power από Raw data"""
+        """Test υπολογισμού band power από Raw data"""
         powers = self.analyzer.compute_band_power_for_raw(self.test_raw, channel_idx=0)
 
         self.assertIsInstance(powers, dict)
@@ -1075,7 +1075,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
             self.assertLessEqual(power, 100)
 
     def test_compute_band_power_time_series(self):
-        """Έλεγχος υπολογισμού band power σε χρονικά παράθυρα"""
+        """Test υπολογισμού band power σε χρονικά παράθυρα"""
         time_points, band_powers = self.analyzer.compute_band_power_time_series(
             self.test_raw, channel_idx=0, window_duration=1.0, overlap=0.5
         )
@@ -1094,7 +1094,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
             self.assertTrue(np.all(values <= 100))
 
     def test_compute_average_band_power(self):
-        """Έλεγχος υπολογισμού μέσης τιμής band power πολλαπλών καναλιών"""
+        """Test υπολογισμού μέσης τιμής band power πολλαπλών καναλιών"""
         powers = self.analyzer.compute_average_band_power(self.test_raw)
 
         self.assertIsInstance(powers, dict)
@@ -1106,7 +1106,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
             self.assertLessEqual(power, 100)
 
     def test_compute_band_power_comparison(self):
-        """Έλεγχος σύγκρισης band power μεταξύ δύο σημάτων"""
+        """Test σύγκρισης band power μεταξύ δύο σημάτων"""
         # Create a "cleaned" version with reduced high frequency content
         cleaned_raw = self.test_raw.copy()
         cleaned_raw.filter(l_freq=1.0, h_freq=30.0, verbose=False)
@@ -1126,7 +1126,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
         self.assertEqual(len(comparison["cleaned"]), 5)
 
     def test_get_band_colors(self):
-        """Έλεγχος χρωμάτων ζωνών"""
+        """Test χρωμάτων ζωνών"""
         colors = self.analyzer.get_band_colors()
 
         self.assertIsInstance(colors, dict)
@@ -1138,7 +1138,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
             self.assertEqual(len(color), 7)
 
     def test_get_band_descriptions(self):
-        """Έλεγχος περιγραφών ζωνών"""
+        """Test περιγραφών ζωνών"""
         descriptions = self.analyzer.get_band_descriptions()
 
         self.assertIsInstance(descriptions, dict)
@@ -1150,7 +1150,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
             self.assertGreater(len(desc), 0)
 
     def test_custom_bands(self):
-        """Έλεγχος χρήσης custom frequency bands"""
+        """Test χρήσης custom frequency bands"""
         from backend import BandPowerAnalyzer
 
         custom_bands = {
@@ -1168,7 +1168,7 @@ class TestBandPowerAnalyzer(unittest.TestCase):
         self.assertIn("High", powers)
 
     def test_empty_data_handling(self):
-        """Έλεγχος χειρισμού άδειων δεδομένων"""
+        """Test χειρισμού άδειων δεδομένων"""
         empty_data = np.array([])
         powers = self.analyzer.compute_band_power_welch(empty_data, sfreq=256.0)
 

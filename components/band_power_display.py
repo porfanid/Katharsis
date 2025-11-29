@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Band Power Display Widget - Εμφάνιση ποσοστών ισχύος ζωνών EEG
-==============================================================
+Band Power Display Widget - Display EEG frequency band power percentages
+=========================================================================
 
-Widget για εμφάνιση της ποσοστιαίας κατανομής ισχύος σε κάθε ζώνη
-συχνοτήτων EEG (Delta, Theta, Alpha, Beta, Gamma).
+Widget for displaying the percentage power distribution in each EEG
+frequency band (Delta, Theta, Alpha, Beta, Gamma).
 
 Author: porfanid
 Version: 1.0
@@ -115,11 +115,11 @@ class BandPowerDisplayWidget(QWidget):
 
     # Descriptions for each band
     BAND_DESCRIPTIONS = {
-        "Delta": "Βαθύς ύπνος / Deep sleep (0.5-4 Hz)",
-        "Theta": "Ελαφρύς ύπνος / Light sleep (4-8 Hz)",
-        "Alpha": "Χαλάρωση / Relaxation (8-12 Hz)",
-        "Beta": "Εστίαση / Focus (12-30 Hz)",
-        "Gamma": "Γνωστική λειτουργία / Cognition (30-40 Hz)",
+        "Delta": "Deep sleep (0.5-4 Hz)",
+        "Theta": "Light sleep (4-8 Hz)",
+        "Alpha": "Relaxation (8-12 Hz)",
+        "Beta": "Focus (12-30 Hz)",
+        "Gamma": "Cognition (30-40 Hz)",
     }
 
     def __init__(
@@ -138,7 +138,7 @@ class BandPowerDisplayWidget(QWidget):
         layout.setSpacing(4)
 
         # Title
-        title_label = QLabel("📊 Ζώνες Συχνοτήτων EEG / EEG Frequency Bands")
+        title_label = QLabel("📊 EEG Frequency Bands")
         title_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         title_label.setStyleSheet(
             f"color: {self.theme.get('text', '#212529')}; margin-bottom: 5px;"
@@ -202,7 +202,7 @@ class BandPowerComparisonWidget(QWidget):
         layout.setSpacing(5)
 
         # Title
-        title_label = QLabel("📊 Σύγκριση Ζωνών Συχνοτήτων / Frequency Band Comparison")
+        title_label = QLabel("📊 Frequency Band Comparison")
         title_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         title_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
         layout.addWidget(title_label)
@@ -223,7 +223,6 @@ class BandPowerComparisonWidget(QWidget):
         ax.text(
             0.5,
             0.5,
-            "Η σύγκριση θα εμφανιστεί μετά την επιλογή συνιστωσών\n"
             "Comparison will appear after selecting components",
             ha="center",
             va="center",
@@ -266,7 +265,7 @@ class BandPowerComparisonWidget(QWidget):
             x - width / 2,
             original_vals,
             width,
-            label="Αρχικό / Original",
+            label="Original",
             color=[self.BAND_COLORS[b] for b in bands],
             alpha=0.5,
             edgecolor="black",
@@ -276,7 +275,7 @@ class BandPowerComparisonWidget(QWidget):
             x + width / 2,
             cleaned_vals,
             width,
-            label="Καθαρό / Cleaned",
+            label="Cleaned",
             color=[self.BAND_COLORS[b] for b in bands],
             alpha=1.0,
             edgecolor="black",
@@ -284,7 +283,7 @@ class BandPowerComparisonWidget(QWidget):
         )
 
         # Labels and formatting
-        ax.set_ylabel("Ποσοστό (%) / Percentage (%)", fontsize=9)
+        ax.set_ylabel("Percentage (%)", fontsize=9)
         ax.set_xticks(x)
         ax.set_xticklabels(bands, fontsize=9)
         ax.set_ylim(0, max(max(original_vals), max(cleaned_vals)) * 1.2 + 5)
