@@ -46,8 +46,8 @@ jobs:
           PYINSTALLER_CMD="pyinstaller --noconfirm --onefile --windowed \
             --collect-all mne \
             --collect-all scipy \
+            --collect-all pkg_resources \
             --copy-metadata mne \
-            --copy-metadata jaraco.text \
             --hidden-import=sklearn.utils._typedefs \
             --hidden-import=scipy.signal \
             --hidden-import=backend \
