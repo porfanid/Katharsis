@@ -4,7 +4,7 @@ This document provides guidelines for GitHub Copilot and the Copilot coding agen
 
 ## Project Overview
 
-Katharsis is a Python application for automatic EEG artifact cleaning using Independent Component Analysis (ICA). It features a PyQt6 GUI and processes EDF (European Data Format) files.
+Katharsis is a Python application for automatic EEG artifact cleaning using Independent Component Analysis (ICA) or Principal Component Analysis (PCA). It features a PyQt6 GUI and processes EDF (European Data Format) files. The application supports modular component analysis with a switch to choose between ICA and PCA methods.
 
 ## Technology Stack
 
@@ -12,7 +12,7 @@ Katharsis is a Python application for automatic EEG artifact cleaning using Inde
 - **GUI Framework**: PyQt6
 - **EEG Processing**: MNE-Python
 - **Numerical Computing**: NumPy, SciPy
-- **Machine Learning**: Scikit-learn (for ICA)
+- **Machine Learning**: Scikit-learn (for ICA and PCA)
 - **Testing**: pytest, pytest-cov, pytest-qt
 - **Code Quality**: flake8, black, isort, mypy, pylint, bandit
 
@@ -22,16 +22,18 @@ Katharsis is a Python application for automatic EEG artifact cleaning using Inde
 Katharsis/
 ├── backend/                 # Core processing logic
 │   ├── eeg_backend.py       # Data management & I/O
+│   ├── base_processor.py    # Abstract base class for component processors
 │   ├── ica_processor.py     # ICA implementation
-│   ├── artifact_detector.py # Artifact detection algorithms
+│   ├── pca_processor.py     # PCA implementation
+│   ├── artifact_detector.py # Artifact detection algorithms (ICA & PCA)
 │   └── eeg_service.py       # Main service orchestration
 ├── components/              # GUI components (PyQt6)
 │   ├── channel_selector.py  # Channel selection widget
-│   ├── ica_selector.py      # ICA component selector
+│   ├── ica_selector.py      # Component selector (works for both ICA/PCA)
 │   ├── comparison_screen.py # Results comparison
 │   └── results_display.py   # Results visualization
 ├── tests/                   # Test suite
-│   ├── test_backend.py      # Backend tests
+│   ├── test_backend.py      # Backend tests (ICA, PCA, service)
 │   ├── test_components.py   # GUI tests
 │   └── conftest.py          # pytest fixtures
 ├── docs/                    # Documentation & GitHub Pages
@@ -157,9 +159,39 @@ bandit -r backend/ -f txt
 
 - Backend modules should be self-contained and testable without GUI
 - Use `EEGBackendCore` for data management and I/O
-- Use `ICAProcessor` for ICA analysis
-- Use `ArtifactDetector` for artifact detection
+- Use `BaseComponentProcessor` as the abstract base class for component analysis
+- Use `ICAProcessor` for ICA analysis (inherits from BaseComponentProcessor)
+- Use `PCAProcessor` for PCA analysis (inherits from BaseComponentProcessor)
+- Use `ArtifactDetector` for artifact detection (supports both ICA and PCA)
 - Use `EEGArtifactCleaningService` for orchestrating the full workflow
+- The service supports switching between ICA and PCA via `set_analysis_method()`
+
+### Component Analysis Architecture
+
+The application uses a modular design for component analysis:
+
+```python
+# Base class defines the interface
+class BaseComponentProcessor(ABC):
+    def fit(self, raw: mne.io.Raw) -> bool: ...
+    def get_sources_data(self) -> np.ndarray: ...
+    def get_components(self) -> np.ndarray: ...
+    def apply_artifact_removal(self, components: List[int]) -> mne.io.Raw: ...
+    def get_method_name(self) -> str: ...
+
+# ICA and PCA implement this interface
+class ICAProcessor(BaseComponentProcessor): ...
+class PCAProcessor(BaseComponentProcessor): ...
+
+# Service uses the interface polymorphically
+service = EEGArtifactCleaningService(analysis_method="ICA")  # or "PCA"
+```
+
+### Artifact Detection
+
+- ICA-specific methods: EOG detection via MNE
+- PCA-specific methods: Explained variance ratio, spatial pattern analysis
+- Common methods: Statistical outliers, muscle artifacts (high frequency), drift artifacts
 
 ### GUI Development
 
@@ -167,6 +199,7 @@ bandit -r backend/ -f txt
 - Use signals and slots for component communication
 - Test GUI components with pytest-qt
 - Set `QT_QPA_PLATFORM=offscreen` for headless testing
+- The component selector widget works for both ICA and PCA components
 
 ### Testing Guidelines
 
@@ -175,6 +208,7 @@ bandit -r backend/ -f txt
 - Follow the Arrange-Act-Assert pattern
 - Test both success and error cases
 - Backend tests should not require a GUI display
+- Include tests for both ICA and PCA processing pipelines
 
 ### Commit Messages
 
@@ -191,15 +225,18 @@ type(scope): description
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 Examples:
+- `feat(backend): add PCA processor for component analysis`
 - `feat(backend): add support for BDF files`
 - `fix(gui): resolve crash on file selection`
 - `docs(readme): update installation instructions`
-- `test(ica): add unit tests for component detection`
+- `test(pca): add unit tests for PCA artifact detection`
 
 ## Important Notes
 
 - The project is bilingual (Greek and English) - maintain consistency with existing documentation
 - EDF files are the primary supported format
 - ICA uses FastICA algorithm via MNE-Python and scikit-learn
-- Signal processing pipeline: Raw EEG → Band-pass Filter (1-40 Hz) → ICA → Artifact Removal → Clean EEG
-- Detection criteria include variance, kurtosis, range, and EOG correlation thresholds
+- PCA uses sklearn.decomposition.PCA
+- Signal processing pipeline: Raw EEG → Band-pass Filter (1-40 Hz) → ICA/PCA → Artifact Removal → Clean EEG
+- Detection criteria include variance, kurtosis, range, and EOG correlation thresholds (ICA) or explained variance ratio (PCA)
+- The GUI provides a switch to select between ICA (default) and PCA analysis methods
