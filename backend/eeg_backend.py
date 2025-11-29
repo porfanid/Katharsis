@@ -28,6 +28,11 @@ SUPPORTED_EXPORT_FORMATS = [".edf", ".bdf", ".fif", ".csv", ".set"]
 # Default sampling rate for CSV files without time column
 DEFAULT_SAMPLING_RATE = 256.0
 
+# Threshold for detecting if data is in microvolts vs volts
+# EEG data typically ranges from -100 to +100 microvolts
+# If max absolute value is greater than this threshold, assume data is in microvolts
+MICROVOLT_DETECTION_THRESHOLD = 1.0
+
 # Suppress MNE warnings for cleaner output
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 mne.set_log_level("WARNING")
@@ -290,9 +295,7 @@ class EEGDataManager:
         data = df.values.T
 
         # Convert to volts if data appears to be in microvolts
-        # EEG data typically ranges from -100 to +100 microvolts
-        # If max absolute value is greater than 1, assume data is in microvolts
-        if np.max(np.abs(data)) > 1:
+        if np.max(np.abs(data)) > MICROVOLT_DETECTION_THRESHOLD:
             data = data * 1e-6
 
         info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
@@ -514,7 +517,7 @@ class EEGDataManager:
                 raw.export(output_path, fmt="eeglab", overwrite=True, verbose=False)
             return True
         except Exception as e:
-            print(f"Σφάλμα εξαγωγής: {str(e)}")
+            warnings.warn(f"Σφάλμα εξαγωγής: {str(e)}", UserWarning)
             return False
 
     @staticmethod
@@ -560,7 +563,7 @@ class EEGDataManager:
             raw.export(output_path, fmt="edf", overwrite=True, verbose=False)
             return True
         except Exception as e:
-            print(f"Σφάλμα αποθήκευσης: {str(e)}")
+            warnings.warn(f"Σφάλμα αποθήκευσης: {str(e)}", UserWarning)
             return False
 
     @staticmethod
