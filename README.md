@@ -3,12 +3,12 @@
 [![CI](https://github.com/porfanid/Katharsis/actions/workflows/ci.yml/badge.svg)](https://github.com/porfanid/Katharsis/actions/workflows/ci.yml)
 [![Release](https://github.com/porfanid/Katharsis/actions/workflows/release.yml/badge.svg)](https://github.com/porfanid/Katharsis/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![GitHub Pages](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://porfanid.github.io/Katharsis/)
 
-> **Επαγγελματικός καθαρισμός EEG δεδομένων με προηγμένη ICA τεχνολογία**
+> **Επαγγελματικός καθαρισμός EEG δεδομένων με προηγμένη ICA/PCA τεχνολογία**
 
-Το **Katharsis** είναι μια εφαρμογή για τον αυτόματο καθαρισμό artifacts από δεδομένα EEG. Χρησιμοποιεί τεχνικές Independent Component Analysis (ICA) για τον εντοπισμό και την αφαίρεση artifacts που προέρχονται από βλεφαρισμούς, μυικές κινήσεις και άλλες πηγές θορύβου.
+Το **Katharsis** είναι μια εφαρμογή για τον αυτόματο καθαρισμό artifacts από δεδομένα EEG. Χρησιμοποιεί τεχνικές Independent Component Analysis (ICA) ή Principal Component Analysis (PCA) για τον εντοπισμό και την αφαίρεση artifacts που προέρχονται από βλεφαρισμούς, μυικές κινήσεις και άλλες πηγές θορύβου.
 
 [🌐 **Επίσημη Ιστοσελίδα**](https://porfanid.github.io/Katharsis/) | [📥 **Κατέβασμα**](https://github.com/porfanid/Katharsis/releases/latest) | [📖 **Documentation**](#χρήση) | [🤝 **Contributing**](CONTRIBUTING.md)
 
@@ -19,19 +19,25 @@
 - **Στατιστική Ανάλυση**: Ανάλυση διακύμανσης, κυρτότητας και εύρους σήματος
 - **Πολλαπλές Μέθοδοι**: Συνδυασμός διαφορετικών αλγορίθμων εντοπισμού
 
-### 🔬 Προηγμένη ICA Ανάλυση
+### 🔬 Προηγμένη ICA/PCA Ανάλυση
+- **Διπλή Μέθοδος**: Επιλογή μεταξύ ICA και PCA ανάλυσης
 - **FastICA Algorithm**: Γρήγορη και αποτελεσματική ανάλυση συνιστωσών
 - **Αυτόματη Βελτιστοποίηση**: Αυτόματος καθορισμός αριθμού συνιστωσών
-- **Οπτικοποίηση**: Διαδραστική προβολή ICA συνιστωσών
+- **Οπτικοποίηση**: Διαδραστική προβολή ICA/PCA συνιστωσών
 
 ### 📊 Γραφικό Περιβάλλον
 - **Modern UI**: Σύγχρονο περιβάλλον με PyQt6
 - **Multi-screen Workflow**: Οργανωμένη ροή εργασίας
 - **Live Preview**: Άμεση προεπισκόπηση αποτελεσμάτων καθαρισμού
 - **Comparison View**: Σύγκριση πριν/μετά με στατιστικά
+- **Band Power Analysis**: Ανάλυση ζωνών συχνοτήτων EEG (Delta, Theta, Alpha, Beta, Gamma)
 
 ### 📁 Υποστήριξη Formats
 - **EDF Files**: Πλήρης υποστήριξη European Data Format
+- **BDF Files**: Υποστήριξη BioSemi Data Format
+- **FIF Files**: MNE-Python native format
+- **CSV Files**: Απλά αρχεία κειμένου με δεδομένα
+- **SET Files**: EEGLAB format compatibility
 - **Multi-device**: Συμβατότητα με Emotiv Insight 2 και άλλες συσκευές
 - **Channel Selection**: Επιλογή συγκεκριμένων καναλιών για ανάλυση
 
@@ -39,7 +45,7 @@
 
 ### Απαιτήσεις Συστήματος
 
-- **Python**: 3.8 ή νεότερη έκδοση
+- **Python**: 3.9 ή νεότερη έκδοση
 - **Λειτουργικό Σύστημα**: Windows 10/11, macOS 10.15+, Linux
 - **RAM**: Τουλάχιστον 4GB (8GB συνιστάται)
 - **Αποθηκευτικός Χώρος**: 500MB για εγκατάσταση
@@ -74,11 +80,12 @@ python eeg_gui_app.py
 
 ### Πρώτη Χρήση
 
-1. **Επιλογή Αρχείου**: Κάντε κλικ στο "Επιλογή Αρχείου EDF"
+1. **Επιλογή Αρχείου**: Κάντε κλικ στο "Επιλογή Αρχείου EDF για Ανάλυση"
 2. **Επιλογή Καναλιών**: Επιλέξτε τα EEG κανάλια προς ανάλυση
-3. **ICA Ανάλυση**: Περιμένετε την ολοκλήρωση της ανάλυσης
-4. **Επιλογή Artifacts**: Επιλέξτε τις συνιστώσες προς αφαίρεση
-5. **Καθαρισμός**: Αποθηκεύστε το καθαρό αρχείο
+3. **Επιλογή Μεθόδου**: Επιλέξτε ICA ή PCA για την ανάλυση
+4. **Ανάλυση**: Περιμένετε την ολοκλήρωση της ανάλυσης
+5. **Επιλογή Artifacts**: Επιλέξτε τις συνιστώσες προς αφαίρεση
+6. **Καθαρισμός**: Αποθηκεύστε το καθαρό αρχείο
 
 ## 📖 Χρήση
 
@@ -86,12 +93,13 @@ python eeg_gui_app.py
 
 ```mermaid
 graph TD
-    A[Φόρτωση EDF] --> B[Επιλογή Καναλιών]
-    B --> C[ICA Ανάλυση]
-    C --> D[Εντοπισμός Artifacts]
-    D --> E[Επιλογή Συνιστωσών]
-    E --> F[Αφαίρεση Artifacts]
-    F --> G[Αποθήκευση Καθαρού Αρχείου]
+    A[Φόρτωση EEG αρχείου] --> B[Επιλογή Καναλιών]
+    B --> C[Επιλογή Μεθόδου ICA/PCA]
+    C --> D[Ανάλυση Συνιστωσών]
+    D --> E[Εντοπισμός Artifacts]
+    E --> F[Επιλογή Συνιστωσών]
+    F --> G[Αφαίρεση Artifacts]
+    G --> H[Αποθήκευση Καθαρού Αρχείου]
 ```
 
 ### Λεπτομερής Οδηγός
@@ -100,7 +108,9 @@ graph TD
 
 ```python
 # Υποστηριζόμενα formats
-supported_formats = ['.edf']
+supported_import_formats = ['.edf', '.bdf', '.fif', '.csv', '.set']
+# Note: BDF export not supported by MNE's export function
+supported_export_formats = ['.edf', '.fif', '.csv', '.set']
 sampling_rates = ['128 Hz', '256 Hz', '512 Hz', '1024 Hz']
 ```
 
@@ -110,15 +120,22 @@ sampling_rates = ['128 Hz', '256 Hz', '512 Hz', '1024 Hz']
 - **Χειροκίνητη Επιλογή**: Επιλέξτε συγκεκριμένα κανάλια
 - **10-20 System**: Υποστήριξη τυπικών θέσεων ηλεκτροδίων
 
-#### 3. ICA Παράμετροι
+#### 3. ICA/PCA Παράμετροι
 
 ```python
-# Προεπιλεγμένες παράμετροι
+# Προεπιλεγμένες παράμετροι ICA
 ica_params = {
     'n_components': None,  # Αυτόματος καθορισμός
     'method': 'fastica',
     'max_iter': 1000,
     'random_state': 42
+}
+
+# Προεπιλεγμένες παράμετροι PCA
+pca_params = {
+    'n_components': None,  # Αυτόματος καθορισμός
+    'random_state': 42,
+    'svd_solver': 'full'
 }
 ```
 
@@ -146,22 +163,25 @@ detection_criteria = {
 ```python
 from backend import EEGArtifactCleaningService
 
-# Δημιουργία service
-service = EEGArtifactCleaningService()
+# Δημιουργία service με ICA (default)
+service = EEGArtifactCleaningService(analysis_method="ICA")
 
-# Φόρτωση αρχείου
+# Ή με PCA
+service = EEGArtifactCleaningService(analysis_method="PCA")
+
+# Φόρτωση αρχείου (υποστηρίζει EDF, BDF, FIF, CSV, SET)
 result = service.load_and_prepare_file('data.edf')
 if result['success']:
     print(f"Φορτώθηκαν {len(result['channels'])} κανάλια")
 
-# ICA ανάλυση
-ica_result = service.fit_ica_analysis()
-if ica_result['success']:
-    print(f"ICA με {ica_result['n_components']} συνιστώσες")
+# Ανάλυση (ICA ή PCA ανάλογα με το analysis_method)
+analysis_result = service.fit_analysis()
+if analysis_result['success']:
+    print(f"{analysis_result['method']} με {analysis_result['n_components']} συνιστώσες")
 
 # Εντοπισμός artifacts
 detection = service.detect_artifacts()
-suggested = detection['suggested_components']
+suggested = detection['suggested_artifacts']
 print(f"Βρέθηκαν {len(suggested)} artifacts")
 
 # Καθαρισμός
@@ -174,19 +194,55 @@ service.save_cleaned_data(cleaned['cleaned_data'], 'clean_data.edf')
 ```python
 from backend.eeg_backend import EEGBackendCore
 from backend.ica_processor import ICAProcessor
+from backend.pca_processor import PCAProcessor
 from backend.artifact_detector import ArtifactDetector
 
 # Δημιουργία custom pipeline
 backend = EEGBackendCore()
+
+# Επιλογή ICA ή PCA
 ica = ICAProcessor(n_components=5)
+# ή
+pca = PCAProcessor(n_components=5)
+
 detector = ArtifactDetector(variance_threshold=1.5)
 
 # Custom processing
 result = backend.load_file('data.edf', ['AF3', 'AF4', 'Pz'])
 filtered_data = backend.get_filtered_data()
-ica.fit_ica(filtered_data)
+
+# Χρήση ICA
+ica.fit(filtered_data)
 artifacts, methods = detector.detect_artifacts_multi_method(
     ica, filtered_data, max_components=2
+)
+
+# Ή χρήση PCA
+pca.fit(filtered_data)
+artifacts, methods = detector.detect_artifacts_multi_method(
+    pca, filtered_data, max_components=2
+)
+```
+
+#### Band Power Analysis
+
+```python
+from backend.band_power_analyzer import BandPowerAnalyzer
+
+# Δημιουργία analyzer
+analyzer = BandPowerAnalyzer()
+
+# Υπολογισμός ισχύος ζωνών για ένα κανάλι
+band_powers = analyzer.compute_band_power_for_raw(raw_data, channel_idx=0)
+print(f"Delta: {band_powers['Delta']:.1f}%")
+print(f"Theta: {band_powers['Theta']:.1f}%")
+print(f"Alpha: {band_powers['Alpha']:.1f}%")
+print(f"Beta: {band_powers['Beta']:.1f}%")
+print(f"Gamma: {band_powers['Gamma']:.1f}%")
+
+# Σύγκριση πριν/μετά τον καθαρισμό
+comparison = analyzer.compute_band_power_comparison(
+    original_raw, cleaned_raw, channel_idx=0
 )
 ```
 
@@ -208,20 +264,40 @@ class ICAProcessor:
         )
 ```
 
+### Principal Component Analysis (PCA)
+
+```python
+# PCA Implementation
+from sklearn.decomposition import PCA
+
+class PCAProcessor:
+    def __init__(self, n_components=None):
+        self.pca = PCA(
+            n_components=n_components,
+            random_state=42,
+            svd_solver='full'
+        )
+```
+
 ### Artifact Detection Methods
 
-1. **EOG Detection**
+1. **EOG Detection** (ICA-specific)
    - Χρήση frontal καναλιών (AF3, AF4)
    - Cross-correlation με reference signal
    - Amplitude και frequency analysis
 
-2. **Statistical Analysis**
+2. **Statistical Analysis** (Κοινό για ICA/PCA)
    - **Variance**: Υψηλή διακύμανση = artifacts
    - **Kurtosis**: Μη-Gaussian κατανομή = artifacts  
    - **Range**: Μεγάλο εύρος = artifacts
 
-3. **Machine Learning**
-   - Feature extraction από ICA components
+3. **PCA-Specific Methods**
+   - Explained variance ratio analysis
+   - Spatial pattern analysis
+   - Component loading analysis
+
+4. **Machine Learning**
+   - Feature extraction από components
    - Classification με pre-trained models
    - Confidence scoring
 
@@ -230,10 +306,10 @@ class ICAProcessor:
 ```mermaid
 flowchart LR
     A[Raw EEG] --> B[Band-pass Filter<br/>1-40 Hz]
-    B --> C[ICA Decomposition<br/>FastICA]
+    B --> C[ICA/PCA Decomposition]
     C --> D[Component Analysis<br/>Statistical + ML]
     D --> E[Artifact Selection<br/>User + Auto]
-    E --> F[Component Removal<br/>Inverse ICA]
+    E --> F[Component Removal<br/>Inverse Transform]
     F --> G[Clean EEG]
 ```
 
@@ -269,35 +345,40 @@ flowchart LR
 
 ```
 Katharsis/
-├── 📁 backend/                 # Core processing logic
-│   ├── eeg_backend.py         # Data management & I/O
-│   ├── ica_processor.py       # ICA implementation
-│   ├── artifact_detector.py   # Artifact detection algorithms
-│   └── eeg_service.py         # Main service orchestration
-├── 📁 components/             # GUI components
-│   ├── channel_selector.py   # Channel selection widget
-│   ├── ica_selector.py       # ICA component selector
-│   ├── comparison_screen.py  # Results comparison
-│   └── results_display.py    # Results visualization
-├── 📁 tests/                 # Test suite
-│   ├── test_backend.py       # Backend tests
-│   ├── test_components.py    # GUI tests
-│   └── fixtures/             # Test data
-├── 📁 docs/                  # Documentation & GitHub Pages
-├── 📁 .github/               # GitHub Actions workflows
-├── eeg_gui_app.py            # Main application entry point
-├── requirements.txt          # Python dependencies
-└── README.md                # This file
+├── 📁 backend/                  # Core processing logic
+│   ├── eeg_backend.py          # Data management & I/O (multi-format support)
+│   ├── base_processor.py       # Abstract base class for ICA/PCA
+│   ├── ica_processor.py        # ICA implementation
+│   ├── pca_processor.py        # PCA implementation
+│   ├── artifact_detector.py    # Artifact detection algorithms
+│   ├── band_power_analyzer.py  # EEG frequency band analysis
+│   └── eeg_service.py          # Main service orchestration
+├── 📁 components/              # GUI components
+│   ├── channel_selector.py    # Channel selection widget
+│   ├── ica_selector.py        # Component selector (ICA/PCA)
+│   ├── comparison_screen.py   # Results comparison
+│   ├── band_power_display.py  # Band power visualization
+│   └── results_display.py     # Results visualization
+├── 📁 tests/                  # Test suite
+│   ├── test_backend.py        # Backend tests (ICA, PCA, service)
+│   ├── test_components.py     # GUI tests
+│   └── conftest.py            # pytest fixtures
+├── 📁 docs/                   # Documentation & GitHub Pages
+├── 📁 .github/                # GitHub Actions workflows
+├── eeg_gui_app.py             # Main application entry point
+├── requirements.txt           # Python dependencies
+└── README.md                 # This file
 ```
 
 ### Technology Stack
 
 #### Core Technologies
-- **Python 3.8+**: Main programming language
+- **Python 3.9+**: Main programming language
 - **PyQt6**: GUI framework
 - **MNE-Python**: EEG data processing
 - **NumPy/SciPy**: Numerical computing
-- **Scikit-learn**: Machine learning (ICA)
+- **Scikit-learn**: Machine learning (ICA and PCA)
+- **Pandas**: Data handling for CSV files
 
 #### Development Tools
 - **pytest**: Unit testing
@@ -308,6 +389,10 @@ Katharsis/
 
 #### Data Formats
 - **EDF**: European Data Format
+- **BDF**: BioSemi Data Format
+- **FIF**: MNE-Python native format
+- **CSV**: Comma-separated values
+- **SET**: EEGLAB format
 - **NumPy**: Array serialization
 - **JSON**: Configuration files
 
@@ -455,7 +540,7 @@ copies or substantial portions of the Software.
 
 ### Core Team
 
-- **[@porfanid](https://github.com/porfanid)** - Project Creator & Lead Developer
+- **[Pavlos Orfanidis](https://orfanidis.net.gr)** ([@porfanid](https://github.com/porfanid)) - Project Creator & Lead Developer
 
 ### Contributors
 
@@ -479,10 +564,9 @@ copies or substantial portions of the Software.
 ## 📈 Roadmap
 
 ### v1.1.0 (Επόμενη Έκδοση)
-- [ ] Υποστήριξη BDF format
-- [ ] Advanced artifact detection με ML
+- [ ] Advanced artifact detection with ML
 - [ ] Batch processing capability
-- [ ] Plugin system για custom algorithms
+- [ ] Plugin system for custom algorithms
 
 ### v1.2.0 (Μελλοντική)
 - [ ] Real-time processing
@@ -515,7 +599,7 @@ copies or substantial portions of the Software.
 
 <div align="center">
 
-**Δημιουργήθηκε με ❤️ για την ερευνητική κοινότητα**
+**Δημιουργήθηκε από τον [Pavlos Orfanidis](https://orfanidis.net.gr) με ❤️ για την ερευνητική κοινότητα**
 
 [🌐 Website](https://porfanid.github.io/Katharsis/) • [📥 Download](https://github.com/porfanid/Katharsis/releases/latest) • [📚 Docs](https://porfanid.github.io/Katharsis/) • [🐛 Issues](https://github.com/porfanid/Katharsis/issues) • [💬 Discussions](https://github.com/porfanid/Katharsis/discussions)
 
