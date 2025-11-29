@@ -7,8 +7,8 @@ Channel Selector Component - Interactive channel selection interface
 from typing import Any, Dict, List, Optional
 
 import mne
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPropertyAnimation, QEasingCurve, QRect
-from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPixmap, QBrush, QPen
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPalette, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFrame,

@@ -23,7 +23,6 @@ import mne
 import numpy as np
 from scipy import signal
 
-
 # EEG Frequency Band Definitions
 EEG_BANDS = {
     "Delta": (0.5, 4.0),
