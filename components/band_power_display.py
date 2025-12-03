@@ -15,7 +15,7 @@ from typing import Dict, Optional
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -320,3 +320,200 @@ class BandPowerComparisonWidget(QWidget):
     def clear(self):
         """Clear the comparison display."""
         self.show_empty_plot()
+
+
+class BandPowerAnalysisWidget(QWidget):
+    """
+    Enhanced widget for band power analysis with time range selection.
+
+    Combines time range selection with band power display to allow
+    users to analyze frequency content in specific time windows.
+
+    Signals:
+        time_range_changed: Emitted when time range changes (start, end)
+    """
+
+    time_range_changed = pyqtSignal(float, float)
+
+    def __init__(
+        self,
+        theme: Optional[Dict[str, str]] = None,
+        parent: Optional[QWidget] = None,
+    ):
+        """
+        Initialize the band power analysis widget.
+
+        Args:
+            theme: Theme dictionary for styling
+            parent: Parent widget
+        """
+        super().__init__(parent)
+        self.theme = theme or {}
+        self._raw_data = None
+        self._cleaned_data = None
+        self._max_time = 100.0
+
+        # Import here to avoid circular imports
+        from .signal_editor import RestingPhaseDisplay, TimeRangeSelector
+
+        self._time_range_selector_class = TimeRangeSelector
+        self._resting_phase_display_class = RestingPhaseDisplay
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Create the user interface."""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(10)
+
+        # Time range selector
+        self.time_range_selector = self._time_range_selector_class(
+            theme=self.theme,
+            parent=self,
+        )
+        self.time_range_selector.range_changed.connect(self._on_range_changed)
+        layout.addWidget(self.time_range_selector)
+
+        # Band power comparison
+        self.band_power_comparison = BandPowerComparisonWidget(
+            theme=self.theme,
+            parent=self,
+        )
+        layout.addWidget(self.band_power_comparison)
+
+        # Resting phase display
+        self.resting_phase_display = self._resting_phase_display_class(
+            theme=self.theme,
+            parent=self,
+        )
+        layout.addWidget(self.resting_phase_display)
+
+    def set_data(
+        self,
+        original_raw,
+        cleaned_raw=None,
+    ):
+        """
+        Set the EEG data for analysis.
+
+        Args:
+            original_raw: Original MNE Raw object
+            cleaned_raw: Cleaned MNE Raw object (optional)
+        """
+        self._raw_data = original_raw
+        self._cleaned_data = cleaned_raw
+
+        if original_raw is not None:
+            self._max_time = original_raw.times[-1]
+            self.time_range_selector.set_time_range(0.0, self._max_time)
+
+            # Detect and display resting phases
+            self._update_resting_phases()
+
+        self._update_band_powers()
+
+    def _on_range_changed(self, start_time: float, end_time: float):
+        """Handle time range change."""
+        self._update_band_powers(start_time, end_time)
+        self.time_range_changed.emit(start_time, end_time)
+
+    def _update_band_powers(
+        self,
+        start_time: Optional[float] = None,
+        end_time: Optional[float] = None,
+    ):
+        """Update band power display for the selected time range."""
+        if self._raw_data is None:
+            self.band_power_comparison.clear()
+            return
+
+        from backend import BandPowerAnalyzer
+
+        analyzer = BandPowerAnalyzer()
+
+        # Get time range
+        if start_time is None or end_time is None:
+            start_time, end_time = self.time_range_selector.get_range()
+
+        # Calculate band powers for original signal
+        original_powers = analyzer.compute_band_power_for_raw(
+            self._raw_data,
+            channel_idx=0,
+            tmin=start_time,
+            tmax=end_time,
+        )
+
+        # Calculate band powers for cleaned signal if available
+        if self._cleaned_data is not None:
+            cleaned_powers = analyzer.compute_band_power_for_raw(
+                self._cleaned_data,
+                channel_idx=0,
+                tmin=start_time,
+                tmax=end_time,
+            )
+        else:
+            cleaned_powers = original_powers
+
+        self.band_power_comparison.update_comparison(original_powers, cleaned_powers)
+
+    def _update_resting_phases(self):
+        """Update resting phase display."""
+        if self._raw_data is None:
+            self.resting_phase_display.clear()
+            return
+
+        from backend import BandPowerAnalyzer, SignalEditor
+
+        # Detect resting phases
+        phases = SignalEditor.detect_resting_phases(self._raw_data)
+
+        if not phases:
+            self.resting_phase_display.update_phases([])
+            return
+
+        # Calculate band powers for each phase
+        analyzer = BandPowerAnalyzer()
+        original_powers = {}
+        cleaned_powers = {}
+
+        for phase in phases:
+            phase_label = phase["label"]
+            start = phase["start"]
+            end = phase["end"]
+
+            # Original signal powers
+            try:
+                orig_power = analyzer.compute_band_power_for_raw(
+                    self._raw_data,
+                    channel_idx=0,
+                    tmin=start,
+                    tmax=min(end, self._raw_data.times[-1]),
+                )
+                original_powers[phase_label] = orig_power
+            except Exception:
+                original_powers[phase_label] = None
+
+            # Cleaned signal powers
+            if self._cleaned_data is not None:
+                try:
+                    clean_power = analyzer.compute_band_power_for_raw(
+                        self._cleaned_data,
+                        channel_idx=0,
+                        tmin=start,
+                        tmax=min(end, self._cleaned_data.times[-1]),
+                    )
+                    cleaned_powers[phase_label] = clean_power
+                except Exception:
+                    cleaned_powers[phase_label] = None
+
+        self.resting_phase_display.update_phases(
+            phases, original_powers, cleaned_powers
+        )
+
+    def clear(self):
+        """Clear all displays."""
+        self._raw_data = None
+        self._cleaned_data = None
+        self.band_power_comparison.clear()
+        self.resting_phase_display.clear()

@@ -694,6 +694,235 @@ class EEGPreprocessor:
         return stats_dict
 
 
+class SignalEditor:
+    """
+    Signal Editing Utilities - cutting, joining, and annotation detection.
+
+    Provides static methods for:
+    - Detecting resting phase annotations (eyes open/closed)
+    - Cutting signal regions
+    - Joining signal segments
+    """
+
+    # Common resting phase annotation patterns
+    EYES_OPEN_PATTERNS = [
+        "eyes open",
+        "eyes_open",
+        "eyesopen",
+        "eo",
+        "e/o",
+        "rest_open",
+        "resting_open",
+    ]
+
+    EYES_CLOSED_PATTERNS = [
+        "eyes closed",
+        "eyes_closed",
+        "eyesclosed",
+        "ec",
+        "e/c",
+        "rest_closed",
+        "resting_closed",
+    ]
+
+    @staticmethod
+    def detect_resting_phases(raw: mne.io.Raw) -> List[Dict[str, Any]]:
+        """
+        Detect resting phase annotations in EEG data.
+
+        Looks for annotations indicating "eyes open" or "eyes closed"
+        states commonly used in resting state EEG paradigms.
+
+        Args:
+            raw: Raw EEG data with annotations
+
+        Returns:
+            List of phase dictionaries with keys:
+                - label: Phase label (e.g., "Eyes Open", "Eyes Closed")
+                - start: Start time in seconds
+                - end: End time in seconds
+                - duration: Duration in seconds
+        """
+        phases = []
+
+        if not raw.annotations or len(raw.annotations) == 0:
+            return phases
+
+        for annot in raw.annotations:
+            description = annot["description"].lower().strip()
+            onset = annot["onset"]
+            duration = annot["duration"]
+
+            # Check for eyes open patterns
+            is_eyes_open = any(
+                pattern in description
+                for pattern in SignalEditor.EYES_OPEN_PATTERNS
+            )
+
+            # Check for eyes closed patterns
+            is_eyes_closed = any(
+                pattern in description
+                for pattern in SignalEditor.EYES_CLOSED_PATTERNS
+            )
+
+            if is_eyes_open:
+                phases.append({
+                    "label": "Eyes Open",
+                    "start": onset,
+                    "end": onset + duration if duration > 0 else onset + 60.0,
+                    "duration": duration if duration > 0 else 60.0,
+                    "original_description": annot["description"],
+                })
+            elif is_eyes_closed:
+                phases.append({
+                    "label": "Eyes Closed",
+                    "start": onset,
+                    "end": onset + duration if duration > 0 else onset + 60.0,
+                    "duration": duration if duration > 0 else 60.0,
+                    "original_description": annot["description"],
+                })
+
+        return phases
+
+    @staticmethod
+    def cut_signal_regions(
+        raw: mne.io.Raw,
+        regions_to_cut: List[Tuple[float, float]],
+    ) -> mne.io.Raw:
+        """
+        Cut specified regions from the signal and join remaining segments.
+
+        Args:
+            raw: Raw EEG data
+            regions_to_cut: List of (start_time, end_time) tuples in seconds
+
+        Returns:
+            New Raw object with cut regions removed and segments joined
+
+        Raises:
+            ValueError: If regions are invalid or result in empty signal
+        """
+        if not regions_to_cut:
+            return raw.copy()
+
+        # Sort regions by start time
+        sorted_regions = sorted(regions_to_cut, key=lambda x: x[0])
+
+        # Validate regions
+        signal_duration = raw.times[-1]
+        for start, end in sorted_regions:
+            if start < 0 or end > signal_duration:
+                raise ValueError(
+                    f"Region ({start}, {end}) is outside signal range "
+                    f"(0, {signal_duration})"
+                )
+            if start >= end:
+                raise ValueError(
+                    f"Invalid region: start ({start}) must be less than end ({end})"
+                )
+
+        # Check for overlapping regions
+        for i in range(len(sorted_regions) - 1):
+            if sorted_regions[i][1] > sorted_regions[i + 1][0]:
+                raise ValueError(
+                    f"Overlapping regions: {sorted_regions[i]} and "
+                    f"{sorted_regions[i + 1]}"
+                )
+
+        # Calculate segments to keep
+        segments_to_keep = []
+        current_start = 0.0
+
+        for cut_start, cut_end in sorted_regions:
+            if current_start < cut_start:
+                segments_to_keep.append((current_start, cut_start))
+            current_start = cut_end
+
+        # Add final segment if needed
+        if current_start < signal_duration:
+            segments_to_keep.append((current_start, signal_duration))
+
+        if not segments_to_keep:
+            raise ValueError("Cannot cut all regions - would result in empty signal")
+
+        # Extract and concatenate segments
+        sfreq = raw.info["sfreq"]
+        segments_data = []
+
+        for seg_start, seg_end in segments_to_keep:
+            start_sample = int(seg_start * sfreq)
+            end_sample = int(seg_end * sfreq)
+            segment = raw.get_data(start=start_sample, stop=end_sample)
+            segments_data.append(segment)
+
+        # Concatenate all segments
+        concatenated_data = np.concatenate(segments_data, axis=1)
+
+        # Create new Raw object
+        info = raw.info.copy()
+        new_raw = mne.io.RawArray(concatenated_data, info, verbose=False)
+
+        return new_raw
+
+    @staticmethod
+    def get_time_segment(
+        raw: mne.io.Raw,
+        start_time: float,
+        end_time: float,
+    ) -> mne.io.Raw:
+        """
+        Extract a time segment from the signal.
+
+        Args:
+            raw: Raw EEG data
+            start_time: Start time in seconds
+            end_time: End time in seconds
+
+        Returns:
+            New Raw object containing only the specified time segment
+        """
+        raw_cropped = raw.copy()
+        raw_cropped.crop(tmin=start_time, tmax=end_time, include_tmax=True)
+        return raw_cropped
+
+    @staticmethod
+    def get_annotations_in_range(
+        raw: mne.io.Raw,
+        start_time: float,
+        end_time: float,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get annotations within a specified time range.
+
+        Args:
+            raw: Raw EEG data with annotations
+            start_time: Start time in seconds
+            end_time: End time in seconds
+
+        Returns:
+            List of annotation dictionaries within the time range
+        """
+        annotations = []
+
+        if not raw.annotations or len(raw.annotations) == 0:
+            return annotations
+
+        for annot in raw.annotations:
+            onset = annot["onset"]
+            duration = annot["duration"]
+            annot_end = onset + duration if duration > 0 else onset
+
+            # Check if annotation overlaps with the time range
+            if onset <= end_time and annot_end >= start_time:
+                annotations.append({
+                    "description": annot["description"],
+                    "onset": onset,
+                    "duration": duration,
+                })
+
+        return annotations
+
+
 class EEGBackendCore:
     """
     Central Backend for EEG Processing.

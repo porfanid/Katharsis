@@ -4,6 +4,7 @@ GUI Components Package Initialization
 """
 
 from .band_power_display import (
+    BandPowerAnalysisWidget,
     BandPowerBarWidget,
     BandPowerComparisonWidget,
     BandPowerDisplayWidget,
@@ -15,6 +16,11 @@ from .results_display import (
     ComparisonPlotWidget,
     ResultsDisplayWidget,
     StatisticsTableWidget,
+)
+from .signal_editor import (
+    RestingPhaseDisplay,
+    SignalCutter,
+    TimeRangeSelector,
 )
 
 __all__ = [
@@ -28,4 +34,8 @@ __all__ = [
     "BandPowerDisplayWidget",
     "BandPowerBarWidget",
     "BandPowerComparisonWidget",
+    "BandPowerAnalysisWidget",
+    "TimeRangeSelector",
+    "RestingPhaseDisplay",
+    "SignalCutter",
 ]

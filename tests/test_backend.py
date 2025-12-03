@@ -1177,6 +1177,148 @@ class TestBandPowerAnalyzer(unittest.TestCase):
             self.assertEqual(power, 0.0)
 
 
+class TestSignalEditor(unittest.TestCase):
+    """Tests for SignalEditor - signal cutting and resting phase detection"""
+
+    def setUp(self):
+        """Prepare test data"""
+        from backend import SignalEditor
+
+        self.editor = SignalEditor
+
+        # Create test raw data
+        self.sfreq = 128.0
+        self.duration = 60.0  # 60 seconds
+        self.n_samples = int(self.sfreq * self.duration)
+        self.ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        # Create random EEG data
+        data = np.random.randn(len(self.ch_names), self.n_samples) * 1e-5
+        info = mne.create_info(ch_names=self.ch_names, sfreq=self.sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(data, info)
+
+    def test_detect_resting_phases_no_annotations(self):
+        """Test resting phase detection with no annotations"""
+        phases = self.editor.detect_resting_phases(self.test_raw)
+        self.assertEqual(len(phases), 0)
+
+    def test_detect_resting_phases_with_annotations(self):
+        """Test resting phase detection with eyes open/closed annotations"""
+        # Create raw data with annotations
+        raw_with_annot = self.test_raw.copy()
+
+        # Add eyes open/closed annotations
+        annotations = mne.Annotations(
+            onset=[5.0, 20.0, 40.0],
+            duration=[10.0, 15.0, 10.0],
+            description=["eyes open", "eyes closed", "Eyes Open"],
+        )
+        raw_with_annot.set_annotations(annotations)
+
+        phases = self.editor.detect_resting_phases(raw_with_annot)
+
+        self.assertEqual(len(phases), 3)
+        self.assertEqual(phases[0]["label"], "Eyes Open")
+        self.assertEqual(phases[1]["label"], "Eyes Closed")
+        self.assertEqual(phases[2]["label"], "Eyes Open")
+        self.assertEqual(phases[0]["start"], 5.0)
+        self.assertEqual(phases[0]["duration"], 10.0)
+
+    def test_cut_signal_regions_basic(self):
+        """Test basic signal cutting"""
+        # Cut a region from the middle
+        regions_to_cut = [(20.0, 30.0)]
+        cut_raw = self.editor.cut_signal_regions(self.test_raw, regions_to_cut)
+
+        # Duration should be reduced by 10 seconds
+        expected_duration = self.duration - 10.0
+        actual_duration = cut_raw.times[-1]
+        self.assertAlmostEqual(actual_duration, expected_duration, delta=0.1)
+
+        # Channel count should be preserved
+        self.assertEqual(len(cut_raw.ch_names), len(self.ch_names))
+
+    def test_cut_signal_regions_multiple(self):
+        """Test cutting multiple regions"""
+        regions_to_cut = [(5.0, 10.0), (25.0, 30.0), (45.0, 50.0)]
+        cut_raw = self.editor.cut_signal_regions(self.test_raw, regions_to_cut)
+
+        # Duration should be reduced by 15 seconds (3 * 5)
+        expected_duration = self.duration - 15.0
+        actual_duration = cut_raw.times[-1]
+        self.assertAlmostEqual(actual_duration, expected_duration, delta=0.1)
+
+    def test_cut_signal_regions_empty_list(self):
+        """Test cutting with empty region list returns copy"""
+        cut_raw = self.editor.cut_signal_regions(self.test_raw, [])
+
+        # Should return a copy with same duration
+        self.assertAlmostEqual(
+            cut_raw.times[-1],
+            self.test_raw.times[-1],
+            delta=0.01
+        )
+
+    def test_cut_signal_regions_invalid_range(self):
+        """Test cutting with invalid region range raises error"""
+        # Region extends beyond signal
+        regions_to_cut = [(50.0, 70.0)]
+
+        with self.assertRaises(ValueError):
+            self.editor.cut_signal_regions(self.test_raw, regions_to_cut)
+
+    def test_cut_signal_regions_invalid_order(self):
+        """Test cutting with start >= end raises error"""
+        regions_to_cut = [(30.0, 20.0)]
+
+        with self.assertRaises(ValueError):
+            self.editor.cut_signal_regions(self.test_raw, regions_to_cut)
+
+    def test_cut_signal_regions_overlapping(self):
+        """Test cutting with overlapping regions raises error"""
+        regions_to_cut = [(10.0, 25.0), (20.0, 35.0)]
+
+        with self.assertRaises(ValueError):
+            self.editor.cut_signal_regions(self.test_raw, regions_to_cut)
+
+    def test_get_time_segment(self):
+        """Test extracting a time segment"""
+        start_time = 10.0
+        end_time = 20.0
+        segment = self.editor.get_time_segment(self.test_raw, start_time, end_time)
+
+        # Duration should be approximately 10 seconds
+        actual_duration = segment.times[-1] - segment.times[0]
+        self.assertAlmostEqual(actual_duration, 10.0, delta=0.1)
+
+        # Channel count should be preserved
+        self.assertEqual(len(segment.ch_names), len(self.ch_names))
+
+    def test_get_annotations_in_range(self):
+        """Test getting annotations within a time range"""
+        # Create raw data with annotations
+        raw_with_annot = self.test_raw.copy()
+        annotations = mne.Annotations(
+            onset=[5.0, 15.0, 25.0, 35.0],
+            duration=[5.0, 5.0, 5.0, 5.0],
+            description=["event1", "event2", "event3", "event4"],
+        )
+        raw_with_annot.set_annotations(annotations)
+
+        # Get annotations in range 10-30 seconds
+        # event1 (5-10) touches the boundary at 10, event2 (15-20) is inside,
+        # event3 (25-30) touches the boundary at 30
+        annots = self.editor.get_annotations_in_range(raw_with_annot, 10.0, 30.0)
+
+        # Should include event1 (ends at 10), event2 (15-20), event3 (25-30)
+        self.assertEqual(len(annots), 3)
+        descriptions = [a["description"] for a in annots]
+        self.assertIn("event1", descriptions)
+        self.assertIn("event2", descriptions)
+        self.assertIn("event3", descriptions)
+        self.assertNotIn("event4", descriptions)
+
+
 if __name__ == "__main__":
     # Run tests
     unittest.main(verbosity=2)
