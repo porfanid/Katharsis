@@ -485,7 +485,7 @@ class SignalPreviewScreen(QWidget):
         title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet(
-            f"color: {self.theme['primary']}; margin: 5px;"
+            f"color: {self.theme.get('primary', '#007AFF')}; margin: 5px;"
         )
         layout.addWidget(title_label)
 
@@ -498,7 +498,7 @@ class SignalPreviewScreen(QWidget):
         description.setAlignment(Qt.AlignmentFlag.AlignCenter)
         description.setWordWrap(True)
         description.setStyleSheet(
-            f"color: {self.theme['text_light']}; margin-bottom: 10px;"
+            f"color: {self.theme.get('text_light', '#6c757d')}; margin-bottom: 10px;"
         )
         layout.addWidget(description)
 
@@ -723,7 +723,7 @@ class SignalPreviewScreen(QWidget):
         self.continue_btn.setStyleSheet(
             f"""
             QPushButton {{
-                background-color: {self.theme['primary']};
+                background-color: {self.theme.get('primary', '#007AFF')};
                 color: white;
                 border: none;
                 padding: 12px 25px;
@@ -731,7 +731,7 @@ class SignalPreviewScreen(QWidget):
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {self.theme['primary_hover']};
+                background-color: {self.theme.get('primary_hover', '#0056b3')};
             }}
         """
         )
