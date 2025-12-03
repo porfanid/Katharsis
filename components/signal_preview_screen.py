@@ -4,13 +4,13 @@ Signal Preview Screen - Preview and edit signal before processing
 ==================================================================
 
 Provides a screen where users can:
-- Preview the loaded EEG signal
-- Select time ranges for frequency analysis
+- Preview the loaded EEG signal per electrode
+- Select time ranges for frequency analysis per electrode
 - Detect and view resting phases (eyes open/closed)
-- Cut signal regions manually before artifact removal
+- Cut signal regions manually before artifact removal (per electrode view)
 
 Author: porfanid
-Version: 1.0
+Version: 2.0
 """
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
     QSlider,
     QSpacerItem,
     QSplitter,
+    QSpinBox,
     QTabWidget,
     QTextBrowser,
     QVBoxLayout,
@@ -86,55 +87,45 @@ class SignalEditingHelpDialog(QDialog):
 
         help_content = """
         <h2>🎯 Overview</h2>
-        <p>The Signal Editor allows you to <b>manually remove unwanted portions</b> of your EEG recording 
-        before automatic artifact removal. This is useful for:</p>
+        <p>Each electrode has its own tab where you can:</p>
         <ul>
-            <li>Removing sections with excessive noise or movement artifacts</li>
-            <li>Cutting out recording start/end artifacts</li>
-            <li>Removing specific time periods that you don't want to analyze</li>
+            <li><b>View the signal</b> with navigation and zoom controls</li>
+            <li><b>See resting phases</b> (eyes open/closed) highlighted on the plot</li>
+            <li><b>Cut regions</b> using draggable markers on the timeline</li>
+            <li><b>Analyze frequency bands</b> for selected time ranges</li>
         </ul>
 
         <h2>✂️ How to Cut Signal Regions</h2>
         <ol>
-            <li><b>Go to the "Signal Editor" tab</b> in this screen</li>
-            <li><b>Define a region to cut:</b>
+            <li><b>Navigate to the electrode tab</b> you want to edit</li>
+            <li><b>Use the timeline markers</b> to select the region to cut:
                 <ul>
-                    <li>Enter the <b>Start time</b> (in seconds) where the unwanted region begins</li>
-                    <li>Enter the <b>End time</b> (in seconds) where the unwanted region ends</li>
+                    <li>Drag the <b>left marker</b> to set the start time</li>
+                    <li>Drag the <b>right marker</b> to set the end time</li>
+                    <li>Or use the spinboxes for precise control</li>
                 </ul>
             </li>
-            <li><b>Click "Add Cut Region"</b> to mark this region for removal</li>
-            <li><b>Repeat</b> steps 2-3 for any additional regions you want to remove</li>
-            <li><b>Click "Apply Cuts"</b> to remove all marked regions</li>
+            <li><b>Click 'Add Region'</b> to mark the region for cutting</li>
+            <li><b>Repeat</b> for any additional regions</li>
+            <li><b>Click 'Apply Cuts'</b> to remove all marked regions</li>
         </ol>
 
-        <h2>⚠️ Important Notes</h2>
+        <h2>📊 Frequency Analysis</h2>
+        <p>Use the time range selector to analyze frequency bands for specific portions:</p>
         <ul>
-            <li><b>Regions cannot overlap</b> - each cut region must be separate</li>
-            <li><b>The signal will be joined</b> - after cutting, the remaining segments 
-            are automatically concatenated</li>
-            <li><b>You can reset</b> - use the "Reset to Original Signal" button to undo all cuts</li>
-            <li><b>Preview first</b> - check the Signal Preview tab to identify problem areas</li>
+            <li><b>Delta (1-4 Hz)</b>: Deep sleep, unconscious states</li>
+            <li><b>Theta (4-8 Hz)</b>: Light sleep, relaxation, meditation</li>
+            <li><b>Alpha (8-13 Hz)</b>: Relaxed wakefulness, eyes closed</li>
+            <li><b>Beta (13-30 Hz)</b>: Active thinking, concentration</li>
+            <li><b>Gamma (30-100 Hz)</b>: Higher cognitive functions</li>
         </ul>
-
-        <h2>📊 Using Frequency Analysis</h2>
-        <p>The "Frequency Analysis" tab helps you understand your signal:</p>
-        <ul>
-            <li><b>Time Range Selection:</b> Use the sliders to analyze specific portions of your recording</li>
-            <li><b>Band Power:</b> See the distribution of Delta, Theta, Alpha, Beta, and Gamma waves</li>
-            <li><b>Resting Phases:</b> If your recording has "eyes open"/"eyes closed" markers, 
-            they will be automatically detected and analyzed</li>
-        </ul>
-
-        <h2>▶️ When You're Ready</h2>
-        <p>Click <b>"Continue to Artifact Removal"</b> to proceed with ICA/PCA analysis. 
-        Any signal modifications you've made will be preserved.</p>
 
         <h2>💡 Tips</h2>
         <ul>
-            <li>Use the Signal Preview to identify noisy sections before cutting</li>
-            <li>Cut conservatively - you can always process more data later</li>
-            <li>Check the frequency analysis after cutting to verify signal quality</li>
+            <li>Cuts apply to <b>all electrodes</b> simultaneously</li>
+            <li>Use 'Reset to Original' to undo all cuts</li>
+            <li>Check annotations for eyes open/closed markers</li>
+            <li>Review each electrode before cutting</li>
         </ul>
         """
 
@@ -142,9 +133,7 @@ class SignalEditingHelpDialog(QDialog):
         layout.addWidget(help_text)
 
         # Close button
-        close_btn = QPushButton("✓ Got it!")
-        close_btn.setMinimumHeight(40)
-        close_btn.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
         close_btn.setStyleSheet(
             f"""
@@ -164,74 +153,99 @@ class SignalEditingHelpDialog(QDialog):
         layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
 
-class SignalPlotWidget(QWidget):
-    """Widget for displaying EEG signal preview with navigation slider."""
-
-    # Maximum number of channels to display for readability
-    MAX_DISPLAY_CHANNELS = 5
-    # Default view window in seconds
-    DEFAULT_VIEW_WINDOW = 10.0
-
-    def __init__(self, theme: Optional[Dict[str, str]] = None, parent=None):
+class ElectrodeSignalWidget(QWidget):
+    """
+    Combined signal visualization and cutting widget for a single electrode.
+    
+    Shows:
+    - Signal plot with navigation
+    - Annotations (eyes open/closed) on the plot
+    - Cut region timeline overlaid on signal
+    - Frequency analysis for the electrode
+    """
+    
+    # Signals
+    cut_region_added = pyqtSignal(float, float)  # start, end
+    cut_region_removed = pyqtSignal(int)  # index
+    
+    def __init__(
+        self,
+        channel_name: str,
+        channel_idx: int,
+        theme: Dict[str, str],
+        parent=None
+    ):
         super().__init__(parent)
-        self.theme = theme or {}
+        self.theme = theme
+        self.channel_name = channel_name
+        self.channel_idx = channel_idx
         self._raw_data = None
         self._view_start = 0.0
-        self._view_window = self.DEFAULT_VIEW_WINDOW
+        self._view_window = 10.0
         self._max_time = 100.0
+        self._cut_regions: List[Tuple[float, float]] = []
+        self._current_selection = (0.0, 10.0)  # Current marker positions
+        
         self.setup_ui()
-
+    
     def setup_ui(self):
         """Create the UI."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(8)
-
-        # Title row with view window selector
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+        
+        # Main content splitter
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        
+        # === Top section: Signal plot with cutting ===
+        signal_widget = QWidget()
+        signal_layout = QVBoxLayout(signal_widget)
+        signal_layout.setContentsMargins(0, 0, 0, 0)
+        signal_layout.setSpacing(5)
+        
+        # Header with controls
         header_layout = QHBoxLayout()
         
-        title_label = QLabel("📈 Signal Preview")
+        title_label = QLabel(f"📈 {self.channel_name} Signal")
         title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        title_label.setStyleSheet(
-            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
-        )
+        title_label.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')};")
         header_layout.addWidget(title_label)
         
         header_layout.addStretch()
         
         # View window selector
-        view_label = QLabel("View window:")
-        view_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        view_label = QLabel("View:")
+        view_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
         header_layout.addWidget(view_label)
         
-        self.view_window_combo = QComboBox()
-        self.view_window_combo.addItems(["5s", "10s", "30s", "60s", "Full"])
-        self.view_window_combo.setCurrentText("10s")
-        self.view_window_combo.currentTextChanged.connect(self._on_view_window_changed)
-        self.view_window_combo.setStyleSheet(f"""
+        self.view_combo = QComboBox()
+        self.view_combo.addItems(["5s", "10s", "30s", "60s", "Full"])
+        self.view_combo.setCurrentText("10s")
+        self.view_combo.currentTextChanged.connect(self._on_view_changed)
+        self.view_combo.setStyleSheet(f"""
             QComboBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
                 border-radius: 4px;
                 padding: 4px 8px;
-                min-width: 70px;
+                min-width: 60px;
             }}
         """)
-        header_layout.addWidget(self.view_window_combo)
+        header_layout.addWidget(self.view_combo)
         
-        layout.addLayout(header_layout)
-
-        # Matplotlib figure
-        self.figure = Figure(figsize=(10, 4), dpi=80)
+        signal_layout.addLayout(header_layout)
+        
+        # Signal plot with matplotlib
+        self.figure = Figure(figsize=(12, 3), dpi=80)
         self.canvas = FigureCanvas(self.figure)
-        self.canvas.setMinimumHeight(250)
-        layout.addWidget(self.canvas)
-
+        self.canvas.setMinimumHeight(180)
+        signal_layout.addWidget(self.canvas)
+        
         # Navigation slider
         nav_layout = QHBoxLayout()
         
         self.nav_label = QLabel("Position: 0.0s")
-        self.nav_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        self.nav_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
         self.nav_label.setFixedWidth(100)
         nav_layout.addWidget(self.nav_label)
         
@@ -239,56 +253,202 @@ class SignalPlotWidget(QWidget):
         self.nav_slider.setMinimum(0)
         self.nav_slider.setMaximum(1000)
         self.nav_slider.setValue(0)
-        self.nav_slider.valueChanged.connect(self._on_nav_slider_changed)
+        self.nav_slider.valueChanged.connect(self._on_nav_changed)
         self.nav_slider.setStyleSheet(f"""
             QSlider::groove:horizontal {{
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
-                height: 8px;
+                height: 6px;
                 background: #f8f9fa;
-                border-radius: 4px;
+                border-radius: 3px;
             }}
             QSlider::handle:horizontal {{
                 background: {self.theme.get('primary', '#007AFF')};
-                border: none;
-                width: 16px;
+                width: 14px;
                 margin: -4px 0;
-                border-radius: 8px;
-            }}
-            QSlider::handle:horizontal:hover {{
-                background: {self.theme.get('primary_hover', '#0056b3')};
+                border-radius: 7px;
             }}
         """)
         nav_layout.addWidget(self.nav_slider)
         
         self.duration_label = QLabel("/ 0.0s")
-        self.duration_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;")
-        self.duration_label.setFixedWidth(80)
+        self.duration_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')};")
+        self.duration_label.setFixedWidth(70)
         nav_layout.addWidget(self.duration_label)
         
-        layout.addLayout(nav_layout)
-
-        # Show empty message initially
-        self._show_empty_message()
-
-    def _show_empty_message(self):
-        """Show message when no data is loaded."""
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
-        ax.text(
-            0.5, 0.5,
-            "Load a file to preview the signal",
-            ha="center", va="center",
-            fontsize=12,
-            color=self.theme.get("text_light", "#6c757d"),
-            transform=ax.transAxes,
+        signal_layout.addLayout(nav_layout)
+        
+        # === Cut region selection (on signal) ===
+        cut_group = QGroupBox("✂️ Cut Region Selection")
+        cut_group.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        cut_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 6px;
+                margin-top: 8px;
+                padding: 10px;
+                background-color: {self.theme.get('background', '#FFFFFF')};
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: {self.theme.get('danger', '#dc3545')};
+            }}
+        """)
+        cut_layout = QVBoxLayout(cut_group)
+        
+        # Selection controls
+        selection_layout = QHBoxLayout()
+        
+        selection_layout.addWidget(QLabel("Start:"))
+        self.start_spin = QSpinBox()
+        self.start_spin.setMinimum(0)
+        self.start_spin.setMaximum(int(self._max_time))
+        self.start_spin.setSuffix(" s")
+        self.start_spin.valueChanged.connect(self._on_selection_changed)
+        self.start_spin.setStyleSheet(f"""
+            QSpinBox {{
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 4px;
+                min-width: 80px;
+            }}
+        """)
+        selection_layout.addWidget(self.start_spin)
+        
+        selection_layout.addSpacing(20)
+        
+        selection_layout.addWidget(QLabel("End:"))
+        self.end_spin = QSpinBox()
+        self.end_spin.setMinimum(0)
+        self.end_spin.setMaximum(int(self._max_time))
+        self.end_spin.setValue(10)
+        self.end_spin.setSuffix(" s")
+        self.end_spin.valueChanged.connect(self._on_selection_changed)
+        self.end_spin.setStyleSheet(f"""
+            QSpinBox {{
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 4px;
+                min-width: 80px;
+            }}
+        """)
+        selection_layout.addWidget(self.end_spin)
+        
+        selection_layout.addSpacing(20)
+        
+        # Add region button
+        add_btn = QPushButton("➕ Add Region")
+        add_btn.clicked.connect(self._add_cut_region)
+        add_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.theme.get('danger', '#dc3545')};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #c82333;
+            }}
+        """)
+        selection_layout.addWidget(add_btn)
+        
+        selection_layout.addStretch()
+        
+        cut_layout.addLayout(selection_layout)
+        
+        # Current cut regions display
+        self.regions_label = QLabel("No cut regions defined")
+        self.regions_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')};")
+        self.regions_label.setWordWrap(True)
+        cut_layout.addWidget(self.regions_label)
+        
+        signal_layout.addWidget(cut_group)
+        
+        splitter.addWidget(signal_widget)
+        
+        # === Bottom section: Frequency analysis ===
+        freq_widget = QWidget()
+        freq_layout = QVBoxLayout(freq_widget)
+        freq_layout.setContentsMargins(0, 0, 0, 0)
+        
+        freq_header = QLabel("📊 Frequency Band Analysis")
+        freq_header.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        freq_header.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')};")
+        freq_layout.addWidget(freq_header)
+        
+        # Time range selector for frequency analysis
+        range_layout = QHBoxLayout()
+        range_layout.addWidget(QLabel("Analysis range:"))
+        
+        self.freq_start_spin = QSpinBox()
+        self.freq_start_spin.setMinimum(0)
+        self.freq_start_spin.setMaximum(int(self._max_time))
+        self.freq_start_spin.setSuffix(" s")
+        self.freq_start_spin.valueChanged.connect(self._update_frequency_analysis)
+        range_layout.addWidget(self.freq_start_spin)
+        
+        range_layout.addWidget(QLabel("to"))
+        
+        self.freq_end_spin = QSpinBox()
+        self.freq_end_spin.setMinimum(0)
+        self.freq_end_spin.setMaximum(int(self._max_time))
+        self.freq_end_spin.setValue(int(self._max_time))
+        self.freq_end_spin.setSuffix(" s")
+        self.freq_end_spin.valueChanged.connect(self._update_frequency_analysis)
+        range_layout.addWidget(self.freq_end_spin)
+        
+        range_layout.addStretch()
+        freq_layout.addLayout(range_layout)
+        
+        # Band power display
+        self.band_power_widget = BandPowerComparisonWidget(
+            theme=self.theme,
+            parent=self,
         )
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        self.canvas.draw()
+        freq_layout.addWidget(self.band_power_widget)
+        
+        splitter.addWidget(freq_widget)
+        
+        # Set splitter sizes
+        splitter.setSizes([400, 200])
+        
+        layout.addWidget(splitter)
     
-    def _on_view_window_changed(self, text: str):
+    def set_data(self, raw: mne.io.Raw):
+        """Set the raw data for this electrode."""
+        self._raw_data = raw
+        if raw is not None:
+            self._max_time = raw.times[-1]
+            self._view_start = 0.0
+            self.duration_label.setText(f"/ {self._max_time:.1f}s")
+            
+            # Update spinbox limits
+            self.start_spin.setMaximum(int(self._max_time))
+            self.end_spin.setMaximum(int(self._max_time))
+            self.end_spin.setValue(min(10, int(self._max_time)))
+            self.freq_start_spin.setMaximum(int(self._max_time))
+            self.freq_end_spin.setMaximum(int(self._max_time))
+            self.freq_end_spin.setValue(int(self._max_time))
+            
+            if self.view_combo.currentText() == "Full":
+                self._view_window = self._max_time
+            
+            self._update_plot()
+            self._update_frequency_analysis()
+    
+    def set_cut_regions(self, regions: List[Tuple[float, float]]):
+        """Set the cut regions (shared across electrodes)."""
+        self._cut_regions = regions.copy()
+        self._update_regions_display()
+        self._update_plot()
+    
+    def _on_view_changed(self, text: str):
         """Handle view window change."""
         if text == "Full":
             self._view_window = self._max_time
@@ -296,165 +456,223 @@ class SignalPlotWidget(QWidget):
             self._view_window = float(text.replace("s", ""))
         self._update_plot()
     
-    def _on_nav_slider_changed(self, value: int):
+    def _on_nav_changed(self, value: int):
         """Handle navigation slider change."""
-        # Map slider value (0-1000) to time position
         max_start = max(0, self._max_time - self._view_window)
         self._view_start = (value / 1000.0) * max_start
         self.nav_label.setText(f"Position: {self._view_start:.1f}s")
         self._update_plot()
-
-    def set_data(self, raw: mne.io.Raw):
-        """
-        Set the EEG data for preview.
-
-        Args:
-            raw: MNE Raw object
-        """
-        self._raw_data = raw
-        if raw is not None:
-            self._max_time = raw.times[-1]
-            self._view_start = 0.0
-            self.duration_label.setText(f"/ {self._max_time:.1f}s")
-            
-            # Update view window if "Full" is selected
-            if self.view_window_combo.currentText() == "Full":
-                self._view_window = self._max_time
-        
+    
+    def _on_selection_changed(self):
+        """Handle selection spinbox change."""
+        self._current_selection = (
+            float(self.start_spin.value()),
+            float(self.end_spin.value())
+        )
         self._update_plot()
-
+    
+    def _add_cut_region(self):
+        """Add the current selection as a cut region."""
+        start, end = self._current_selection
+        
+        if start >= end:
+            QMessageBox.warning(
+                self, "Invalid Region",
+                "Start time must be less than end time."
+            )
+            return
+        
+        # Check for overlaps
+        for existing_start, existing_end in self._cut_regions:
+            if not (end <= existing_start or start >= existing_end):
+                QMessageBox.warning(
+                    self, "Overlapping Region",
+                    f"This region overlaps with existing cut "
+                    f"({existing_start:.1f}s - {existing_end:.1f}s)."
+                )
+                return
+        
+        self.cut_region_added.emit(start, end)
+    
+    def _update_regions_display(self):
+        """Update the cut regions display label."""
+        if not self._cut_regions:
+            self.regions_label.setText("No cut regions defined")
+            self.regions_label.setStyleSheet(
+                f"color: {self.theme.get('text_light', '#6c757d')};"
+            )
+        else:
+            regions_str = ", ".join(
+                f"[{s:.1f}s - {e:.1f}s]" for s, e in self._cut_regions
+            )
+            total = sum(e - s for s, e in self._cut_regions)
+            self.regions_label.setText(
+                f"Cut regions: {regions_str} (Total: {total:.1f}s)"
+            )
+            self.regions_label.setStyleSheet(
+                f"color: {self.theme.get('danger', '#dc3545')}; font-weight: bold;"
+            )
+    
     def _update_plot(self):
-        """Update the signal plot with annotations."""
+        """Update the signal plot with annotations and cut regions."""
         if self._raw_data is None:
             self._show_empty_message()
             return
-
+        
         self.figure.clear()
-
+        
         try:
-            # Get data
             sfreq = self._raw_data.info["sfreq"]
-            data = self._raw_data.get_data() * 1e6  # Convert to μV
-            times = self._raw_data.times
-            channels = self._raw_data.ch_names
-
-            # Calculate view range based on slider position
-            view_end = min(self._view_start + self._view_window, self._max_time)
             
-            # Find sample indices for view window
+            # Get data for this channel only
+            data = self._raw_data.get_data(picks=[self.channel_idx]) * 1e6  # μV
+            times = self._raw_data.times
+            
+            # Calculate view range
+            view_end = min(self._view_start + self._view_window, self._max_time)
             start_idx = int(self._view_start * sfreq)
-            end_idx = int(view_end * sfreq)
-            end_idx = min(end_idx, data.shape[1])
+            end_idx = min(int(view_end * sfreq), data.shape[1])
             
             display_times = times[start_idx:end_idx]
-            display_data = data[:, start_idx:end_idx]
-
-            # Create subplot for each channel (limited for readability)
-            n_channels = min(len(channels), self.MAX_DISPLAY_CHANNELS)
+            display_data = data[0, start_idx:end_idx]
             
-            # Get annotations for highlighting
-            annotations = []
+            ax = self.figure.add_subplot(111)
+            
+            # Plot signal
+            ax.plot(
+                display_times, display_data,
+                color=self.theme.get('primary', '#007AFF'),
+                linewidth=0.8, alpha=0.9
+            )
+            
+            # Add annotations (eyes open/closed)
             if self._raw_data.annotations is not None:
                 for annot in self._raw_data.annotations:
                     onset = annot["onset"]
                     duration = annot["duration"] if annot["duration"] > 0 else 5.0
                     description = annot["description"].lower()
-                    
-                    # Check if annotation is in view
                     annot_end = onset + duration
+                    
                     if annot_end >= self._view_start and onset <= view_end:
-                        # Determine color based on annotation type
                         if "open" in description:
-                            color = "#28a745"  # Green for eyes open
-                            label = "👁️ Eyes Open"
+                            color = "#28a745"
+                            label = "Eyes Open"
                         elif "close" in description:
-                            color = "#6f42c1"  # Purple for eyes closed
-                            label = "😌 Eyes Closed"
+                            color = "#6f42c1"
+                            label = "Eyes Closed"
                         else:
-                            color = "#ffc107"  # Yellow for other
+                            color = "#ffc107"
                             label = annot["description"]
                         
-                        annotations.append({
-                            "onset": onset,
-                            "duration": duration,
-                            "color": color,
-                            "label": label,
-                        })
-            
-            for i in range(n_channels):
-                ax = self.figure.add_subplot(n_channels, 1, i + 1)
-                
-                # Plot signal
-                ax.plot(
-                    display_times,
-                    display_data[i],
-                    color=self.theme.get("primary", "#007AFF"),
-                    linewidth=0.8,
-                    alpha=0.8,
-                )
-                
-                # Add annotation regions
-                for annot in annotations:
-                    onset = max(annot["onset"], self._view_start)
-                    end = min(annot["onset"] + annot["duration"], view_end)
-                    ax.axvspan(onset, end, alpha=0.2, color=annot["color"])
-                    
-                    # Add label only on first channel
-                    if i == 0:
-                        mid_point = (onset + end) / 2
-                        if self._view_start <= mid_point <= view_end:
-                            y_pos = ax.get_ylim()[1]
+                        draw_start = max(onset, self._view_start)
+                        draw_end = min(annot_end, view_end)
+                        ax.axvspan(draw_start, draw_end, alpha=0.2, color=color)
+                        
+                        mid = (draw_start + draw_end) / 2
+                        if self._view_start <= mid <= view_end:
                             ax.text(
-                                mid_point, y_pos * 0.9,
-                                annot["label"],
-                                ha="center", va="top",
-                                fontsize=7,
-                                color=annot["color"],
-                                fontweight="bold",
-                                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
+                                mid, ax.get_ylim()[1] * 0.95, label,
+                                ha='center', va='top', fontsize=8,
+                                color=color, fontweight='bold',
+                                bbox=dict(boxstyle='round,pad=0.2',
+                                          facecolor='white', alpha=0.8)
                             )
-                
-                ax.set_ylabel(channels[i], fontsize=8)
-                ax.tick_params(labelsize=7)
-                ax.grid(True, alpha=0.3)
-                ax.set_xlim(self._view_start, view_end)
-                
-                if i == n_channels - 1:
-                    ax.set_xlabel("Time (s)", fontsize=9)
-                else:
-                    ax.set_xticklabels([])
-
+            
+            # Highlight cut regions
+            for start, end in self._cut_regions:
+                if end >= self._view_start and start <= view_end:
+                    draw_start = max(start, self._view_start)
+                    draw_end = min(end, view_end)
+                    ax.axvspan(draw_start, draw_end, alpha=0.4,
+                               color=self.theme.get('danger', '#dc3545'),
+                               hatch='///', edgecolor='darkred')
+            
+            # Highlight current selection (dashed outline)
+            sel_start, sel_end = self._current_selection
+            if sel_end >= self._view_start and sel_start <= view_end:
+                draw_start = max(sel_start, self._view_start)
+                draw_end = min(sel_end, view_end)
+                ax.axvspan(draw_start, draw_end, alpha=0.15,
+                           color=self.theme.get('primary', '#007AFF'),
+                           linestyle='--', linewidth=2,
+                           edgecolor=self.theme.get('primary', '#007AFF'))
+            
+            ax.set_xlabel("Time (s)", fontsize=9)
+            ax.set_ylabel("Amplitude (μV)", fontsize=9)
+            ax.set_xlim(self._view_start, view_end)
+            ax.grid(True, alpha=0.3)
+            ax.tick_params(labelsize=8)
+            
             self.figure.tight_layout()
-
+            
         except Exception as e:
             ax = self.figure.add_subplot(111)
-            ax.text(
-                0.5, 0.5,
-                f"Error displaying signal: {str(e)}",
-                ha="center", va="center",
-                fontsize=10,
-                color="red",
-                transform=ax.transAxes,
-            )
-
+            ax.text(0.5, 0.5, f"Error: {str(e)}",
+                    ha='center', va='center', fontsize=10, color='red',
+                    transform=ax.transAxes)
+        
         self.canvas.draw()
-
+    
+    def _show_empty_message(self):
+        """Show empty message when no data."""
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, "No data loaded",
+                ha='center', va='center', fontsize=12,
+                color=self.theme.get('text_light', '#6c757d'),
+                transform=ax.transAxes)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        self.canvas.draw()
+    
+    def _update_frequency_analysis(self):
+        """Update band power analysis for this electrode."""
+        if self._raw_data is None:
+            self.band_power_widget.clear()
+            return
+        
+        try:
+            from backend import BandPowerAnalyzer
+            
+            analyzer = BandPowerAnalyzer()
+            start = self.freq_start_spin.value()
+            end = self.freq_end_spin.value()
+            
+            if start >= end:
+                self.band_power_widget.clear()
+                return
+            
+            powers = analyzer.compute_band_power_for_raw(
+                self._raw_data,
+                channel_idx=self.channel_idx,
+                tmin=float(start),
+                tmax=float(end),
+            )
+            
+            self.band_power_widget.update_comparison(powers, powers)
+            
+        except Exception:
+            self.band_power_widget.clear()
+    
     def clear(self):
-        """Clear the plot."""
+        """Clear the widget."""
         self._raw_data = None
-        self._view_start = 0.0
+        self._cut_regions = []
         self._show_empty_message()
+        self._update_regions_display()
+        self.band_power_widget.clear()
 
 
 class SignalPreviewScreen(QWidget):
     """
     Screen for previewing and editing EEG signal before processing.
-
-    Provides:
-    - Signal preview visualization
-    - Time range selection for frequency analysis
-    - Resting phase detection and display
-    - Signal cutting tools
+    
+    Organizes by electrode - each electrode has its own tab with:
+    - Signal preview with navigation
+    - Cut region selection on the signal
+    - Frequency analysis
 
     Signals:
         proceed_to_processing: Emitted when user wants to continue to ICA/PCA
@@ -470,8 +688,10 @@ class SignalPreviewScreen(QWidget):
         super().__init__(parent)
         self.theme = theme
         self._raw_data = None
-        self._original_raw_data = None  # Keep original for reset
+        self._original_raw_data = None
         self._file_path = ""
+        self._cut_regions: List[Tuple[float, float]] = []
+        self._electrode_widgets: Dict[str, ElectrodeSignalWidget] = {}
         self.setup_ui()
 
     def setup_ui(self):
@@ -491,8 +711,8 @@ class SignalPreviewScreen(QWidget):
 
         # Description
         description = QLabel(
-            "Preview your signal, analyze frequency bands, detect resting phases, "
-            "and optionally cut unwanted regions before artifact removal."
+            "Each electrode has its own tab. View the signal, select cut regions, "
+            "and analyze frequency bands. Cuts apply to all electrodes."
         )
         description.setFont(QFont("Arial", 11))
         description.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -502,93 +722,22 @@ class SignalPreviewScreen(QWidget):
         )
         layout.addWidget(description)
 
-        # Main content area with tabs
-        self.tab_widget = QTabWidget()
-        self.tab_widget.setFont(QFont("Arial", 10))
-
-        # Tab 1: Signal Preview
-        preview_tab = QWidget()
-        preview_layout = QVBoxLayout(preview_tab)
-        preview_layout.setContentsMargins(5, 5, 5, 5)
-
-        self.signal_plot = SignalPlotWidget(theme=self.theme)
-        preview_layout.addWidget(self.signal_plot)
-
-        # File info label
+        # Header with file info and controls
+        header_layout = QHBoxLayout()
+        
         self.file_info_label = QLabel("No file loaded")
         self.file_info_label.setFont(QFont("Arial", 10))
         self.file_info_label.setStyleSheet(
-            f"color: {self.theme['text_light']}; padding: 5px;"
+            f"color: {self.theme.get('text', '#212529')};"
         )
-        preview_layout.addWidget(self.file_info_label)
-
-        self.tab_widget.addTab(preview_tab, "📈 Signal Preview")
-
-        # Tab 2: Frequency Analysis
-        freq_tab = QWidget()
-        freq_layout = QVBoxLayout(freq_tab)
-        freq_layout.setContentsMargins(5, 5, 5, 5)
-
-        # Scroll area for frequency analysis
-        freq_scroll = QScrollArea()
-        freq_scroll.setWidgetResizable(True)
-        freq_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-
-        freq_content = QWidget()
-        freq_content_layout = QVBoxLayout(freq_content)
-
-        # Time range selector
-        self.time_range_selector = TimeRangeSelector(
-            theme=self.theme,
-            parent=self,
-        )
-        self.time_range_selector.range_changed.connect(self._on_time_range_changed)
-        freq_content_layout.addWidget(self.time_range_selector)
-
-        # Band power display
-        self.band_power_widget = BandPowerComparisonWidget(
-            theme=self.theme,
-            parent=self,
-        )
-        freq_content_layout.addWidget(self.band_power_widget)
-
-        # Resting phase display
-        self.resting_phase_display = RestingPhaseDisplay(
-            theme=self.theme,
-            parent=self,
-        )
-        freq_content_layout.addWidget(self.resting_phase_display)
-
-        freq_content_layout.addStretch()
-        freq_scroll.setWidget(freq_content)
-        freq_layout.addWidget(freq_scroll)
-
-        self.tab_widget.addTab(freq_tab, "📊 Frequency Analysis")
-
-        # Tab 3: Signal Editor (Cutting)
-        editor_tab = QWidget()
-        editor_layout = QVBoxLayout(editor_tab)
-        editor_layout.setContentsMargins(10, 10, 10, 10)
-        editor_layout.setSpacing(10)
-
-        # Header with help button
-        header_layout = QHBoxLayout()
-
-        editor_title = QLabel("✂️ Manual Signal Cutting")
-        editor_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        editor_title.setStyleSheet(f"color: {self.theme['primary']};")
-        header_layout.addWidget(editor_title)
-
+        header_layout.addWidget(self.file_info_label)
+        
         header_layout.addStretch()
-
+        
         # Help button
         help_btn = QPushButton("📖 How to Use")
-        help_btn.setFont(QFont("Arial", 10))
         help_btn.clicked.connect(self._show_help_dialog)
-        help_btn.setStyleSheet(
-            f"""
+        help_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.get('primary', '#007AFF')};
                 color: white;
@@ -599,89 +748,102 @@ class SignalPreviewScreen(QWidget):
             QPushButton:hover {{
                 background-color: {self.theme.get('primary_hover', '#0056b3')};
             }}
-        """
-        )
+        """)
         header_layout.addWidget(help_btn)
+        
+        layout.addLayout(header_layout)
 
-        editor_layout.addLayout(header_layout)
-
-        # Quick instructions box
-        instructions_box = QGroupBox("📋 Quick Instructions")
-        instructions_box.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        instructions_box.setStyleSheet(
-            f"""
-            QGroupBox {{
+        # Tab widget for electrodes
+        self.electrode_tabs = QTabWidget()
+        self.electrode_tabs.setFont(QFont("Arial", 10))
+        self.electrode_tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                background-color: {self.theme.get('background', '#FFFFFF')};
+            }}
+            QTabBar::tab {{
+                background-color: #f8f9fa;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {self.theme.get('background', '#FFFFFF')};
+                border-bottom-color: {self.theme.get('background', '#FFFFFF')};
                 font-weight: bold;
-                border: 2px solid {self.theme.get('border', '#dee2e6')};
-                border-radius: 8px;
-                margin-top: 10px;
-                padding: 15px;
-                background-color: #f8f9fa;
             }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-                color: {self.theme.get('text', '#212529')};
-                background-color: #f8f9fa;
-            }}
-        """
+        """)
+        layout.addWidget(self.electrode_tabs)
+
+        # Action bar
+        action_layout = QHBoxLayout()
+        
+        # Regions summary
+        self.regions_summary = QLabel("No cut regions")
+        self.regions_summary.setFont(QFont("Arial", 10))
+        self.regions_summary.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')};"
         )
-        instructions_layout = QVBoxLayout(instructions_box)
-
-        quick_instructions = QLabel(
-            "<b>1.</b> Enter the <b>Start</b> and <b>End</b> time (in seconds) of the region to remove<br>"
-            "<b>2.</b> Click <b>'Add Cut Region'</b> to mark the region<br>"
-            "<b>3.</b> Repeat for any additional regions<br>"
-            "<b>4.</b> Click <b>'Apply Cuts'</b> to remove all marked regions<br><br>"
-            "<i>💡 Tip: Check the Signal Preview tab first to identify noisy sections</i>"
-        )
-        quick_instructions.setFont(QFont("Arial", 10))
-        quick_instructions.setWordWrap(True)
-        quick_instructions.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
-        instructions_layout.addWidget(quick_instructions)
-
-        editor_layout.addWidget(instructions_box)
-
-        # Signal Cutter widget
-        self.signal_cutter = SignalCutter(
-            theme=self.theme,
-            parent=self,
-        )
-        self.signal_cutter.apply_cuts.connect(self._on_apply_cuts)
-        editor_layout.addWidget(self.signal_cutter)
-
-        # Buttons row
-        buttons_layout = QHBoxLayout()
-
-        # Reset button
-        reset_btn = QPushButton("🔄 Reset to Original Signal")
-        reset_btn.clicked.connect(self._reset_signal)
-        reset_btn.setStyleSheet(
-            f"""
+        action_layout.addWidget(self.regions_summary)
+        
+        action_layout.addStretch()
+        
+        # Clear cuts button
+        clear_btn = QPushButton("🗑️ Clear All Cuts")
+        clear_btn.clicked.connect(self._clear_all_cuts)
+        clear_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.get('text_light', '#6c757d')};
                 color: white;
                 border: none;
-                padding: 10px 20px;
+                padding: 8px 16px;
                 border-radius: 6px;
-                font-weight: bold;
             }}
             QPushButton:hover {{
                 background-color: #5a6268;
             }}
-        """
-        )
-        buttons_layout.addWidget(reset_btn)
-
-        buttons_layout.addStretch()
-
-        editor_layout.addLayout(buttons_layout)
-        editor_layout.addStretch()
-
-        self.tab_widget.addTab(editor_tab, "✂️ Signal Editor")
-
-        layout.addWidget(self.tab_widget)
+        """)
+        action_layout.addWidget(clear_btn)
+        
+        # Apply cuts button
+        apply_btn = QPushButton("✂️ Apply Cuts")
+        apply_btn.clicked.connect(self._apply_cuts)
+        apply_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.theme.get('danger', '#dc3545')};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #c82333;
+            }}
+        """)
+        action_layout.addWidget(apply_btn)
+        
+        # Reset button
+        reset_btn = QPushButton("🔄 Reset to Original")
+        reset_btn.clicked.connect(self._reset_signal)
+        reset_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.theme.get('text_light', '#6c757d')};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: #5a6268;
+            }}
+        """)
+        action_layout.addWidget(reset_btn)
+        
+        layout.addLayout(action_layout)
 
         # Bottom button bar
         button_layout = QHBoxLayout()
@@ -691,8 +853,7 @@ class SignalPreviewScreen(QWidget):
         back_btn.setMinimumHeight(45)
         back_btn.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         back_btn.clicked.connect(self.return_to_channels.emit)
-        back_btn.setStyleSheet(
-            f"""
+        back_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.get('text_light', '#6c757d')};
                 color: white;
@@ -704,15 +865,10 @@ class SignalPreviewScreen(QWidget):
             QPushButton:hover {{
                 background-color: #5a6268;
             }}
-        """
-        )
+        """)
         button_layout.addWidget(back_btn)
 
-        button_layout.addItem(
-            QSpacerItem(
-                40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
-            )
-        )
+        button_layout.addStretch()
 
         # Continue button
         self.continue_btn = QPushButton("▶️ Continue to Artifact Removal")
@@ -720,8 +876,7 @@ class SignalPreviewScreen(QWidget):
         self.continue_btn.setMinimumWidth(280)
         self.continue_btn.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.continue_btn.clicked.connect(self._on_continue)
-        self.continue_btn.setStyleSheet(
-            f"""
+        self.continue_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.get('primary', '#007AFF')};
                 color: white;
@@ -733,8 +888,7 @@ class SignalPreviewScreen(QWidget):
             QPushButton:hover {{
                 background-color: {self.theme.get('primary_hover', '#0056b3')};
             }}
-        """
-        )
+        """)
         button_layout.addWidget(self.continue_btn)
 
         layout.addLayout(button_layout)
@@ -747,15 +901,16 @@ class SignalPreviewScreen(QWidget):
             raw: MNE Raw object (should be preloaded)
             file_path: Path to the source file
         """
-        # Store both current and original
         self._raw_data = raw.copy() if raw is not None else None
         self._original_raw_data = raw.copy() if raw is not None else None
         self._file_path = file_path
+        self._cut_regions = []
+        
+        # Clear existing tabs
+        self.electrode_tabs.clear()
+        self._electrode_widgets.clear()
 
         if raw is not None:
-            # Update signal preview
-            self.signal_plot.set_data(raw)
-
             # Update file info
             duration = raw.times[-1]
             n_channels = len(raw.ch_names)
@@ -770,110 +925,66 @@ class SignalPreviewScreen(QWidget):
                 f"📌 {n_annotations} annotations"
             )
 
-            # Update time range selector
-            self.time_range_selector.set_time_range(0.0, duration)
+            # Create tab for each electrode
+            for idx, ch_name in enumerate(raw.ch_names):
+                electrode_widget = ElectrodeSignalWidget(
+                    channel_name=ch_name,
+                    channel_idx=idx,
+                    theme=self.theme,
+                    parent=self
+                )
+                electrode_widget.set_data(raw)
+                electrode_widget.cut_region_added.connect(self._on_cut_region_added)
+                
+                self._electrode_widgets[ch_name] = electrode_widget
+                self.electrode_tabs.addTab(electrode_widget, f"🧠 {ch_name}")
 
-            # Update signal cutter
-            self.signal_cutter.set_max_time(duration)
+        self._update_regions_summary()
 
-            # Update frequency analysis
-            self._update_frequency_analysis()
+    def _on_cut_region_added(self, start: float, end: float):
+        """Handle cut region added from any electrode widget."""
+        self._cut_regions.append((start, end))
+        self._cut_regions.sort(key=lambda x: x[0])
+        
+        # Update all electrode widgets
+        for widget in self._electrode_widgets.values():
+            widget.set_cut_regions(self._cut_regions)
+        
+        self._update_regions_summary()
 
-            # Detect resting phases
-            self._detect_resting_phases()
+    def _clear_all_cuts(self):
+        """Clear all cut regions."""
+        self._cut_regions = []
+        for widget in self._electrode_widgets.values():
+            widget.set_cut_regions([])
+        self._update_regions_summary()
 
-    def _update_frequency_analysis(self):
-        """Update band power analysis for current time range."""
-        if self._raw_data is None:
-            return
-
-        try:
-            from backend import BandPowerAnalyzer
-
-            analyzer = BandPowerAnalyzer()
-            start_time, end_time = self.time_range_selector.get_range()
-
-            # Calculate band powers
-            powers = analyzer.compute_band_power_for_raw(
-                self._raw_data,
-                channel_idx=0,
-                tmin=start_time,
-                tmax=end_time,
+    def _apply_cuts(self):
+        """Apply the cut regions to the signal."""
+        if self._raw_data is None or not self._cut_regions:
+            QMessageBox.information(
+                self, "No Cuts",
+                "No cut regions have been defined."
             )
-
-            # Update display (show same data for both since no cleaned version yet)
-            self.band_power_widget.update_comparison(powers, powers)
-
-        except (ValueError, IndexError, RuntimeError):
-            # Silently handle errors in frequency analysis - display will show empty
-            self.band_power_widget.clear()
-
-    def _detect_resting_phases(self):
-        """Detect and display resting phases from annotations."""
-        if self._raw_data is None:
-            self.resting_phase_display.update_phases([])
-            return
-
-        try:
-            from backend import BandPowerAnalyzer, SignalEditor
-
-            # Detect phases
-            phases = SignalEditor.detect_resting_phases(self._raw_data)
-
-            if not phases:
-                self.resting_phase_display.update_phases([])
-                return
-
-            # Calculate band powers for each phase
-            analyzer = BandPowerAnalyzer()
-            original_powers = {}
-
-            for phase in phases:
-                phase_label = phase["label"]
-                start = phase["start"]
-                end = min(phase["end"], self._raw_data.times[-1])
-
-                try:
-                    power = analyzer.compute_band_power_for_raw(
-                        self._raw_data,
-                        channel_idx=0,
-                        tmin=start,
-                        tmax=end,
-                    )
-                    original_powers[phase_label] = power
-                except (ValueError, IndexError, RuntimeError):
-                    original_powers[phase_label] = None
-
-            self.resting_phase_display.update_phases(phases, original_powers)
-
-        except (ValueError, AttributeError):
-            # Silently handle errors - just show empty resting phases
-            self.resting_phase_display.update_phases([])
-
-    def _on_time_range_changed(self, start: float, end: float):
-        """Handle time range change."""
-        self._update_frequency_analysis()
-
-    def _on_apply_cuts(self, regions: List[Tuple[float, float]]):
-        """Apply signal cuts."""
-        if self._raw_data is None or not regions:
             return
 
         try:
             from backend import SignalEditor
 
             # Apply cuts
-            cut_raw = SignalEditor.cut_signal_regions(self._raw_data, regions)
+            cut_raw = SignalEditor.cut_signal_regions(
+                self._raw_data, self._cut_regions
+            )
             self._raw_data = cut_raw
+            self._cut_regions = []
 
-            # Update UI
-            self.signal_plot.set_data(cut_raw)
-            duration = cut_raw.times[-1]
-            self.time_range_selector.set_time_range(0.0, duration)
-            self.signal_cutter.set_max_time(duration)
-            self.signal_cutter.clear_regions()
+            # Update all electrode widgets with new data
+            for idx, (ch_name, widget) in enumerate(self._electrode_widgets.items()):
+                widget.set_data(cut_raw)
+                widget.set_cut_regions([])
 
             # Update file info
+            duration = cut_raw.times[-1]
             n_channels = len(cut_raw.ch_names)
             sfreq = cut_raw.info["sfreq"]
 
@@ -884,25 +995,19 @@ class SignalPreviewScreen(QWidget):
                 f"⚡ {sfreq:.0f} Hz"
             )
 
-            # Update frequency analysis
-            self._update_frequency_analysis()
-            self._detect_resting_phases()
-
-            # Emit signal
+            self._update_regions_summary()
             self.signal_modified.emit(cut_raw)
 
             QMessageBox.information(
-                self,
-                "Signal Modified",
+                self, "Signal Modified",
                 f"Signal regions have been cut successfully.\n"
-                f"New duration: {duration:.1f} seconds",
+                f"New duration: {duration:.1f} seconds"
             )
 
         except Exception as e:
             QMessageBox.critical(
-                self,
-                "Error",
-                f"Failed to cut signal regions:\n{str(e)}",
+                self, "Error",
+                f"Failed to cut signal regions:\n{str(e)}"
             )
 
     def _reset_signal(self):
@@ -911,8 +1016,7 @@ class SignalPreviewScreen(QWidget):
             return
 
         reply = QMessageBox.question(
-            self,
-            "Reset Signal",
+            self, "Reset Signal",
             "Are you sure you want to reset to the original signal?\n"
             "All modifications will be lost.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -921,11 +1025,28 @@ class SignalPreviewScreen(QWidget):
 
         if reply == QMessageBox.StandardButton.Yes:
             self._raw_data = self._original_raw_data.copy()
+            self._cut_regions = []
             self.set_data(self._raw_data, self._file_path)
-            self.signal_cutter.clear_regions()
+
+    def _update_regions_summary(self):
+        """Update the regions summary label."""
+        if not self._cut_regions:
+            self.regions_summary.setText("No cut regions")
+            self.regions_summary.setStyleSheet(
+                f"color: {self.theme.get('text_light', '#6c757d')};"
+            )
+        else:
+            total = sum(e - s for s, e in self._cut_regions)
+            self.regions_summary.setText(
+                f"✂️ {len(self._cut_regions)} cut region(s) | "
+                f"Total: {total:.1f}s to remove"
+            )
+            self.regions_summary.setStyleSheet(
+                f"color: {self.theme.get('danger', '#dc3545')}; font-weight: bold;"
+            )
 
     def _show_help_dialog(self):
-        """Show the help dialog for signal editing."""
+        """Show the help dialog."""
         dialog = SignalEditingHelpDialog(self.theme, self)
         dialog.exec()
 
@@ -943,8 +1064,8 @@ class SignalPreviewScreen(QWidget):
         self._raw_data = None
         self._original_raw_data = None
         self._file_path = ""
-        self.signal_plot.clear()
+        self._cut_regions = []
+        self.electrode_tabs.clear()
+        self._electrode_widgets.clear()
         self.file_info_label.setText("No file loaded")
-        self.signal_cutter.clear_regions()
-        self.band_power_widget.clear()
-        self.resting_phase_display.clear()
+        self._update_regions_summary()
