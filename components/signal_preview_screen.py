@@ -42,7 +42,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .band_power_display import BandPowerComparisonWidget
-from .signal_editor import RestingPhaseDisplay, SignalCutter, TimeRangeSelector
+from backend import BandPowerAnalyzer, SignalEditor
 
 
 class SignalEditingHelpDialog(QDialog):
@@ -194,11 +194,32 @@ class ElectrodeSignalWidget(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         
+        # Apply white theme background
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {self.theme.get('background', '#FFFFFF')};
+                color: {self.theme.get('text', '#212529')};
+            }}
+            QLabel {{
+                background-color: transparent;
+            }}
+        """)
+        
         # Main content splitter
         splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.setStyleSheet(f"""
+            QSplitter {{
+                background-color: {self.theme.get('background', '#FFFFFF')};
+            }}
+            QSplitter::handle {{
+                background-color: {self.theme.get('border', '#dee2e6')};
+                height: 4px;
+            }}
+        """)
         
         # === Top section: Signal plot with cutting ===
         signal_widget = QWidget()
+        signal_widget.setStyleSheet(f"background-color: {self.theme.get('background', '#FFFFFF')};")
         signal_layout = QVBoxLayout(signal_widget)
         signal_layout.setContentsMargins(0, 0, 0, 0)
         signal_layout.setSpacing(5)
@@ -208,14 +229,14 @@ class ElectrodeSignalWidget(QWidget):
         
         title_label = QLabel(f"📈 {self.channel_name} Signal")
         title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        title_label.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')};")
+        title_label.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')}; background: transparent;")
         header_layout.addWidget(title_label)
         
         header_layout.addStretch()
         
         # View window selector
         view_label = QLabel("View:")
-        view_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        view_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
         header_layout.addWidget(view_label)
         
         self.view_combo = QComboBox()
@@ -229,14 +250,24 @@ class ElectrodeSignalWidget(QWidget):
                 border-radius: 4px;
                 padding: 4px 8px;
                 min-width: 60px;
+                color: {self.theme.get('text', '#212529')};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: white;
+                color: {self.theme.get('text', '#212529')};
+                selection-background-color: {self.theme.get('primary', '#007AFF')};
+                selection-color: white;
             }}
         """)
         header_layout.addWidget(self.view_combo)
         
         signal_layout.addLayout(header_layout)
         
-        # Signal plot with matplotlib
-        self.figure = Figure(figsize=(12, 3), dpi=80)
+        # Signal plot with matplotlib - set white background
+        self.figure = Figure(figsize=(12, 3), dpi=80, facecolor='white')
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setMinimumHeight(180)
         signal_layout.addWidget(self.canvas)
@@ -245,7 +276,7 @@ class ElectrodeSignalWidget(QWidget):
         nav_layout = QHBoxLayout()
         
         self.nav_label = QLabel("Position: 0.0s")
-        self.nav_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        self.nav_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
         self.nav_label.setFixedWidth(100)
         nav_layout.addWidget(self.nav_label)
         
@@ -271,7 +302,7 @@ class ElectrodeSignalWidget(QWidget):
         nav_layout.addWidget(self.nav_slider)
         
         self.duration_label = QLabel("/ 0.0s")
-        self.duration_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')};")
+        self.duration_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;")
         self.duration_label.setFixedWidth(70)
         nav_layout.addWidget(self.duration_label)
         
@@ -283,7 +314,7 @@ class ElectrodeSignalWidget(QWidget):
         cut_group.setStyleSheet(f"""
             QGroupBox {{
                 font-weight: bold;
-                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border: 2px solid {self.theme.get('danger', '#dc3545')};
                 border-radius: 6px;
                 margin-top: 8px;
                 padding: 10px;
@@ -294,6 +325,11 @@ class ElectrodeSignalWidget(QWidget):
                 left: 10px;
                 padding: 0 5px;
                 color: {self.theme.get('danger', '#dc3545')};
+                background-color: {self.theme.get('background', '#FFFFFF')};
+            }}
+            QLabel {{
+                color: {self.theme.get('text', '#212529')};
+                background: transparent;
             }}
         """)
         cut_layout = QVBoxLayout(cut_group)
@@ -301,7 +337,9 @@ class ElectrodeSignalWidget(QWidget):
         # Selection controls
         selection_layout = QHBoxLayout()
         
-        selection_layout.addWidget(QLabel("Start:"))
+        start_label = QLabel("Start:")
+        start_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        selection_layout.addWidget(start_label)
         self.start_spin = QSpinBox()
         self.start_spin.setMinimum(0)
         self.start_spin.setMaximum(int(self._max_time))
@@ -314,13 +352,16 @@ class ElectrodeSignalWidget(QWidget):
                 border-radius: 4px;
                 padding: 4px;
                 min-width: 80px;
+                color: {self.theme.get('text', '#212529')};
             }}
         """)
         selection_layout.addWidget(self.start_spin)
         
         selection_layout.addSpacing(20)
         
-        selection_layout.addWidget(QLabel("End:"))
+        end_label = QLabel("End:")
+        end_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        selection_layout.addWidget(end_label)
         self.end_spin = QSpinBox()
         self.end_spin.setMinimum(0)
         self.end_spin.setMaximum(int(self._max_time))
@@ -334,6 +375,7 @@ class ElectrodeSignalWidget(QWidget):
                 border-radius: 4px;
                 padding: 4px;
                 min-width: 80px;
+                color: {self.theme.get('text', '#212529')};
             }}
         """)
         selection_layout.addWidget(self.end_spin)
@@ -364,7 +406,7 @@ class ElectrodeSignalWidget(QWidget):
         
         # Current cut regions display
         self.regions_label = QLabel("No cut regions defined")
-        self.regions_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')};")
+        self.regions_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;")
         self.regions_label.setWordWrap(True)
         cut_layout.addWidget(self.regions_label)
         
@@ -374,26 +416,40 @@ class ElectrodeSignalWidget(QWidget):
         
         # === Bottom section: Frequency analysis ===
         freq_widget = QWidget()
+        freq_widget.setStyleSheet(f"background-color: {self.theme.get('background', '#FFFFFF')};")
         freq_layout = QVBoxLayout(freq_widget)
-        freq_layout.setContentsMargins(0, 0, 0, 0)
+        freq_layout.setContentsMargins(5, 5, 5, 5)
         
         freq_header = QLabel("📊 Frequency Band Analysis")
         freq_header.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        freq_header.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')};")
+        freq_header.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')}; background: transparent;")
         freq_layout.addWidget(freq_header)
         
         # Time range selector for frequency analysis
         range_layout = QHBoxLayout()
-        range_layout.addWidget(QLabel("Analysis range:"))
+        range_label = QLabel("Analysis range:")
+        range_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        range_layout.addWidget(range_label)
         
         self.freq_start_spin = QSpinBox()
         self.freq_start_spin.setMinimum(0)
         self.freq_start_spin.setMaximum(int(self._max_time))
         self.freq_start_spin.setSuffix(" s")
         self.freq_start_spin.valueChanged.connect(self._update_frequency_analysis)
+        self.freq_start_spin.setStyleSheet(f"""
+            QSpinBox {{
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 4px;
+                color: {self.theme.get('text', '#212529')};
+            }}
+        """)
         range_layout.addWidget(self.freq_start_spin)
         
-        range_layout.addWidget(QLabel("to"))
+        to_label = QLabel("to")
+        to_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        range_layout.addWidget(to_label)
         
         self.freq_end_spin = QSpinBox()
         self.freq_end_spin.setMinimum(0)
@@ -401,6 +457,15 @@ class ElectrodeSignalWidget(QWidget):
         self.freq_end_spin.setValue(int(self._max_time))
         self.freq_end_spin.setSuffix(" s")
         self.freq_end_spin.valueChanged.connect(self._update_frequency_analysis)
+        self.freq_end_spin.setStyleSheet(f"""
+            QSpinBox {{
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 4px;
+                color: {self.theme.get('text', '#212529')};
+            }}
+        """)
         range_layout.addWidget(self.freq_end_spin)
         
         range_layout.addStretch()
@@ -499,7 +564,7 @@ class ElectrodeSignalWidget(QWidget):
         if not self._cut_regions:
             self.regions_label.setText("No cut regions defined")
             self.regions_label.setStyleSheet(
-                f"color: {self.theme.get('text_light', '#6c757d')};"
+                f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;"
             )
         else:
             regions_str = ", ".join(
@@ -510,7 +575,7 @@ class ElectrodeSignalWidget(QWidget):
                 f"Cut regions: {regions_str} (Total: {total:.1f}s)"
             )
             self.regions_label.setStyleSheet(
-                f"color: {self.theme.get('danger', '#dc3545')}; font-weight: bold;"
+                f"color: {self.theme.get('danger', '#dc3545')}; font-weight: bold; background: transparent;"
             )
     
     def _update_plot(self):
@@ -520,6 +585,7 @@ class ElectrodeSignalWidget(QWidget):
             return
         
         self.figure.clear()
+        self.figure.set_facecolor('white')
         
         try:
             sfreq = self._raw_data.info["sfreq"]
@@ -536,7 +602,7 @@ class ElectrodeSignalWidget(QWidget):
             display_times = times[start_idx:end_idx]
             display_data = data[0, start_idx:end_idx]
             
-            ax = self.figure.add_subplot(111)
+            ax = self.figure.add_subplot(111, facecolor='white')
             
             # Plot signal
             ax.plot(
@@ -634,8 +700,6 @@ class ElectrodeSignalWidget(QWidget):
             return
         
         try:
-            from backend import BandPowerAnalyzer
-            
             analyzer = BandPowerAnalyzer()
             start = self.freq_start_spin.value()
             end = self.freq_end_spin.value()
@@ -651,6 +715,7 @@ class ElectrodeSignalWidget(QWidget):
                 tmax=float(end),
             )
             
+            # Show same data for both original/cleaned since we're pre-processing
             self.band_power_widget.update_comparison(powers, powers)
             
         except Exception:
@@ -699,13 +764,20 @@ class SignalPreviewScreen(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
+        
+        # Apply white theme background to entire screen
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {self.theme.get('background', '#FFFFFF')};
+            }}
+        """)
 
         # Title
         title_label = QLabel("🔬 Signal Preview & Editing")
         title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet(
-            f"color: {self.theme.get('primary', '#007AFF')}; margin: 5px;"
+            f"color: {self.theme.get('primary', '#007AFF')}; margin: 5px; background: transparent;"
         )
         layout.addWidget(title_label)
 
@@ -718,7 +790,7 @@ class SignalPreviewScreen(QWidget):
         description.setAlignment(Qt.AlignmentFlag.AlignCenter)
         description.setWordWrap(True)
         description.setStyleSheet(
-            f"color: {self.theme.get('text_light', '#6c757d')}; margin-bottom: 10px;"
+            f"color: {self.theme.get('text_light', '#6c757d')}; margin-bottom: 10px; background: transparent;"
         )
         layout.addWidget(description)
 
@@ -728,7 +800,7 @@ class SignalPreviewScreen(QWidget):
         self.file_info_label = QLabel("No file loaded")
         self.file_info_label.setFont(QFont("Arial", 10))
         self.file_info_label.setStyleSheet(
-            f"color: {self.theme.get('text', '#212529')};"
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
         )
         header_layout.addWidget(self.file_info_label)
         
@@ -769,6 +841,7 @@ class SignalPreviewScreen(QWidget):
                 margin-right: 2px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
+                color: {self.theme.get('text', '#212529')};
             }}
             QTabBar::tab:selected {{
                 background-color: {self.theme.get('background', '#FFFFFF')};
@@ -969,8 +1042,6 @@ class SignalPreviewScreen(QWidget):
             return
 
         try:
-            from backend import SignalEditor
-
             # Apply cuts
             cut_raw = SignalEditor.cut_signal_regions(
                 self._raw_data, self._cut_regions
