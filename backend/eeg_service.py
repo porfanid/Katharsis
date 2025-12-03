@@ -232,6 +232,7 @@ class EEGArtifactCleaningService:
         self,
         raw: mne.io.Raw,
         analysis_method: Optional[str] = None,
+        already_filtered: bool = False,
     ) -> Dict[str, Any]:
         """
         Load and prepare from a pre-loaded Raw object.
@@ -242,6 +243,7 @@ class EEGArtifactCleaningService:
         Args:
             raw: Pre-loaded MNE Raw object
             analysis_method: Analysis method ("ICA" or "PCA"), None to use default
+            already_filtered: If True, skip band-pass filtering (data already preprocessed)
 
         Returns:
             Dictionary with loading results
@@ -259,7 +261,8 @@ class EEGArtifactCleaningService:
             self._update_progress(10)
 
             # Load raw data directly into backend core
-            result = self.backend_core.load_from_raw(raw)
+            # Pass already_filtered flag to skip redundant filtering
+            result = self.backend_core.load_from_raw(raw, already_filtered=already_filtered)
 
             if not result["success"]:
                 self.is_processing = False

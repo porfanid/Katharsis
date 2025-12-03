@@ -23,7 +23,7 @@ import mne
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PyQt6.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -45,154 +45,9 @@ from PyQt6.QtWidgets import (
 from scipy.ndimage import binary_dilation
 
 from backend import BandPowerAnalyzer, SignalEditor
+from backend.eeg_backend import EEGPreprocessor
 
 from .band_power_display import BandPowerComparisonWidget
-
-# =============================================================================
-# Background Workers for Heavy Calculations
-# =============================================================================
-
-
-class PlotWorker(QObject):
-    """Worker for computing plot data in background thread."""
-
-    finished = pyqtSignal(dict)  # Emits plot data
-    error = pyqtSignal(str)
-
-    def __init__(
-        self,
-        raw_data,
-        channel_idx: int,
-        view_start: float,
-        view_window: float,
-        max_time: float,
-        cut_regions: List[Tuple[float, float]],
-        current_selection: Tuple[float, float],
-        voltage_threshold: int,
-    ):
-        super().__init__()
-        self.raw_data = raw_data
-        self.channel_idx = channel_idx
-        self.view_start = view_start
-        self.view_window = view_window
-        self.max_time = max_time
-        self.cut_regions = cut_regions
-        self.current_selection = current_selection
-        self.voltage_threshold = voltage_threshold
-
-    def run(self):
-        """Compute plot data."""
-        try:
-            sfreq = self.raw_data.info["sfreq"]
-
-            # Get data for this channel only
-            data = self.raw_data.get_data(picks=[self.channel_idx]) * 1e6  # μV
-            times = self.raw_data.times
-
-            # Calculate view range
-            view_end = min(self.view_start + self.view_window, self.max_time)
-            start_idx = int(self.view_start * sfreq)
-            end_idx = min(int(view_end * sfreq), data.shape[1])
-
-            display_times = times[start_idx:end_idx]
-            display_data = data[0, start_idx:end_idx]
-
-            # Find threshold violations
-            exceeds_threshold = np.abs(display_data) > self.voltage_threshold
-            violation_count = np.sum(np.diff(exceeds_threshold.astype(int)) == 1)
-
-            # Get annotations in view range
-            annotations = []
-            if self.raw_data.annotations is not None:
-                for annot in self.raw_data.annotations:
-                    onset = annot["onset"]
-                    duration = annot["duration"] if annot["duration"] > 0 else 5.0
-                    annot_end = onset + duration
-
-                    if annot_end >= self.view_start and onset <= view_end:
-                        annotations.append(
-                            {
-                                "onset": onset,
-                                "duration": duration,
-                                "description": annot["description"],
-                            }
-                        )
-
-            result = {
-                "display_times": display_times.tolist(),
-                "display_data": display_data.tolist(),
-                "exceeds_threshold": exceeds_threshold.tolist(),
-                "violation_count": violation_count,
-                "view_start": self.view_start,
-                "view_end": view_end,
-                "threshold": self.voltage_threshold,
-                "annotations": annotations,
-                "cut_regions": self.cut_regions,
-                "current_selection": self.current_selection,
-            }
-
-            self.finished.emit(result)
-
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-class FrequencyWorker(QObject):
-    """Worker for computing frequency band analysis in background thread."""
-
-    finished = pyqtSignal(dict)  # Emits frequency data
-    error = pyqtSignal(str)
-
-    def __init__(
-        self,
-        raw_data,
-        channel_idx: int,
-        start1: int,
-        end1: int,
-        start2: int,
-        end2: int,
-    ):
-        super().__init__()
-        self.raw_data = raw_data
-        self.channel_idx = channel_idx
-        self.start1 = start1
-        self.end1 = end1
-        self.start2 = start2
-        self.end2 = end2
-
-    def run(self):
-        """Compute frequency band powers."""
-        try:
-            analyzer = BandPowerAnalyzer()
-
-            powers1 = None
-            powers2 = None
-
-            if self.start1 < self.end1:
-                powers1 = analyzer.compute_band_power_for_raw(
-                    self.raw_data,
-                    channel_idx=self.channel_idx,
-                    tmin=float(self.start1),
-                    tmax=float(self.end1),
-                )
-
-            if self.start2 < self.end2:
-                powers2 = analyzer.compute_band_power_for_raw(
-                    self.raw_data,
-                    channel_idx=self.channel_idx,
-                    tmin=float(self.start2),
-                    tmax=float(self.end2),
-                )
-
-            self.finished.emit(
-                {
-                    "powers1": powers1,
-                    "powers2": powers2,
-                }
-            )
-
-        except Exception as e:
-            self.error.emit(str(e))
 
 
 class SignalEditingHelpDialog(QDialog):
@@ -320,8 +175,9 @@ class ElectrodeSignalWidget(QWidget):
     cut_region_added = pyqtSignal(float, float)  # start, end
     cut_region_removed = pyqtSignal(int)  # index
 
-    # Debounce delay for updates (ms)
-    UPDATE_DEBOUNCE_MS = 150
+    # Debounce delays for updates (ms) - prevents excessive redraws during slider dragging
+    PLOT_UPDATE_DEBOUNCE_MS = 150  # Fast enough to feel responsive, slow enough to avoid lag
+    FREQ_UPDATE_DEBOUNCE_MS = 300  # Longer delay for heavier frequency computation
 
     def __init__(self, channel_name: str, channel_idx: int, theme: Dict[str, str], parent=None):
         super().__init__(parent)
@@ -334,12 +190,6 @@ class ElectrodeSignalWidget(QWidget):
         self._max_time = 100.0
         self._cut_regions: List[Tuple[float, float]] = []
         self._current_selection = (0.0, 10.0)  # Current marker positions
-
-        # Threading for background work
-        self._plot_thread: Optional[QThread] = None
-        self._freq_thread: Optional[QThread] = None
-        self._plot_pending = False
-        self._freq_pending = False
 
         # Debounce timers to avoid excessive updates
         self._plot_timer = QTimer()
@@ -904,7 +754,7 @@ class ElectrodeSignalWidget(QWidget):
             return
 
         # Use debounce timer to avoid excessive redraws
-        self._plot_timer.start(self.UPDATE_DEBOUNCE_MS)
+        self._plot_timer.start(self.PLOT_UPDATE_DEBOUNCE_MS)
 
     def _do_update_plot(self):
         """Actually update the plot (called after debounce)."""
@@ -912,71 +762,42 @@ class ElectrodeSignalWidget(QWidget):
             self._show_empty_message()
             return
 
-        # Show loading indicator
-        self.loading_label.setText("⏳")
-
-        # Cancel any running thread
-        if self._plot_thread is not None and self._plot_thread.isRunning():
-            self._plot_pending = True
-            return
-
-        # Create worker and thread
-        self._plot_thread = QThread()
-        worker = PlotWorker(
-            self._raw_data,
-            self.channel_idx,
-            self._view_start,
-            self._view_window,
-            self._max_time,
-            self._cut_regions.copy(),
-            self._current_selection,
-            self.voltage_threshold_spin.value(),
-        )
-        worker.moveToThread(self._plot_thread)
-
-        self._plot_thread.started.connect(worker.run)
-        worker.finished.connect(self._on_plot_data_ready)
-        worker.finished.connect(self._plot_thread.quit)
-        worker.error.connect(self._on_plot_error)
-        worker.error.connect(self._plot_thread.quit)
-
-        # Clean up
-        self._plot_thread.finished.connect(worker.deleteLater)
-        self._plot_thread.finished.connect(self._on_plot_thread_finished)
-
-        self._plot_thread.start()
-
-    def _on_plot_thread_finished(self):
-        """Handle plot thread completion."""
-        if self._plot_pending:
-            self._plot_pending = False
-            self._do_update_plot()
-
-    def _on_plot_data_ready(self, data: dict):
-        """Handle computed plot data and draw."""
-        self.loading_label.setText("")
-
         self.figure.clear()
         self.figure.set_facecolor("white")
 
         try:
-            display_times = np.array(data["display_times"])
-            display_data = np.array(data["display_data"])
-            exceeds_threshold = np.array(data["exceeds_threshold"])
-            threshold = data["threshold"]
-            view_start = data["view_start"]
-            view_end = data["view_end"]
+            sfreq = self._raw_data.info["sfreq"]
+
+            # Get data for this channel only
+            data = self._raw_data.get_data(picks=[self.channel_idx]) * 1e6  # Convert to μV
+            times = self._raw_data.times
+
+            # Calculate view range
+            view_end = min(self._view_start + self._view_window, self._max_time)
+            start_idx = int(self._view_start * sfreq)
+            end_idx = min(int(view_end * sfreq), data.shape[1])
+
+            display_times = times[start_idx:end_idx]
+            display_data = data[0, start_idx:end_idx]
+
+            # Remove DC offset (subtract mean) for better visualization
+            display_data = display_data - np.mean(display_data)
 
             ax = self.figure.add_subplot(111, facecolor="white")
+
+            # Get voltage threshold
+            threshold = self.voltage_threshold_spin.value()
 
             # Plot signal in blue
             ax.plot(display_times, display_data, color=self.theme.get("primary", "#007AFF"), linewidth=0.8, alpha=0.9)
 
             # Highlight regions exceeding threshold in red
+            exceeds_threshold = np.abs(display_data) > threshold
             if np.any(exceeds_threshold):
                 masked_data = np.ma.masked_where(~exceeds_threshold, display_data)
                 ax.plot(display_times, masked_data, color="red", linewidth=1.5, alpha=0.9)
-                self.threshold_violations_label.setText(f"⚠️ {data['violation_count']}")
+                violation_count = np.sum(np.diff(exceeds_threshold.astype(int)) == 1)
+                self.threshold_violations_label.setText(f"⚠️ {violation_count}")
             else:
                 self.threshold_violations_label.setText("")
 
@@ -985,58 +806,55 @@ class ElectrodeSignalWidget(QWidget):
             ax.axhline(y=-threshold, color="red", linestyle="--", linewidth=1, alpha=0.7)
 
             # Add annotations (eyes open/closed)
-            for annot in data["annotations"]:
-                onset = annot["onset"]
-                duration = annot["duration"]
-                description = annot["description"].lower()
-                annot_end = onset + duration
+            if self._raw_data.annotations is not None:
+                for annot in self._raw_data.annotations:
+                    onset = annot["onset"]
+                    duration = annot["duration"] if annot["duration"] > 0 else 5.0
+                    description = annot["description"].lower()
+                    annot_end = onset + duration
 
-                if "open" in description:
-                    color = "#28a745"
-                    label = "Eyes Open"
-                elif "close" in description:
-                    color = "#6f42c1"
-                    label = "Eyes Closed"
-                else:
-                    color = "#ffc107"
-                    label = annot["description"]
+                    if annot_end >= self._view_start and onset <= view_end:
+                        if "open" in description:
+                            color = "#28a745"
+                            label = "Eyes Open"
+                        elif "close" in description:
+                            color = "#6f42c1"
+                            label = "Eyes Closed"
+                        else:
+                            color = "#ffc107"
+                            label = annot["description"]
 
-                draw_start = max(onset, view_start)
-                draw_end = min(annot_end, view_end)
-                ax.axvspan(draw_start, draw_end, alpha=0.2, color=color)
+                        draw_start = max(onset, self._view_start)
+                        draw_end = min(annot_end, view_end)
+                        ax.axvspan(draw_start, draw_end, alpha=0.2, color=color)
 
-                mid = (draw_start + draw_end) / 2
-                if view_start <= mid <= view_end:
-                    ax.text(
-                        mid,
-                        ax.get_ylim()[1] * 0.95,
-                        label,
-                        ha="center",
-                        va="top",
-                        fontsize=7,
-                        color=color,
-                        fontweight="bold",
-                        bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
-                    )
+                        mid = (draw_start + draw_end) / 2
+                        if self._view_start <= mid <= view_end:
+                            ax.text(
+                                mid,
+                                ax.get_ylim()[1] * 0.95,
+                                label,
+                                ha="center",
+                                va="top",
+                                fontsize=7,
+                                color=color,
+                                fontweight="bold",
+                                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
+                            )
 
             # Highlight cut regions
-            for start, end in data["cut_regions"]:
-                if end >= view_start and start <= view_end:
-                    draw_start = max(start, view_start)
+            for start, end in self._cut_regions:
+                if end >= self._view_start and start <= view_end:
+                    draw_start = max(start, self._view_start)
                     draw_end = min(end, view_end)
                     ax.axvspan(
-                        draw_start,
-                        draw_end,
-                        alpha=0.4,
-                        color=self.theme.get("danger", "#dc3545"),
-                        hatch="///",
-                        edgecolor="darkred",
+                        draw_start, draw_end, alpha=0.4, color=self.theme.get("danger", "#dc3545"), hatch="///", edgecolor="darkred"
                     )
 
             # Highlight current selection
-            sel_start, sel_end = data["current_selection"]
-            if sel_end >= view_start and sel_start <= view_end:
-                draw_start = max(sel_start, view_start)
+            sel_start, sel_end = self._current_selection
+            if sel_end >= self._view_start and sel_start <= view_end:
+                draw_start = max(sel_start, self._view_start)
                 draw_end = min(sel_end, view_end)
                 ax.axvspan(
                     draw_start,
@@ -1049,8 +867,8 @@ class ElectrodeSignalWidget(QWidget):
                 )
 
             ax.set_xlabel("Time (s)", fontsize=8)
-            ax.set_ylabel("μV", fontsize=8)
-            ax.set_xlim(view_start, view_end)
+            ax.set_ylabel("Amplitude (μV)", fontsize=8)
+            ax.set_xlim(self._view_start, view_end)
             ax.grid(True, alpha=0.3)
             ax.tick_params(labelsize=7)
 
@@ -1060,14 +878,6 @@ class ElectrodeSignalWidget(QWidget):
             ax = self.figure.add_subplot(111)
             ax.text(0.5, 0.5, f"Error: {str(e)}", ha="center", va="center", fontsize=10, color="red", transform=ax.transAxes)
 
-        self.canvas.draw()
-
-    def _on_plot_error(self, error_msg: str):
-        """Handle plot computation error."""
-        self.loading_label.setText("")
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
-        ax.text(0.5, 0.5, f"Error: {error_msg}", ha="center", va="center", fontsize=10, color="red", transform=ax.transAxes)
         self.canvas.draw()
 
     def _show_empty_message(self):
@@ -1097,7 +907,7 @@ class ElectrodeSignalWidget(QWidget):
             return
 
         # Use debounce timer to avoid excessive computation
-        self._freq_timer.start(self.UPDATE_DEBOUNCE_MS * 2)  # Longer delay for heavier computation
+        self._freq_timer.start(self.FREQ_UPDATE_DEBOUNCE_MS)
 
     def _do_update_frequency(self):
         """Actually update frequency analysis (called after debounce)."""
@@ -1105,64 +915,45 @@ class ElectrodeSignalWidget(QWidget):
             self.band_power_widget.clear()
             return
 
-        # Cancel any running thread
-        if self._freq_thread is not None and self._freq_thread.isRunning():
-            self._freq_pending = True
-            return
+        try:
+            analyzer = BandPowerAnalyzer()
 
-        # Get current values
-        start1 = self.freq_start1_spin.value()
-        end1 = self.freq_end1_spin.value()
-        start2 = self.freq_start2_spin.value()
-        end2 = self.freq_end2_spin.value()
+            # Get current range values
+            start1 = self.freq_start1_spin.value()
+            end1 = self.freq_end1_spin.value()
+            start2 = self.freq_start2_spin.value()
+            end2 = self.freq_end2_spin.value()
 
-        # Create worker and thread
-        self._freq_thread = QThread()
-        worker = FrequencyWorker(
-            self._raw_data,
-            self.channel_idx,
-            start1,
-            end1,
-            start2,
-            end2,
-        )
-        worker.moveToThread(self._freq_thread)
+            powers1 = None
+            powers2 = None
 
-        self._freq_thread.started.connect(worker.run)
-        worker.finished.connect(self._on_frequency_data_ready)
-        worker.finished.connect(self._freq_thread.quit)
-        worker.error.connect(self._on_frequency_error)
-        worker.error.connect(self._freq_thread.quit)
+            if start1 < end1:
+                powers1 = analyzer.compute_band_power_for_raw(
+                    self._raw_data,
+                    channel_idx=self.channel_idx,
+                    tmin=float(start1),
+                    tmax=float(end1),
+                )
 
-        # Clean up
-        self._freq_thread.finished.connect(worker.deleteLater)
-        self._freq_thread.finished.connect(self._on_freq_thread_finished)
+            if start2 < end2:
+                powers2 = analyzer.compute_band_power_for_raw(
+                    self._raw_data,
+                    channel_idx=self.channel_idx,
+                    tmin=float(start2),
+                    tmax=float(end2),
+                )
 
-        self._freq_thread.start()
+            if powers1 is not None and powers2 is not None:
+                self.band_power_widget.update_comparison(powers1, powers2)
+            elif powers1 is not None:
+                self.band_power_widget.update_comparison(powers1, powers1)
+            elif powers2 is not None:
+                self.band_power_widget.update_comparison(powers2, powers2)
+            else:
+                self.band_power_widget.clear()
 
-    def _on_freq_thread_finished(self):
-        """Handle frequency thread completion."""
-        if self._freq_pending:
-            self._freq_pending = False
-            self._do_update_frequency()
-
-    def _on_frequency_data_ready(self, data: dict):
-        """Handle computed frequency data and update display."""
-        powers1 = data.get("powers1")
-        powers2 = data.get("powers2")
-
-        if powers1 is not None and powers2 is not None:
-            self.band_power_widget.update_comparison(powers1, powers2)
-        elif powers1 is not None:
-            self.band_power_widget.update_comparison(powers1, powers1)
-        elif powers2 is not None:
-            self.band_power_widget.update_comparison(powers2, powers2)
-        else:
+        except Exception:
             self.band_power_widget.clear()
-
-    def _on_frequency_error(self, error_msg: str):
-        """Handle frequency computation error."""
-        self.band_power_widget.clear()
 
     def _auto_detect_artifacts(self):
         """Automatically detect and mark regions exceeding voltage threshold for cutting."""
@@ -1245,18 +1036,9 @@ class ElectrodeSignalWidget(QWidget):
             QMessageBox.warning(self, "Detection Error", f"Failed to detect artifacts: {str(e)}")
 
     def clear(self):
-        """Clear the widget and stop any running threads."""
-        # Stop running threads
+        """Clear the widget and stop timers."""
         self._plot_timer.stop()
         self._freq_timer.stop()
-
-        if self._plot_thread is not None and self._plot_thread.isRunning():
-            self._plot_thread.quit()
-            self._plot_thread.wait(100)
-
-        if self._freq_thread is not None and self._freq_thread.isRunning():
-            self._freq_thread.quit()
-            self._freq_thread.wait(100)
 
         self._raw_data = None
         self._cut_regions = []
@@ -1517,12 +1299,34 @@ class SignalPreviewScreen(QWidget):
         """
         Set the EEG data for preview and editing.
 
+        The data is automatically filtered with a band-pass filter (1-40 Hz)
+        to remove DC offset and high-frequency noise before display.
+
         Args:
             raw: MNE Raw object (should be preloaded)
             file_path: Path to the source file
         """
-        self._raw_data = raw.copy() if raw is not None else None
-        self._original_raw_data = raw.copy() if raw is not None else None
+        if raw is None:
+            self._raw_data = None
+            self._original_raw_data = None
+            self._file_path = ""
+            self._cut_regions = []
+            self.electrode_tabs.clear()
+            self._electrode_widgets.clear()
+            self.file_info_label.setText("No file loaded")
+            self._update_regions_summary()
+            return
+
+        # Apply band-pass filter to remove DC offset and high-frequency noise
+        # This is the same preprocessing done before ICA/PCA
+        try:
+            filtered_raw = EEGPreprocessor.apply_bandpass_filter(raw, low_freq=1.0, high_freq=40.0)
+        except Exception:
+            # If filtering fails, use original data
+            filtered_raw = raw.copy()
+
+        self._raw_data = filtered_raw
+        self._original_raw_data = filtered_raw.copy()
         self._file_path = file_path
         self._cut_regions = []
 
@@ -1530,29 +1334,29 @@ class SignalPreviewScreen(QWidget):
         self.electrode_tabs.clear()
         self._electrode_widgets.clear()
 
-        if raw is not None:
-            # Update file info
-            duration = raw.times[-1]
-            n_channels = len(raw.ch_names)
-            sfreq = raw.info["sfreq"]
-            n_annotations = len(raw.annotations)
+        # Update file info
+        duration = filtered_raw.times[-1]
+        n_channels = len(filtered_raw.ch_names)
+        sfreq = filtered_raw.info["sfreq"]
+        n_annotations = len(filtered_raw.annotations) if filtered_raw.annotations else 0
 
-            self.file_info_label.setText(
-                f"📁 {file_path.split('/')[-1] if file_path else 'Unknown'} | "
-                f"🧠 {n_channels} channels | "
-                f"⏱️ {duration:.1f}s | "
-                f"⚡ {sfreq:.0f} Hz | "
-                f"📌 {n_annotations} annotations"
-            )
+        self.file_info_label.setText(
+            f"📁 {file_path.split('/')[-1] if file_path else 'Unknown'} | "
+            f"🧠 {n_channels} ch | "
+            f"⏱️ {duration:.1f}s | "
+            f"⚡ {sfreq:.0f} Hz | "
+            f"📌 {n_annotations} annot | "
+            f"🔧 Filtered 1-40 Hz"
+        )
 
-            # Create tab for each electrode
-            for idx, ch_name in enumerate(raw.ch_names):
-                electrode_widget = ElectrodeSignalWidget(channel_name=ch_name, channel_idx=idx, theme=self.theme, parent=self)
-                electrode_widget.set_data(raw)
-                electrode_widget.cut_region_added.connect(self._on_cut_region_added)
+        # Create tab for each electrode
+        for idx, ch_name in enumerate(filtered_raw.ch_names):
+            electrode_widget = ElectrodeSignalWidget(channel_name=ch_name, channel_idx=idx, theme=self.theme, parent=self)
+            electrode_widget.set_data(filtered_raw)
+            electrode_widget.cut_region_added.connect(self._on_cut_region_added)
 
-                self._electrode_widgets[ch_name] = electrode_widget
-                self.electrode_tabs.addTab(electrode_widget, f"🧠 {ch_name}")
+            self._electrode_widgets[ch_name] = electrode_widget
+            self.electrode_tabs.addTab(electrode_widget, f"🧠 {ch_name}")
 
         self._update_regions_summary()
 
@@ -1616,14 +1420,14 @@ class SignalPreviewScreen(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to cut signal regions:\n{str(e)}")
 
     def _reset_signal(self):
-        """Reset signal to original state."""
+        """Reset signal to original (filtered) state."""
         if self._original_raw_data is None:
             return
 
         reply = QMessageBox.question(
             self,
             "Reset Signal",
-            "Are you sure you want to reset to the original signal?\n" "All modifications will be lost.",
+            "Are you sure you want to reset to the original filtered signal?\n" "All cuts will be removed.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1631,7 +1435,28 @@ class SignalPreviewScreen(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             self._raw_data = self._original_raw_data.copy()
             self._cut_regions = []
-            self.set_data(self._raw_data, self._file_path)
+            
+            # Update all electrode widgets with original data
+            for idx, (ch_name, widget) in enumerate(self._electrode_widgets.items()):
+                widget.set_data(self._raw_data)
+                widget.set_cut_regions([])
+            
+            # Update file info
+            duration = self._raw_data.times[-1]
+            n_channels = len(self._raw_data.ch_names)
+            sfreq = self._raw_data.info["sfreq"]
+            n_annotations = len(self._raw_data.annotations) if self._raw_data.annotations else 0
+            
+            self.file_info_label.setText(
+                f"📁 {self._file_path.split('/')[-1] if self._file_path else 'Unknown'} | "
+                f"🧠 {n_channels} ch | "
+                f"⏱️ {duration:.1f}s | "
+                f"⚡ {sfreq:.0f} Hz | "
+                f"📌 {n_annotations} annot | "
+                f"🔧 Filtered 1-40 Hz"
+            )
+            
+            self._update_regions_summary()
 
     def _update_regions_summary(self):
         """Update the regions summary label."""

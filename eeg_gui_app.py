@@ -358,6 +358,10 @@ class EEGProcessingThreadWithRaw(QThread):
     Similar to EEGProcessingThread but works with already loaded
     and possibly modified raw data from the signal preview screen.
 
+    The data coming from the Signal Preview screen is already filtered
+    (band-pass 1-40 Hz) and possibly manually cleaned (bad regions cut),
+    so we skip redundant preprocessing.
+
     Signals:
         progress_update (int): Progress update (0-100)
         status_update (str): Status update
@@ -376,7 +380,7 @@ class EEGProcessingThreadWithRaw(QThread):
 
         Args:
             service: EEG cleaning service
-            raw_data: Pre-loaded MNE Raw object
+            raw_data: Pre-loaded MNE Raw object (already filtered and cleaned)
         """
         super().__init__()
         self.service = service
@@ -388,12 +392,16 @@ class EEGProcessingThreadWithRaw(QThread):
 
         Uses the provided raw data directly, trains the ICA model,
         detects artifacts and prepares data for visualization.
+
+        The data is already filtered and manually cleaned from the
+        Signal Preview screen, so we skip redundant filtering.
         """
         try:
             self.status_update.emit("Preparing signal data...")
 
             # Use the service's method to load from raw data
-            load_result = self.service.load_from_raw(self.raw_data)
+            # Pass already_filtered=True since data from Signal Preview is pre-filtered
+            load_result = self.service.load_from_raw(self.raw_data, already_filtered=True)
             if not load_result["success"]:
                 self.processing_complete.emit(
                     False,

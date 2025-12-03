@@ -1000,14 +1000,17 @@ class EEGBackendCore:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def load_from_raw(self, raw: mne.io.Raw) -> Dict[str, Any]:
+    def load_from_raw(self, raw: mne.io.Raw, already_filtered: bool = False) -> Dict[str, Any]:
         """
         Load and process from pre-loaded Raw object.
 
-        Used when signal has been modified before processing.
+        Used when signal has been modified before processing (e.g., from
+        the Signal Preview screen where filtering and manual cleaning
+        have already been applied).
 
         Args:
             raw: Pre-loaded MNE Raw object
+            already_filtered: If True, skip band-pass filtering (data already filtered)
 
         Returns:
             Dictionary with loading information
@@ -1030,8 +1033,13 @@ class EEGBackendCore:
                 # If montage fails, continue without it
                 warnings.warn(f"Unable to set montage: {str(e)}", UserWarning)
 
-            # Apply filter
-            self.filtered_data = self.preprocessor.apply_bandpass_filter(self.raw_data)
+            # Apply filter only if not already filtered
+            if already_filtered:
+                # Data is already preprocessed (filtered), use it directly
+                self.filtered_data = self.raw_data.copy()
+            else:
+                # Apply band-pass filter
+                self.filtered_data = self.preprocessor.apply_bandpass_filter(self.raw_data)
 
             # Return information
             return {
