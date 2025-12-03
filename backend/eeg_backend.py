@@ -1013,9 +1013,22 @@ class EEGBackendCore:
             Dictionary with loading information
         """
         try:
+            import warnings
+
             # Store the raw data
             self.raw_data = raw.copy()
             self.current_file = "modified_signal"
+
+            # Ensure data is loaded
+            if not self.raw_data.preload:
+                self.raw_data.load_data()
+
+            # Set montage for topographic visualization (same as load_raw_file)
+            try:
+                self.raw_data.set_montage("standard_1020", on_missing="warn")
+            except (ValueError, KeyError, RuntimeError) as e:
+                # If montage fails, continue without it
+                warnings.warn(f"Unable to set montage: {str(e)}", UserWarning)
 
             # Apply filter
             self.filtered_data = self.preprocessor.apply_bandpass_filter(self.raw_data)

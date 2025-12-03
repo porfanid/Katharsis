@@ -22,6 +22,7 @@ from matplotlib.figure import Figure
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
     QGroupBox,
     QHBoxLayout,
@@ -30,6 +31,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QSpacerItem,
     QSplitter,
     QTabWidget,
@@ -163,32 +165,107 @@ class SignalEditingHelpDialog(QDialog):
 
 
 class SignalPlotWidget(QWidget):
-    """Widget for displaying EEG signal preview."""
+    """Widget for displaying EEG signal preview with navigation slider."""
+
+    # Maximum number of channels to display for readability
+    MAX_DISPLAY_CHANNELS = 5
+    # Default view window in seconds
+    DEFAULT_VIEW_WINDOW = 10.0
 
     def __init__(self, theme: Optional[Dict[str, str]] = None, parent=None):
         super().__init__(parent)
         self.theme = theme or {}
         self._raw_data = None
+        self._view_start = 0.0
+        self._view_window = self.DEFAULT_VIEW_WINDOW
+        self._max_time = 100.0
         self.setup_ui()
 
     def setup_ui(self):
         """Create the UI."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(8)
 
-        # Title
+        # Title row with view window selector
+        header_layout = QHBoxLayout()
+        
         title_label = QLabel("📈 Signal Preview")
         title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         title_label.setStyleSheet(
-            f"color: {self.theme.get('text', '#212529')};"
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
         )
-        layout.addWidget(title_label)
+        header_layout.addWidget(title_label)
+        
+        header_layout.addStretch()
+        
+        # View window selector
+        view_label = QLabel("View window:")
+        view_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        header_layout.addWidget(view_label)
+        
+        self.view_window_combo = QComboBox()
+        self.view_window_combo.addItems(["5s", "10s", "30s", "60s", "Full"])
+        self.view_window_combo.setCurrentText("10s")
+        self.view_window_combo.currentTextChanged.connect(self._on_view_window_changed)
+        self.view_window_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 4px 8px;
+                min-width: 70px;
+            }}
+        """)
+        header_layout.addWidget(self.view_window_combo)
+        
+        layout.addLayout(header_layout)
 
         # Matplotlib figure
         self.figure = Figure(figsize=(10, 4), dpi=80)
         self.canvas = FigureCanvas(self.figure)
-        self.canvas.setMinimumHeight(200)
+        self.canvas.setMinimumHeight(250)
         layout.addWidget(self.canvas)
+
+        # Navigation slider
+        nav_layout = QHBoxLayout()
+        
+        self.nav_label = QLabel("Position: 0.0s")
+        self.nav_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        self.nav_label.setFixedWidth(100)
+        nav_layout.addWidget(self.nav_label)
+        
+        self.nav_slider = QSlider(Qt.Orientation.Horizontal)
+        self.nav_slider.setMinimum(0)
+        self.nav_slider.setMaximum(1000)
+        self.nav_slider.setValue(0)
+        self.nav_slider.valueChanged.connect(self._on_nav_slider_changed)
+        self.nav_slider.setStyleSheet(f"""
+            QSlider::groove:horizontal {{
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                height: 8px;
+                background: #f8f9fa;
+                border-radius: 4px;
+            }}
+            QSlider::handle:horizontal {{
+                background: {self.theme.get('primary', '#007AFF')};
+                border: none;
+                width: 16px;
+                margin: -4px 0;
+                border-radius: 8px;
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: {self.theme.get('primary_hover', '#0056b3')};
+            }}
+        """)
+        nav_layout.addWidget(self.nav_slider)
+        
+        self.duration_label = QLabel("/ 0.0s")
+        self.duration_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;")
+        self.duration_label.setFixedWidth(80)
+        nav_layout.addWidget(self.duration_label)
+        
+        layout.addLayout(nav_layout)
 
         # Show empty message initially
         self._show_empty_message()
@@ -210,20 +287,44 @@ class SignalPlotWidget(QWidget):
         for spine in ax.spines.values():
             spine.set_visible(False)
         self.canvas.draw()
+    
+    def _on_view_window_changed(self, text: str):
+        """Handle view window change."""
+        if text == "Full":
+            self._view_window = self._max_time
+        else:
+            self._view_window = float(text.replace("s", ""))
+        self._update_plot()
+    
+    def _on_nav_slider_changed(self, value: int):
+        """Handle navigation slider change."""
+        # Map slider value (0-1000) to time position
+        max_start = max(0, self._max_time - self._view_window)
+        self._view_start = (value / 1000.0) * max_start
+        self.nav_label.setText(f"Position: {self._view_start:.1f}s")
+        self._update_plot()
 
-    def set_data(self, raw: mne.io.Raw, time_window: float = 10.0):
+    def set_data(self, raw: mne.io.Raw):
         """
         Set the EEG data for preview.
 
         Args:
             raw: MNE Raw object
-            time_window: Time window to display in seconds
         """
         self._raw_data = raw
-        self._update_plot(time_window)
+        if raw is not None:
+            self._max_time = raw.times[-1]
+            self._view_start = 0.0
+            self.duration_label.setText(f"/ {self._max_time:.1f}s")
+            
+            # Update view window if "Full" is selected
+            if self.view_window_combo.currentText() == "Full":
+                self._view_window = self._max_time
+        
+        self._update_plot()
 
-    def _update_plot(self, time_window: float = 10.0):
-        """Update the signal plot."""
+    def _update_plot(self):
+        """Update the signal plot with annotations."""
         if self._raw_data is None:
             self._show_empty_message()
             return
@@ -232,23 +333,58 @@ class SignalPlotWidget(QWidget):
 
         try:
             # Get data
+            sfreq = self._raw_data.info["sfreq"]
             data = self._raw_data.get_data() * 1e6  # Convert to μV
             times = self._raw_data.times
             channels = self._raw_data.ch_names
 
-            # Limit to time window
-            max_samples = min(
-                int(time_window * self._raw_data.info["sfreq"]),
-                data.shape[1]
-            )
-            display_times = times[:max_samples]
-            display_data = data[:, :max_samples]
+            # Calculate view range based on slider position
+            view_end = min(self._view_start + self._view_window, self._max_time)
+            
+            # Find sample indices for view window
+            start_idx = int(self._view_start * sfreq)
+            end_idx = int(view_end * sfreq)
+            end_idx = min(end_idx, data.shape[1])
+            
+            display_times = times[start_idx:end_idx]
+            display_data = data[:, start_idx:end_idx]
 
-            # Create subplot for each channel (max 5 channels for readability)
-            n_channels = min(len(channels), 5)
+            # Create subplot for each channel (limited for readability)
+            n_channels = min(len(channels), self.MAX_DISPLAY_CHANNELS)
+            
+            # Get annotations for highlighting
+            annotations = []
+            if self._raw_data.annotations is not None:
+                for annot in self._raw_data.annotations:
+                    onset = annot["onset"]
+                    duration = annot["duration"] if annot["duration"] > 0 else 5.0
+                    description = annot["description"].lower()
+                    
+                    # Check if annotation is in view
+                    annot_end = onset + duration
+                    if annot_end >= self._view_start and onset <= view_end:
+                        # Determine color based on annotation type
+                        if "open" in description:
+                            color = "#28a745"  # Green for eyes open
+                            label = "👁️ Eyes Open"
+                        elif "close" in description:
+                            color = "#6f42c1"  # Purple for eyes closed
+                            label = "😌 Eyes Closed"
+                        else:
+                            color = "#ffc107"  # Yellow for other
+                            label = annot["description"]
+                        
+                        annotations.append({
+                            "onset": onset,
+                            "duration": duration,
+                            "color": color,
+                            "label": label,
+                        })
             
             for i in range(n_channels):
                 ax = self.figure.add_subplot(n_channels, 1, i + 1)
+                
+                # Plot signal
                 ax.plot(
                     display_times,
                     display_data[i],
@@ -256,9 +392,32 @@ class SignalPlotWidget(QWidget):
                     linewidth=0.8,
                     alpha=0.8,
                 )
+                
+                # Add annotation regions
+                for annot in annotations:
+                    onset = max(annot["onset"], self._view_start)
+                    end = min(annot["onset"] + annot["duration"], view_end)
+                    ax.axvspan(onset, end, alpha=0.2, color=annot["color"])
+                    
+                    # Add label only on first channel
+                    if i == 0:
+                        mid_point = (onset + end) / 2
+                        if self._view_start <= mid_point <= view_end:
+                            y_pos = ax.get_ylim()[1]
+                            ax.text(
+                                mid_point, y_pos * 0.9,
+                                annot["label"],
+                                ha="center", va="top",
+                                fontsize=7,
+                                color=annot["color"],
+                                fontweight="bold",
+                                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
+                            )
+                
                 ax.set_ylabel(channels[i], fontsize=8)
                 ax.tick_params(labelsize=7)
                 ax.grid(True, alpha=0.3)
+                ax.set_xlim(self._view_start, view_end)
                 
                 if i == n_channels - 1:
                     ax.set_xlabel("Time (s)", fontsize=9)
@@ -283,6 +442,7 @@ class SignalPlotWidget(QWidget):
     def clear(self):
         """Clear the plot."""
         self._raw_data = None
+        self._view_start = 0.0
         self._show_empty_message()
 
 
@@ -644,8 +804,9 @@ class SignalPreviewScreen(QWidget):
             # Update display (show same data for both since no cleaned version yet)
             self.band_power_widget.update_comparison(powers, powers)
 
-        except Exception as e:
-            print(f"Error updating frequency analysis: {e}")
+        except (ValueError, IndexError, RuntimeError):
+            # Silently handle errors in frequency analysis - display will show empty
+            self.band_power_widget.clear()
 
     def _detect_resting_phases(self):
         """Detect and display resting phases from annotations."""
@@ -680,13 +841,13 @@ class SignalPreviewScreen(QWidget):
                         tmax=end,
                     )
                     original_powers[phase_label] = power
-                except Exception:
+                except (ValueError, IndexError, RuntimeError):
                     original_powers[phase_label] = None
 
             self.resting_phase_display.update_phases(phases, original_powers)
 
-        except Exception as e:
-            print(f"Error detecting resting phases: {e}")
+        except (ValueError, AttributeError):
+            # Silently handle errors - just show empty resting phases
             self.resting_phase_display.update_phases([])
 
     def _on_time_range_changed(self, start: float, end: float):
