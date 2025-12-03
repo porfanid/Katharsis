@@ -22,6 +22,7 @@ from .signal_editor import (
     SignalCutter,
     TimeRangeSelector,
 )
+from .signal_preview_screen import SignalPreviewScreen
 
 __all__ = [
     "ICAComponentSelector",
@@ -38,4 +39,5 @@ __all__ = [
     "TimeRangeSelector",
     "RestingPhaseDisplay",
     "SignalCutter",
+    "SignalPreviewScreen",
 ]

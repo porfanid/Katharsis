@@ -1000,6 +1000,43 @@ class EEGBackendCore:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def load_from_raw(self, raw: mne.io.Raw) -> Dict[str, Any]:
+        """
+        Load and process from pre-loaded Raw object.
+
+        Used when signal has been modified before processing.
+
+        Args:
+            raw: Pre-loaded MNE Raw object
+
+        Returns:
+            Dictionary with loading information
+        """
+        try:
+            # Store the raw data
+            self.raw_data = raw.copy()
+            self.current_file = "modified_signal"
+
+            # Apply filter
+            self.filtered_data = self.preprocessor.apply_bandpass_filter(self.raw_data)
+
+            # Return information
+            return {
+                "success": True,
+                "channels": list(self.raw_data.ch_names),
+                "sampling_rate": self.raw_data.info["sfreq"],
+                "duration": self.raw_data.times[-1],
+                "n_samples": len(self.raw_data.times),
+                "n_annotations": len(self.raw_data.annotations),
+                "stats_original": self.preprocessor.get_data_statistics(self.raw_data),
+                "stats_filtered": self.preprocessor.get_data_statistics(
+                    self.filtered_data
+                ),
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def get_file_info(self, file_path: str) -> Dict[str, Any]:
         """
         Get file information without loading data.
