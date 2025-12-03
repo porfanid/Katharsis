@@ -42,6 +42,11 @@ class TimeRangeSelector(QWidget):
 
     range_changed = pyqtSignal(float, float)
 
+    # Minimum interval between start and end times
+    MIN_INTERVAL = 0.1
+    # Default slider resolution (steps per second)
+    DEFAULT_RESOLUTION = 100
+
     def __init__(
         self,
         min_time: float = 0.0,
@@ -62,7 +67,13 @@ class TimeRangeSelector(QWidget):
         self.theme = theme or {}
         self._min_time = min_time
         self._max_time = max_time
-        self._resolution = 100  # Slider resolution (100 steps per second)
+        # Adjust resolution for longer signals to avoid excessive slider steps
+        if max_time > 1000:
+            self._resolution = 10  # 10 steps per second for long signals
+        elif max_time > 100:
+            self._resolution = 50  # 50 steps per second for medium signals
+        else:
+            self._resolution = self.DEFAULT_RESOLUTION
 
         # Current selection
         self._start_time = min_time
@@ -224,7 +235,7 @@ class TimeRangeSelector(QWidget):
 
         # Ensure start < end
         if self._start_time >= self._end_time:
-            self._start_time = self._end_time - 0.1
+            self._start_time = self._end_time - self.MIN_INTERVAL
             self.start_slider.blockSignals(True)
             self.start_slider.setValue(int(self._start_time * self._resolution))
             self.start_slider.blockSignals(False)
@@ -243,7 +254,7 @@ class TimeRangeSelector(QWidget):
 
         # Ensure end > start
         if self._end_time <= self._start_time:
-            self._end_time = self._start_time + 0.1
+            self._end_time = self._start_time + self.MIN_INTERVAL
             self.end_slider.blockSignals(True)
             self.end_slider.setValue(int(self._end_time * self._resolution))
             self.end_slider.blockSignals(False)

@@ -491,7 +491,8 @@ class BandPowerAnalysisWidget(QWidget):
                     tmax=min(end, self._raw_data.times[-1]),
                 )
                 original_powers[phase_label] = orig_power
-            except Exception:
+            except (ValueError, IndexError, RuntimeError):
+                # Handle cases where time range is invalid or data is insufficient
                 original_powers[phase_label] = None
 
             # Cleaned signal powers
@@ -504,7 +505,8 @@ class BandPowerAnalysisWidget(QWidget):
                         tmax=min(end, self._cleaned_data.times[-1]),
                     )
                     cleaned_powers[phase_label] = clean_power
-                except Exception:
+                except (ValueError, IndexError, RuntimeError):
+                    # Handle cases where time range is invalid or data is insufficient
                     cleaned_powers[phase_label] = None
 
         self.resting_phase_display.update_phases(

@@ -725,6 +725,9 @@ class SignalEditor:
         "resting_closed",
     ]
 
+    # Default duration for annotations without specified duration
+    DEFAULT_PHASE_DURATION = 60.0
+
     @staticmethod
     def detect_resting_phases(raw: mne.io.Raw) -> List[Dict[str, Any]]:
         """
@@ -748,6 +751,8 @@ class SignalEditor:
         if not raw.annotations or len(raw.annotations) == 0:
             return phases
 
+        default_duration = SignalEditor.DEFAULT_PHASE_DURATION
+
         for annot in raw.annotations:
             description = annot["description"].lower().strip()
             onset = annot["onset"]
@@ -766,19 +771,21 @@ class SignalEditor:
             )
 
             if is_eyes_open:
+                actual_duration = duration if duration > 0 else default_duration
                 phases.append({
                     "label": "Eyes Open",
                     "start": onset,
-                    "end": onset + duration if duration > 0 else onset + 60.0,
-                    "duration": duration if duration > 0 else 60.0,
+                    "end": onset + actual_duration,
+                    "duration": actual_duration,
                     "original_description": annot["description"],
                 })
             elif is_eyes_closed:
+                actual_duration = duration if duration > 0 else default_duration
                 phases.append({
                     "label": "Eyes Closed",
                     "start": onset,
-                    "end": onset + duration if duration > 0 else onset + 60.0,
-                    "duration": duration if duration > 0 else 60.0,
+                    "end": onset + actual_duration,
+                    "duration": actual_duration,
                     "original_description": annot["description"],
                 })
 
