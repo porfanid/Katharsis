@@ -544,6 +544,10 @@ class SignalCutterTimeline(QWidget):
     # Maximum length for annotation labels on timeline
     MAX_LABEL_LENGTH = 15
 
+    # Colors for frequency analysis ranges
+    FREQ_RANGE1_COLOR = "#007AFF"  # Blue for Range 1
+    FREQ_RANGE2_COLOR = "#fd7e14"  # Orange for Range 2
+
     def __init__(
         self,
         theme: Optional[Dict[str, str]] = None,
@@ -556,6 +560,7 @@ class SignalCutterTimeline(QWidget):
         self._right_marker = 10.0
         self._cut_regions: List[Tuple[float, float]] = []  # List of (start, end) tuples
         self._annotations: List[Dict] = []  # List of annotation dicts
+        self._freq_ranges: List[Tuple[float, float, str]] = []  # List of (start, end, label) tuples
         self._dragging = None  # None, 'left', 'right', or 'region'
         self._drag_offset = 0
 
@@ -581,6 +586,25 @@ class SignalCutterTimeline(QWidget):
         """Get the color for an annotation based on its description."""
         desc_lower = description.lower().strip()
         return self.ANNOTATION_COLORS.get(desc_lower, self.DEFAULT_ANNOTATION_COLOR)
+
+    def set_frequency_ranges(
+        self,
+        range1: Optional[Tuple[float, float, str]] = None,
+        range2: Optional[Tuple[float, float, str]] = None,
+    ):
+        """
+        Set the frequency analysis ranges to display on the timeline.
+
+        Args:
+            range1: Tuple of (start, end, label) for Range 1 (Blue)
+            range2: Tuple of (start, end, label) for Range 2 (Orange)
+        """
+        self._freq_ranges = []
+        if range1 is not None:
+            self._freq_ranges.append((range1[0], range1[1], range1[2], self.FREQ_RANGE1_COLOR))
+        if range2 is not None:
+            self._freq_ranges.append((range2[0], range2[1], range2[2], self.FREQ_RANGE2_COLOR))
+        self.update()
 
     def set_cut_regions(self, regions: List[Tuple[float, float]]):
         """Set the list of cut regions to display."""
@@ -733,6 +757,31 @@ class SignalCutterTimeline(QWidget):
             painter.drawText(
                 annot_rect, Qt.AlignmentFlag.AlignCenter, label
             )
+
+        # Draw frequency analysis ranges (before cut regions so they appear behind)
+        for freq_range in self._freq_ranges:
+            start, end, label, color = freq_range
+            if start >= end or end < 0 or start > self._max_time:
+                continue
+
+            freq_left_x = self._time_to_x(max(0, start))
+            freq_right_x = self._time_to_x(min(self._max_time, end))
+
+            freq_rect = QRect(
+                freq_left_x, timeline_top + 2, freq_right_x - freq_left_x, timeline_height - 4
+            )
+
+            # Semi-transparent fill
+            freq_color = QColor(color)
+            freq_color.setAlpha(120)
+            painter.setBrush(QBrush(freq_color))
+            painter.setPen(QPen(QColor(color).darker(110), 2))
+            painter.drawRect(freq_rect)
+
+            # Label with white text
+            painter.setPen(QPen(QColor("white")))
+            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+            painter.drawText(freq_rect, Qt.AlignmentFlag.AlignCenter, label)
 
         # Draw existing cut regions (darker red, already added)
         for i, (start, end) in enumerate(self._cut_regions):
