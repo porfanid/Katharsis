@@ -694,6 +694,380 @@ class EEGPreprocessor:
         return stats_dict
 
 
+class SignalEditor:
+    """
+    Signal Editing Utilities - cutting, joining, and annotation detection.
+
+    Provides static methods for:
+    - Detecting resting phase annotations (eyes open/closed)
+    - Cutting signal regions
+    - Joining signal segments
+    """
+
+    # Common resting phase annotation patterns
+    EYES_OPEN_PATTERNS = [
+        "eyes open",
+        "eyes_open",
+        "eyesopen",
+        "eo",
+        "e/o",
+        "rest_open",
+        "resting_open",
+    ]
+
+    EYES_CLOSED_PATTERNS = [
+        "eyes closed",
+        "eyes_closed",
+        "eyesclosed",
+        "ec",
+        "e/c",
+        "rest_closed",
+        "resting_closed",
+    ]
+
+    # Default duration for annotations without specified duration
+    DEFAULT_PHASE_DURATION = 60.0
+
+    @staticmethod
+    def detect_resting_phases(raw: mne.io.Raw) -> List[Dict[str, Any]]:
+        """
+        Detect resting phase annotations in EEG data.
+
+        Looks for annotations indicating "eyes open" or "eyes closed"
+        states commonly used in resting state EEG paradigms.
+        Also checks for marker channels (MarkerValueInt, MarkerIndex) if
+        standard annotations are not present.
+
+        Args:
+            raw: Raw EEG data with annotations
+
+        Returns:
+            List of phase dictionaries with keys:
+                - label: Phase label (e.g., "Eyes Open", "Eyes Closed")
+                - start: Start time in seconds
+                - end: End time in seconds
+                - duration: Duration in seconds
+        """
+        phases = []
+
+        # First try standard annotations
+        if raw.annotations and len(raw.annotations) > 0:
+            default_duration = SignalEditor.DEFAULT_PHASE_DURATION
+
+            for annot in raw.annotations:
+                description = annot["description"].lower().strip()
+                onset = annot["onset"]
+                duration = annot["duration"]
+
+                # Check for eyes open patterns
+                is_eyes_open = any(
+                    pattern in description
+                    for pattern in SignalEditor.EYES_OPEN_PATTERNS
+                )
+
+                # Check for eyes closed patterns
+                is_eyes_closed = any(
+                    pattern in description
+                    for pattern in SignalEditor.EYES_CLOSED_PATTERNS
+                )
+
+                if is_eyes_open:
+                    actual_duration = duration if duration > 0 else default_duration
+                    phases.append(
+                        {
+                            "label": "Eyes Open",
+                            "start": onset,
+                            "end": onset + actual_duration,
+                            "duration": actual_duration,
+                            "original_description": annot["description"],
+                        }
+                    )
+                elif is_eyes_closed:
+                    actual_duration = duration if duration > 0 else default_duration
+                    phases.append(
+                        {
+                            "label": "Eyes Closed",
+                            "start": onset,
+                            "end": onset + actual_duration,
+                            "duration": actual_duration,
+                            "original_description": annot["description"],
+                        }
+                    )
+
+            if phases:
+                return phases
+
+        # If no standard annotations, check for marker channels
+        # Common in Emotiv and other EEG systems
+        phases = SignalEditor._detect_phases_from_marker_channels(raw)
+
+        return phases
+
+    @staticmethod
+    def _detect_phases_from_marker_channels(raw: mne.io.Raw) -> List[Dict[str, Any]]:
+        """
+        Detect resting phases from marker channels in EEG data.
+
+        Some EEG systems (like Emotiv) store markers in dedicated channels
+        rather than as annotations. This method checks for common marker
+        channel patterns.
+
+        Common marker values:
+        - MarkerValueInt: 1 = Eyes Open condition, 3 = Eyes Closed condition
+        - MarkerIndex: positive = start, negative = end of a phase
+
+        Args:
+            raw: Raw EEG data
+
+        Returns:
+            List of phase dictionaries
+        """
+        import numpy as np
+
+        phases = []
+
+        # Check for marker channels
+        marker_channels = ["MarkerValueInt", "MarkerIndex", "Marker", "MARKER"]
+        available_markers = [ch for ch in marker_channels if ch in raw.ch_names]
+
+        if not available_markers:
+            return phases
+
+        # Try MarkerValueInt + MarkerIndex combination (Emotiv style)
+        if "MarkerValueInt" in raw.ch_names and "MarkerIndex" in raw.ch_names:
+            try:
+                marker_val_data = raw.get_data(picks=["MarkerValueInt"])[0]
+                marker_idx_data = raw.get_data(picks=["MarkerIndex"])[0]
+
+                # Scale values (they may be stored as microvolts)
+                # Detect scaling by checking max absolute value
+                max_val = np.max(np.abs(marker_val_data))
+                if max_val < 0.001:
+                    scale_factor = 1e6
+                else:
+                    scale_factor = 1
+
+                marker_val_scaled = np.round(marker_val_data * scale_factor).astype(int)
+                marker_idx_scaled = np.round(marker_idx_data * scale_factor).astype(int)
+
+                # Find marker events (non-zero values)
+                non_zero_idx = np.where(marker_val_scaled != 0)[0]
+
+                # Build event list: (time, marker_value, marker_index)
+                events = []
+                for idx in non_zero_idx:
+                    time = raw.times[idx]
+                    val = marker_val_scaled[idx]
+                    idx_val = marker_idx_scaled[idx]
+                    events.append((time, val, idx_val))
+
+                # Define marker value to label mapping
+                # Common convention: 1 = Eyes Open, 3 = Eyes Closed
+                # But this can vary, so we'll use a flexible approach
+                marker_labels = {}
+                unique_vals = set(e[1] for e in events)
+
+                # Assign labels based on marker values
+                for val in sorted(unique_vals):
+                    if val == 1:
+                        marker_labels[val] = "Eyes Open"
+                    elif val == 3:
+                        marker_labels[val] = "Eyes Closed"
+                    elif val == 2:
+                        marker_labels[val] = "Eyes Closed"
+                    else:
+                        marker_labels[val] = f"Condition {val}"
+
+                # Parse events to find phase start/end
+                # Positive marker_index = start, negative = end
+                active_phases = {}  # marker_value -> start_time
+
+                for time, marker_val, marker_idx in events:
+                    if marker_idx > 0:
+                        # Start of a phase
+                        active_phases[marker_val] = time
+                    elif marker_idx < 0:
+                        # End of a phase
+                        if marker_val in active_phases:
+                            start_time = active_phases.pop(marker_val)
+                            duration = time - start_time
+                            label = marker_labels.get(
+                                marker_val, f"Condition {marker_val}"
+                            )
+                            phases.append(
+                                {
+                                    "label": label,
+                                    "start": start_time,
+                                    "end": time,
+                                    "duration": duration,
+                                    "original_description": f"Marker {marker_val}",
+                                }
+                            )
+
+                # Handle any phases that started but didn't end
+                for marker_val, start_time in active_phases.items():
+                    end_time = raw.times[-1]
+                    duration = end_time - start_time
+                    label = marker_labels.get(marker_val, f"Condition {marker_val}")
+                    phases.append(
+                        {
+                            "label": label,
+                            "start": start_time,
+                            "end": end_time,
+                            "duration": duration,
+                            "original_description": f"Marker {marker_val} (unclosed)",
+                        }
+                    )
+
+            except (ValueError, IndexError, RuntimeError):
+                pass
+
+        # Sort phases by start time
+        phases.sort(key=lambda x: x["start"])
+
+        return phases
+
+    @staticmethod
+    def cut_signal_regions(
+        raw: mne.io.Raw,
+        regions_to_cut: List[Tuple[float, float]],
+    ) -> mne.io.Raw:
+        """
+        Cut specified regions from the signal and join remaining segments.
+
+        Args:
+            raw: Raw EEG data
+            regions_to_cut: List of (start_time, end_time) tuples in seconds
+
+        Returns:
+            New Raw object with cut regions removed and segments joined
+
+        Raises:
+            ValueError: If regions are invalid or result in empty signal
+        """
+        if not regions_to_cut:
+            return raw.copy()
+
+        # Sort regions by start time
+        sorted_regions = sorted(regions_to_cut, key=lambda x: x[0])
+
+        # Validate regions
+        signal_duration = raw.times[-1]
+        for start, end in sorted_regions:
+            if start < 0 or end > signal_duration:
+                raise ValueError(
+                    f"Region ({start}, {end}) is outside signal range "
+                    f"(0, {signal_duration})"
+                )
+            if start >= end:
+                raise ValueError(
+                    f"Invalid region: start ({start}) must be less than end ({end})"
+                )
+
+        # Check for overlapping regions
+        for i in range(len(sorted_regions) - 1):
+            if sorted_regions[i][1] > sorted_regions[i + 1][0]:
+                raise ValueError(
+                    f"Overlapping regions: {sorted_regions[i]} and "
+                    f"{sorted_regions[i + 1]}"
+                )
+
+        # Calculate segments to keep
+        segments_to_keep = []
+        current_start = 0.0
+
+        for cut_start, cut_end in sorted_regions:
+            if current_start < cut_start:
+                segments_to_keep.append((current_start, cut_start))
+            current_start = cut_end
+
+        # Add final segment if needed
+        if current_start < signal_duration:
+            segments_to_keep.append((current_start, signal_duration))
+
+        if not segments_to_keep:
+            raise ValueError("Cannot cut all regions - would result in empty signal")
+
+        # Extract and concatenate segments
+        sfreq = raw.info["sfreq"]
+        segments_data = []
+
+        for seg_start, seg_end in segments_to_keep:
+            start_sample = int(seg_start * sfreq)
+            end_sample = int(seg_end * sfreq)
+            segment = raw.get_data(start=start_sample, stop=end_sample)
+            segments_data.append(segment)
+
+        # Concatenate all segments
+        concatenated_data = np.concatenate(segments_data, axis=1)
+
+        # Create new Raw object
+        info = raw.info.copy()
+        new_raw = mne.io.RawArray(concatenated_data, info, verbose=False)
+
+        return new_raw
+
+    @staticmethod
+    def get_time_segment(
+        raw: mne.io.Raw,
+        start_time: float,
+        end_time: float,
+    ) -> mne.io.Raw:
+        """
+        Extract a time segment from the signal.
+
+        Args:
+            raw: Raw EEG data
+            start_time: Start time in seconds
+            end_time: End time in seconds
+
+        Returns:
+            New Raw object containing only the specified time segment
+        """
+        raw_cropped = raw.copy()
+        raw_cropped.crop(tmin=start_time, tmax=end_time, include_tmax=True)
+        return raw_cropped
+
+    @staticmethod
+    def get_annotations_in_range(
+        raw: mne.io.Raw,
+        start_time: float,
+        end_time: float,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get annotations within a specified time range.
+
+        Args:
+            raw: Raw EEG data with annotations
+            start_time: Start time in seconds
+            end_time: End time in seconds
+
+        Returns:
+            List of annotation dictionaries within the time range
+        """
+        annotations = []
+
+        if not raw.annotations or len(raw.annotations) == 0:
+            return annotations
+
+        for annot in raw.annotations:
+            onset = annot["onset"]
+            duration = annot["duration"]
+            annot_end = onset + duration if duration > 0 else onset
+
+            # Check if annotation overlaps with the time range
+            if onset <= end_time and annot_end >= start_time:
+                annotations.append(
+                    {
+                        "description": annot["description"],
+                        "onset": onset,
+                        "duration": duration,
+                    }
+                )
+
+        return annotations
+
+
 class EEGBackendCore:
     """
     Central Backend for EEG Processing.
@@ -751,6 +1125,68 @@ class EEGBackendCore:
             return {
                 "success": True,
                 "channels": channels,
+                "sampling_rate": self.raw_data.info["sfreq"],
+                "duration": self.raw_data.times[-1],
+                "n_samples": len(self.raw_data.times),
+                "n_annotations": len(self.raw_data.annotations),
+                "stats_original": self.preprocessor.get_data_statistics(self.raw_data),
+                "stats_filtered": self.preprocessor.get_data_statistics(
+                    self.filtered_data
+                ),
+            }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def load_from_raw(
+        self, raw: mne.io.Raw, already_filtered: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Load and process from pre-loaded Raw object.
+
+        Used when signal has been modified before processing (e.g., from
+        the Signal Preview screen where filtering and manual cleaning
+        have already been applied).
+
+        Args:
+            raw: Pre-loaded MNE Raw object
+            already_filtered: If True, skip band-pass filtering (data already filtered)
+
+        Returns:
+            Dictionary with loading information
+        """
+        try:
+            import warnings
+
+            # Store the raw data
+            self.raw_data = raw.copy()
+            self.current_file = "modified_signal"
+
+            # Ensure data is loaded
+            if not self.raw_data.preload:
+                self.raw_data.load_data()
+
+            # Set montage for topographic visualization (same as load_raw_file)
+            try:
+                self.raw_data.set_montage("standard_1020", on_missing="warn")
+            except (ValueError, KeyError, RuntimeError) as e:
+                # If montage fails, continue without it
+                warnings.warn(f"Unable to set montage: {str(e)}", UserWarning)
+
+            # Apply filter only if not already filtered
+            if already_filtered:
+                # Data is already preprocessed (filtered), use it directly
+                self.filtered_data = self.raw_data.copy()
+            else:
+                # Apply band-pass filter
+                self.filtered_data = self.preprocessor.apply_bandpass_filter(
+                    self.raw_data
+                )
+
+            # Return information
+            return {
+                "success": True,
+                "channels": list(self.raw_data.ch_names),
                 "sampling_rate": self.raw_data.info["sfreq"],
                 "duration": self.raw_data.times[-1],
                 "n_samples": len(self.raw_data.times),

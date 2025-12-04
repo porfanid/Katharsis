@@ -389,3 +389,394 @@ class TestComponentIntegration:
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])
+
+
+@pytest.mark.skipif(
+    not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible"
+)
+class TestTimeRangeSelector:
+    """Tests for TimeRangeSelector widget"""
+
+    def setup_method(self):
+        """Prepare test data"""
+        from components import TimeRangeSelector
+
+        self.theme = {
+            "text": "#000000",
+            "text_light": "#666666",
+            "primary": "#007AFF",
+            "primary_hover": "#0056b3",
+        }
+        self.widget = TimeRangeSelector(
+            min_time=0.0,
+            max_time=60.0,
+            theme=self.theme,
+        )
+
+    def test_widget_creation(self, qapp):
+        """Test widget creation"""
+        from components import TimeRangeSelector
+
+        assert isinstance(self.widget, TimeRangeSelector)
+
+    def test_initial_range(self, qapp):
+        """Test initial time range values"""
+        start, end = self.widget.get_range()
+        assert start == 0.0
+        assert end == 60.0
+
+    def test_set_time_range(self, qapp):
+        """Test setting new time range"""
+        self.widget.set_time_range(10.0, 120.0)
+        start, end = self.widget.get_range()
+        assert start == 10.0
+        assert end == 120.0
+
+    def test_reset_range(self, qapp):
+        """Test reset to full range"""
+        self.widget.set_time_range(0.0, 100.0)
+        # Manually set a partial range by updating internal values
+        self.widget._start_time = 20.0
+        self.widget._end_time = 80.0
+
+        self.widget.reset_range()
+
+        start, end = self.widget.get_range()
+        assert start == 0.0
+        assert end == 100.0
+
+    def test_range_changed_signal(self, qapp):
+        """Test range_changed signal emission"""
+        received_values = []
+
+        def on_range_changed(start, end):
+            received_values.append((start, end))
+
+        self.widget.range_changed.connect(on_range_changed)
+
+        # Trigger a range change via reset
+        self.widget.reset_range()
+
+        # Signal should have been emitted
+        assert len(received_values) >= 1
+
+
+@pytest.mark.skipif(
+    not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible"
+)
+class TestSignalCutter:
+    """Tests for SignalCutter widget"""
+
+    def setup_method(self):
+        """Prepare test data"""
+        from components import SignalCutter
+
+        self.theme = {
+            "text": "#000000",
+            "text_light": "#666666",
+            "primary": "#007AFF",
+            "danger": "#dc3545",
+        }
+        self.widget = SignalCutter(theme=self.theme)
+        self.widget.set_max_time(60.0)
+
+    def test_widget_creation(self, qapp):
+        """Test widget creation"""
+        from components import SignalCutter
+
+        assert isinstance(self.widget, SignalCutter)
+
+    def test_initial_empty_regions(self, qapp):
+        """Test initial empty cut regions"""
+        regions = self.widget.get_cut_regions()
+        assert regions == []
+
+    def test_clear_regions(self, qapp):
+        """Test clearing all regions"""
+        # Add some regions by manipulating internal state
+        self.widget._cut_regions = [(5.0, 10.0), (20.0, 25.0)]
+
+        self.widget.clear_regions()
+
+        regions = self.widget.get_cut_regions()
+        assert regions == []
+
+    def test_set_max_time(self, qapp):
+        """Test setting max time"""
+        self.widget.set_max_time(120.0)
+        assert self.widget._max_time == 120.0
+
+    def test_regions_changed_signal(self, qapp):
+        """Test regions_changed signal emission"""
+        received_values = []
+
+        def on_regions_changed(regions):
+            received_values.append(regions)
+
+        self.widget.regions_changed.connect(on_regions_changed)
+
+        # Trigger by clearing regions
+        self.widget.clear_regions()
+
+        # Signal should have been emitted
+        assert len(received_values) >= 1
+
+
+@pytest.mark.skipif(
+    not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible"
+)
+class TestRestingPhaseDisplay:
+    """Tests for RestingPhaseDisplay widget"""
+
+    def setup_method(self):
+        """Prepare test data"""
+        from components import RestingPhaseDisplay
+
+        self.theme = {
+            "text": "#000000",
+            "text_light": "#666666",
+            "primary": "#007AFF",
+            "success": "#28a745",
+            "border": "#dee2e6",
+        }
+        self.widget = RestingPhaseDisplay(theme=self.theme)
+
+    def test_widget_creation(self, qapp):
+        """Test widget creation"""
+        from components import RestingPhaseDisplay
+
+        assert isinstance(self.widget, RestingPhaseDisplay)
+
+    def test_update_phases_empty(self, qapp):
+        """Test update with empty phases"""
+        self.widget.update_phases([])
+        assert self.widget.phases == []
+
+    def test_update_phases_with_data(self, qapp):
+        """Test update with phase data"""
+        phases = [
+            {"label": "Eyes Open", "start": 0.0, "end": 30.0},
+            {"label": "Eyes Closed", "start": 30.0, "end": 60.0},
+        ]
+        original_powers = {
+            "Eyes Open": {
+                "Delta": 20.0,
+                "Theta": 15.0,
+                "Alpha": 30.0,
+                "Beta": 25.0,
+                "Gamma": 10.0,
+            },
+            "Eyes Closed": {
+                "Delta": 25.0,
+                "Theta": 20.0,
+                "Alpha": 25.0,
+                "Beta": 20.0,
+                "Gamma": 10.0,
+            },
+        }
+
+        self.widget.update_phases(phases, original_powers)
+
+        assert len(self.widget.phases) == 2
+        assert self.widget.phases[0]["label"] == "Eyes Open"
+        assert self.widget.phases[1]["label"] == "Eyes Closed"
+
+    def test_clear(self, qapp):
+        """Test clearing display"""
+        phases = [{"label": "Eyes Open", "start": 0.0, "end": 30.0}]
+        self.widget.update_phases(phases)
+
+        self.widget.clear()
+
+        assert self.widget.phases == []
+
+
+@pytest.mark.skipif(
+    not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible"
+)
+class TestBandPowerAnalysisWidget:
+    """Tests for BandPowerAnalysisWidget"""
+
+    def setup_method(self):
+        """Prepare test data"""
+        from components import BandPowerAnalysisWidget
+
+        self.theme = {
+            "text": "#000000",
+            "text_light": "#666666",
+            "primary": "#007AFF",
+            "primary_hover": "#0056b3",
+            "success": "#28a745",
+            "border": "#dee2e6",
+        }
+        self.widget = BandPowerAnalysisWidget(theme=self.theme)
+
+        # Create mock raw data
+        self.sfreq = 128.0
+        self.duration = 30.0
+        self.n_samples = int(self.sfreq * self.duration)
+        self.ch_names = ["AF3", "T7", "Pz"]
+
+        data = np.random.randn(len(self.ch_names), self.n_samples) * 1e-5
+        info = mne.create_info(ch_names=self.ch_names, sfreq=self.sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(data, info, verbose=False)
+
+    def test_widget_creation(self, qapp):
+        """Test widget creation"""
+        from components import BandPowerAnalysisWidget
+
+        assert isinstance(self.widget, BandPowerAnalysisWidget)
+
+    def test_set_data(self, qapp):
+        """Test setting EEG data"""
+        self.widget.set_data(self.test_raw)
+
+        assert self.widget._raw_data is not None
+        assert self.widget._max_time == pytest.approx(self.duration, rel=0.1)
+
+    def test_set_data_with_cleaned(self, qapp):
+        """Test setting both original and cleaned data"""
+        cleaned_data = self.test_raw.copy()
+
+        self.widget.set_data(self.test_raw, cleaned_data)
+
+        assert self.widget._raw_data is not None
+        assert self.widget._cleaned_data is not None
+
+    def test_time_range_changed_signal(self, qapp):
+        """Test time_range_changed signal emission"""
+        received_values = []
+
+        def on_range_changed(start, end):
+            received_values.append((start, end))
+
+        self.widget.time_range_changed.connect(on_range_changed)
+
+        # Set data which triggers range update
+        self.widget.set_data(self.test_raw)
+
+        # Signal should have been emitted via time range selector
+        # We test the internal signal connection works
+        self.widget._on_range_changed(5.0, 20.0)
+
+        assert len(received_values) >= 1
+        assert received_values[-1] == (5.0, 20.0)
+
+    def test_clear(self, qapp):
+        """Test clearing widget"""
+        self.widget.set_data(self.test_raw)
+        self.widget.clear()
+
+        assert self.widget._raw_data is None
+        assert self.widget._cleaned_data is None
+
+
+@pytest.mark.skipif(
+    not QT_AVAILABLE, reason="PyQt6 not available or Qt display not accessible"
+)
+class TestComparisonScreenEnhanced:
+    """Tests for enhanced ComparisonScreen with new features"""
+
+    def setup_method(self):
+        """Prepare test data"""
+        from components import ComparisonScreen
+
+        self.theme = {
+            "text": "#000000",
+            "text_light": "#666666",
+            "primary": "#007AFF",
+            "primary_hover": "#0056b3",
+            "success": "#28a745",
+            "border": "#dee2e6",
+        }
+        self.widget = ComparisonScreen(theme=self.theme)
+
+        # Create mock raw data
+        self.sfreq = 128.0
+        self.duration = 30.0
+        self.n_samples = int(self.sfreq * self.duration)
+        self.ch_names = ["AF3", "T7", "Pz"]
+
+        data = np.random.randn(len(self.ch_names), self.n_samples) * 1e-5
+        info = mne.create_info(ch_names=self.ch_names, sfreq=self.sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(data, info, verbose=False)
+
+        # Statistics
+        self.original_stats = {
+            "AF3": {"rms": 25.0, "range": 100.0, "variance": 625.0},
+            "T7": {"rms": 20.0, "range": 80.0, "variance": 400.0},
+            "Pz": {"rms": 30.0, "range": 120.0, "variance": 900.0},
+        }
+
+        self.cleaned_stats = {
+            "AF3": {"rms": 12.5, "range": 50.0, "variance": 156.25},
+            "T7": {"rms": 10.0, "range": 40.0, "variance": 100.0},
+            "Pz": {"rms": 15.0, "range": 60.0, "variance": 225.0},
+        }
+
+    def test_widget_creation(self, qapp):
+        """Test widget creation with tabs"""
+        from components import ComparisonScreen
+
+        assert isinstance(self.widget, ComparisonScreen)
+        assert hasattr(self.widget, "tab_widget")
+        assert self.widget.tab_widget.count() == 3
+
+    def test_has_band_power_widget(self, qapp):
+        """Test that band power widget is present"""
+        assert hasattr(self.widget, "band_power_widget")
+        from components import BandPowerAnalysisWidget
+
+        assert isinstance(self.widget.band_power_widget, BandPowerAnalysisWidget)
+
+    def test_has_signal_cutter(self, qapp):
+        """Test that signal cutter is present"""
+        assert hasattr(self.widget, "signal_cutter")
+        from components import SignalCutter
+
+        assert isinstance(self.widget.signal_cutter, SignalCutter)
+
+    def test_update_comparison(self, qapp):
+        """Test updating comparison with data"""
+        self.widget.update_comparison(
+            original_data=self.test_raw,
+            cleaned_data=self.test_raw.copy(),
+            original_stats=self.original_stats,
+            cleaned_stats=self.cleaned_stats,
+            components_removed=[0],
+            input_file="test.edf",
+            output_file="test_clean.edf",
+        )
+
+        # Check data was stored
+        assert self.widget._original_data is not None
+        assert self.widget._cleaned_data is not None
+
+    def test_clear_comparison(self, qapp):
+        """Test clearing comparison"""
+        self.widget.update_comparison(
+            original_data=self.test_raw,
+            cleaned_data=self.test_raw.copy(),
+            original_stats=self.original_stats,
+            cleaned_stats=self.cleaned_stats,
+            components_removed=[0],
+        )
+
+        self.widget.clear_comparison()
+
+        assert self.widget._original_data is None
+        assert self.widget._cleaned_data is None
+
+    def test_apply_signal_cuts_signal(self, qapp):
+        """Test apply_signal_cuts signal exists"""
+        received_regions = []
+
+        def on_apply_cuts(regions):
+            received_regions.extend(regions)
+
+        self.widget.apply_signal_cuts.connect(on_apply_cuts)
+
+        # Trigger signal via internal method
+        self.widget._on_apply_cuts([(5.0, 10.0)])
+
+        assert received_regions == [(5.0, 10.0)]

@@ -4,6 +4,7 @@ GUI Components Package Initialization
 """
 
 from .band_power_display import (
+    BandPowerAnalysisWidget,
     BandPowerBarWidget,
     BandPowerComparisonWidget,
     BandPowerDisplayWidget,
@@ -16,6 +17,12 @@ from .results_display import (
     ResultsDisplayWidget,
     StatisticsTableWidget,
 )
+from .signal_editor import (
+    RestingPhaseDisplay,
+    SignalCutter,
+    TimeRangeSelector,
+)
+from .signal_preview_screen import SignalPreviewScreen
 
 __all__ = [
     "ICAComponentSelector",
@@ -28,4 +35,9 @@ __all__ = [
     "BandPowerDisplayWidget",
     "BandPowerBarWidget",
     "BandPowerComparisonWidget",
+    "BandPowerAnalysisWidget",
+    "TimeRangeSelector",
+    "RestingPhaseDisplay",
+    "SignalCutter",
+    "SignalPreviewScreen",
 ]

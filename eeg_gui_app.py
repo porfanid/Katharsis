@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QSize, Qt, QThread, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
+from PyQt6.QtGui import QColor, QFont, QPainter, QPalette, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -40,6 +40,55 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+def create_light_palette() -> QPalette:
+    """
+    Create a light color palette for the application.
+
+    This ensures the app always uses a light theme regardless of
+    the system's dark mode setting.
+
+    Returns:
+        QPalette: A light-themed color palette
+    """
+    palette = QPalette()
+
+    # Window and base colors (white/light gray)
+    palette.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(33, 37, 41))
+    palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(248, 249, 250))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(33, 37, 41))
+
+    # Text colors
+    palette.setColor(QPalette.ColorRole.Text, QColor(33, 37, 41))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(108, 117, 125))
+
+    # Button colors
+    palette.setColor(QPalette.ColorRole.Button, QColor(248, 249, 250))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(33, 37, 41))
+
+    # Highlight colors (selection)
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 122, 255))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+
+    # Link colors
+    palette.setColor(QPalette.ColorRole.Link, QColor(0, 122, 255))
+    palette.setColor(QPalette.ColorRole.LinkVisited, QColor(0, 86, 179))
+
+    # Bright text (for contrast)
+    palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 255, 255))
+
+    # Light and dark shades
+    palette.setColor(QPalette.ColorRole.Light, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.Midlight, QColor(248, 249, 250))
+    palette.setColor(QPalette.ColorRole.Mid, QColor(222, 226, 230))
+    palette.setColor(QPalette.ColorRole.Dark, QColor(173, 181, 189))
+    palette.setColor(QPalette.ColorRole.Shadow, QColor(108, 117, 125))
+
+    return palette
 
 
 class BackendInitializationThread(QThread):
@@ -302,6 +351,102 @@ class EEGProcessingThread(QThread):
             self.processing_complete.emit(False, f"Critical error: {str(e)}")
 
 
+class EEGProcessingThreadWithRaw(QThread):
+    """
+    Thread for processing EEG data from pre-loaded Raw object
+
+    Similar to EEGProcessingThread but works with already loaded
+    and possibly modified raw data from the signal preview screen.
+
+    The data coming from the Signal Preview screen is already filtered
+    (band-pass 1-40 Hz) and possibly manually cleaned (bad regions cut),
+    so we skip redundant preprocessing.
+
+    Signals:
+        progress_update (int): Progress update (0-100)
+        status_update (str): Status update
+        processing_complete (bool, str): Processing completion (success, message)
+        ica_ready (dict): ICA data ready for visualization
+    """
+
+    progress_update = pyqtSignal(int)
+    status_update = pyqtSignal(str)
+    processing_complete = pyqtSignal(bool, str)
+    ica_ready = pyqtSignal(dict)
+
+    def __init__(self, service, raw_data):
+        """
+        Initialize the processing thread with raw data
+
+        Args:
+            service: EEG cleaning service
+            raw_data: Pre-loaded MNE Raw object (already filtered and cleaned)
+        """
+        super().__init__()
+        self.service = service
+        self.raw_data = raw_data
+
+    def run(self):
+        """
+        Execute EEG data processing from pre-loaded data
+
+        Uses the provided raw data directly, trains the ICA model,
+        detects artifacts and prepares data for visualization.
+
+        The data is already filtered and manually cleaned from the
+        Signal Preview screen, so we skip redundant filtering.
+        """
+        try:
+            self.status_update.emit("Preparing signal data...")
+
+            # Use the service's method to load from raw data
+            # Pass already_filtered=True since data from Signal Preview is pre-filtered
+            load_result = self.service.load_from_raw(
+                self.raw_data, already_filtered=True
+            )
+            if not load_result["success"]:
+                self.processing_complete.emit(
+                    False,
+                    f"Loading error: {load_result.get('error', 'Unknown error')}",
+                )
+                return
+            self.progress_update.emit(30)
+
+            # Use generic fit_analysis() which respects the set analysis method
+            method_name = self.service.analysis_method
+            self.status_update.emit(f"Training {method_name} model...")
+            analysis_result = self.service.fit_analysis()
+            if not analysis_result["success"]:
+                self.processing_complete.emit(
+                    False,
+                    f"{method_name} error: {analysis_result.get('error', 'Unknown error')}",
+                )
+                return
+            self.progress_update.emit(70)
+
+            self.status_update.emit("Automatic artifact detection...")
+            detection_result = self.service.detect_artifacts()
+            if not detection_result["success"]:
+                self.processing_complete.emit(
+                    False,
+                    f"Detection error: {detection_result.get('error', 'Unknown error')}",
+                )
+                return
+            self.progress_update.emit(90)
+
+            viz_data = self.service.get_component_visualization_data()
+            if not viz_data:
+                self.processing_complete.emit(
+                    False, "Failed to create visualization data."
+                )
+                return
+            self.ica_ready.emit(viz_data)
+            self.progress_update.emit(100)
+            self.processing_complete.emit(True, "Ready for selection.")
+        except Exception as e:
+            self.processing_complete.emit(False, f"Critical error: {str(e)}")
+
+
 class CleaningThread(QThread):
     """
     Thread for artifact cleaning in background
@@ -429,6 +574,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 ChannelSelectorWidget,
                 ComparisonScreen,
                 ICAComponentSelector,
+                SignalPreviewScreen,
             )
 
             theme = {
@@ -445,6 +591,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 "border": "#dee2e6",
             }
             self.channel_selector_screen = ChannelSelectorWidget(theme=theme)
+            self.signal_preview_screen = SignalPreviewScreen(theme=theme)
             self.ica_selector_screen = ICAComponentSelector(theme=theme)
             self.comparison_screen = ComparisonScreen(theme=theme)
 
@@ -481,6 +628,13 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
         Creates the stacked widget for different screens and configures
         the general application style.
+
+        Screen order:
+        0 - Welcome Screen (file selection)
+        1 - Channel Selector Screen
+        2 - Signal Preview Screen (NEW - for signal editing before processing)
+        3 - ICA/PCA Selector Screen
+        4 - Comparison Screen (results)
         """
         self.setWindowTitle("Katharsis - EEG Artifact Cleaner Pro")
         self.setGeometry(100, 100, 1100, 850)
@@ -506,10 +660,12 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
         self.welcome_screen = self.create_welcome_screen()
 
-        self.stacked_widget.addWidget(self.welcome_screen)
-        self.stacked_widget.addWidget(self.channel_selector_screen)
-        self.stacked_widget.addWidget(self.ica_selector_screen)
-        self.stacked_widget.addWidget(self.comparison_screen)
+        # Add screens in order: Welcome -> Channel Selection -> Signal Preview -> ICA -> Comparison
+        self.stacked_widget.addWidget(self.welcome_screen)  # Index 0
+        self.stacked_widget.addWidget(self.channel_selector_screen)  # Index 1
+        self.stacked_widget.addWidget(self.signal_preview_screen)  # Index 2 (NEW)
+        self.stacked_widget.addWidget(self.ica_selector_screen)  # Index 3
+        self.stacked_widget.addWidget(self.comparison_screen)  # Index 4
 
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
@@ -553,6 +709,13 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.select_input_btn.clicked.connect(self.select_input_file)
         self.channel_selector_screen.channels_selected.connect(
             self.on_channels_selected
+        )
+        # Signal Preview Screen connections
+        self.signal_preview_screen.proceed_to_processing.connect(
+            self.on_signal_preview_continue
+        )
+        self.signal_preview_screen.return_to_channels.connect(
+            self.on_return_to_channels
         )
         self.ica_selector_screen.components_selected.connect(self.apply_cleaning)
         self.comparison_screen.return_to_home.connect(self.reset_ui)
@@ -628,10 +791,11 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
     def on_channels_selected(self, selected_channels, analysis_method="ICA"):
         """
-        Handle channel selection and start processing
+        Handle channel selection and show signal preview screen
 
-        Stores the selected channels and analysis method,
-        and starts data processing.
+        After channels are selected, show the signal preview screen
+        where users can preview, analyze, and optionally edit the signal
+        before proceeding to artifact removal.
 
         Args:
             selected_channels (List[str]): List of selected channels
@@ -641,7 +805,50 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.analysis_method = analysis_method
         # Set the analysis method in the service
         self.service.set_analysis_method(analysis_method)
+
+        # Load the raw data with selected channels for preview
+        try:
+            from backend.eeg_backend import EEGDataManager
+
+            raw = EEGDataManager.read_raw(self.current_input_file, preload=True)
+
+            # Pick only selected channels
+            raw.pick(selected_channels)
+
+            # Set data in preview screen
+            self.signal_preview_screen.set_data(raw, self.current_input_file)
+
+            # Navigate to signal preview screen (index 2)
+            self.stacked_widget.setCurrentIndex(2)
+            self.status_bar.showMessage(
+                "Preview and optionally edit your signal before artifact removal"
+            )
+
+        except Exception as e:
+            self.show_message_box(
+                QMessageBox.Icon.Critical,
+                "Error",
+                f"Unable to load signal for preview:\n{str(e)}",
+            )
+
+    def on_signal_preview_continue(self, modified_raw):
+        """
+        Handle continuation from signal preview screen.
+
+        The user has finished previewing/editing the signal and wants
+        to proceed to artifact removal.
+
+        Args:
+            modified_raw: The (possibly modified) raw data from preview screen
+        """
+        # Store the modified raw data for processing
+        self._preview_raw = modified_raw
         self.start_processing()
+
+    def on_return_to_channels(self):
+        """Handle return to channel selection from signal preview."""
+        self.stacked_widget.setCurrentIndex(1)
+        self.status_bar.showMessage("Select channels for analysis")
 
     def start_processing(self):
         """
@@ -649,16 +856,28 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
         Creates and starts the processing thread for file loading,
         ICA analysis and artifact detection.
+
+        If the signal was modified in the preview screen, we use that
+        modified data instead of loading fresh from file.
         """
         self.select_input_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
 
-        # Use selected channels if available
-        channels_to_use = getattr(self, "selected_channels", None)
+        # Check if we have modified raw data from preview screen
+        preview_raw = getattr(self, "_preview_raw", None)
 
-        self.processing_thread = EEGProcessingThread(
-            self.service, self.current_input_file, channels_to_use
-        )
+        if preview_raw is not None:
+            # Use the modified raw data directly
+            self.processing_thread = EEGProcessingThreadWithRaw(
+                self.service, preview_raw
+            )
+        else:
+            # Use selected channels if available (fallback for direct processing)
+            channels_to_use = getattr(self, "selected_channels", None)
+            self.processing_thread = EEGProcessingThread(
+                self.service, self.current_input_file, channels_to_use
+            )
+
         self.processing_thread.progress_update.connect(self.progress_bar.setValue)
         self.processing_thread.status_update.connect(self.status_bar.showMessage)
         self.processing_thread.processing_complete.connect(self.on_processing_complete)
@@ -676,8 +895,8 @@ class EEGArtifactCleanerGUI(QMainWindow):
             viz_data (dict): Data for ICA component visualization
         """
         self.ica_selector_screen.set_ica_data(**viz_data)
-        # Navigate to ICA selector screen (index 2)
-        self.stacked_widget.setCurrentIndex(2)
+        # Navigate to ICA selector screen (index 3)
+        self.stacked_widget.setCurrentIndex(3)
 
     def apply_cleaning(self, selected_components):
         """
@@ -773,8 +992,8 @@ class EEGArtifactCleanerGUI(QMainWindow):
                     input_file=results["input_file"],
                     output_file=results["output_file"],
                 )
-                # Navigate to comparison screen (index 3)
-                self.stacked_widget.setCurrentIndex(3)
+                # Navigate to comparison screen (index 4)
+                self.stacked_widget.setCurrentIndex(4)
                 self.status_bar.showMessage("Result comparison - Cleaning successful!")
             except Exception as e:
                 # Fallback to original message box if comparison screen fails
@@ -967,6 +1186,11 @@ def main():
     and starts the main application window.
     """
     app = QApplication(sys.argv)
+
+    # Force light theme regardless of system dark mode
+    # This ensures consistent appearance across all platforms
+    app.setPalette(create_light_palette())
+    app.setStyle("Fusion")  # Use Fusion style for consistent cross-platform look
 
     # Default theme for initial styling
     default_theme = {

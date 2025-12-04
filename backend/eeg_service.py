@@ -228,6 +228,61 @@ class EEGArtifactCleaningService:
         """
         return self.backend_core.get_file_info(file_path)
 
+    def load_from_raw(
+        self,
+        raw: mne.io.Raw,
+        analysis_method: Optional[str] = None,
+        already_filtered: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Load and prepare from a pre-loaded Raw object.
+
+        This is used when the signal has been modified (e.g., regions cut)
+        in the signal preview screen before processing.
+
+        Args:
+            raw: Pre-loaded MNE Raw object
+            analysis_method: Analysis method ("ICA" or "PCA"), None to use default
+            already_filtered: If True, skip band-pass filtering (data already preprocessed)
+
+        Returns:
+            Dictionary with loading results
+        """
+        self.is_processing = True
+        self.current_file = "modified_signal"
+        self.analysis_fitted = False
+
+        # Set analysis method if provided
+        if analysis_method:
+            self.set_analysis_method(analysis_method)
+
+        try:
+            self._update_status("Preparing signal data...")
+            self._update_progress(10)
+
+            # Load raw data directly into backend core
+            # Pass already_filtered flag to skip redundant filtering
+            result = self.backend_core.load_from_raw(
+                raw, already_filtered=already_filtered
+            )
+
+            if not result["success"]:
+                self.is_processing = False
+                return result
+
+            # Update processor with channel count
+            self._n_components = None  # Auto detection
+            self._create_processor()
+
+            self._update_progress(30)
+            self._update_status("Signal data loaded successfully")
+
+            return result
+
+        except Exception as e:
+            self.is_processing = False
+            return {"success": False, "error": f"Loading error: {str(e)}"}
+
     def fit_analysis(self) -> Dict[str, Any]:
         """
         Execute analysis (ICA or PCA).
