@@ -541,6 +541,9 @@ class SignalCutterTimeline(QWidget):
     }
     DEFAULT_ANNOTATION_COLOR = "#ffc107"  # Yellow for unknown types
 
+    # Maximum length for annotation labels on timeline
+    MAX_LABEL_LENGTH = 15
+
     def __init__(
         self,
         theme: Optional[Dict[str, str]] = None,
@@ -675,14 +678,14 @@ class SignalCutterTimeline(QWidget):
         painter.setBrush(QBrush(QColor("#f8f9fa")))
         painter.drawRoundedRect(track_rect, 4, 4)
 
-        # Draw annotations/labels on the timeline (below cut regions so they show through)
+        # Draw annotations/labels on the timeline (similar style to cut regions)
         for annot in self._annotations:
             onset = annot.get("onset", 0)
             duration = annot.get("duration", 0)
             description = annot.get("description", "")
 
-            # Skip annotations outside visible range
-            if onset > self._max_time or onset + duration < 0:
+            # Skip annotations outside visible range (onset < 0 or onset > max_time)
+            if onset > self._max_time or onset < 0:
                 continue
 
             # Calculate positions
@@ -691,33 +694,42 @@ class SignalCutterTimeline(QWidget):
             annot_right_x = self._time_to_x(min(self._max_time, annot_end))
 
             # Ensure minimum width for visibility
-            if annot_right_x - annot_left_x < 4:
+            region_width = annot_right_x - annot_left_x
+            if region_width < 4:
                 annot_right_x = annot_left_x + 4
+                region_width = 4
 
             # Get color for this annotation type
-            annot_color = QColor(self._get_annotation_color(description))
-            annot_color.setAlpha(100)
+            base_color = QColor(self._get_annotation_color(description))
 
-            # Draw annotation region
+            # Draw annotation region with strong visibility (like cut regions)
             annot_rect = QRect(
                 annot_left_x,
                 timeline_top + 2,
                 annot_right_x - annot_left_x,
                 timeline_height - 4,
             )
-            painter.setBrush(QBrush(annot_color))
-            painter.setPen(QPen(QColor(self._get_annotation_color(description)), 1))
+
+            # Fill with semi-transparent color
+            fill_color = QColor(base_color)
+            fill_color.setAlpha(150)  # More opaque for better visibility
+            painter.setBrush(QBrush(fill_color))
+            painter.setPen(QPen(base_color.darker(110), 2))  # Solid border like cut regions
             painter.drawRect(annot_rect)
 
-            # Draw label text if there's enough space
-            if annot_right_x - annot_left_x > 30:
-                # Truncate description if too long
-                label = description[:15] + "..." if len(description) > 15 else description
-                painter.setPen(QPen(QColor(self._get_annotation_color(description)).darker(150)))
-                painter.setFont(QFont("Arial", 7, QFont.Weight.Bold))
-                painter.drawText(
-                    annot_rect, Qt.AlignmentFlag.AlignCenter, label
-                )
+            # Always draw label text - truncate based on available width
+            # Truncate description if too long for the region
+            if len(description) > self.MAX_LABEL_LENGTH:
+                label = description[: self.MAX_LABEL_LENGTH] + "..."
+            else:
+                label = description
+
+            # Draw label with contrasting color (white text like cut region numbers)
+            painter.setPen(QPen(QColor("white")))
+            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+            painter.drawText(
+                annot_rect, Qt.AlignmentFlag.AlignCenter, label
+            )
 
         # Draw existing cut regions (darker red, already added)
         for i, (start, end) in enumerate(self._cut_regions):

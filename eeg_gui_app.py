@@ -808,12 +808,29 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
         # Load the raw data with selected channels for preview
         try:
-            from backend.eeg_backend import EEGDataManager
+            from backend.eeg_backend import EEGDataManager, SignalEditor
 
             raw = EEGDataManager.read_raw(self.current_input_file, preload=True)
 
+            # Detect resting phases/annotations BEFORE picking channels
+            # This is important because marker channels may be removed by picking
+            phases = SignalEditor.detect_resting_phases(raw)
+
             # Pick only selected channels
             raw.pick(selected_channels)
+
+            # Convert detected phases to MNE annotations and set on raw data
+            if phases:
+                onsets = [p["start"] for p in phases]
+                durations = [p["duration"] for p in phases]
+                descriptions = [p["label"] for p in phases]
+
+                import mne
+
+                annotations = mne.Annotations(
+                    onset=onsets, duration=durations, description=descriptions
+                )
+                raw.set_annotations(annotations)
 
             # Set data in preview screen
             self.signal_preview_screen.set_data(raw, self.current_input_file)

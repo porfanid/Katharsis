@@ -1342,7 +1342,7 @@ class TestSignalEditor(unittest.TestCase):
         self.assertAlmostEqual(cut_raw.annotations.onset[2], 40.0, delta=0.01)
 
     def test_cut_signal_truncates_overlapping_annotation(self):
-        """Test that annotations overlapping with cuts are properly truncated"""
+        """Test that annotations overlapping with cuts are properly split"""
         # Create raw data with annotation
         raw_with_annot = self.test_raw.copy()
         annotations = mne.Annotations(
@@ -1356,19 +1356,27 @@ class TestSignalEditor(unittest.TestCase):
         regions_to_cut = [(8.0, 12.0)]
         cut_raw = self.editor.cut_signal_regions(raw_with_annot, regions_to_cut)
 
-        # Check annotations are preserved
+        # Check annotations are preserved - now we get 3 annotations:
+        # - First part of "Eyes Open": 5-8s (3s)
+        # - Second part of "Eyes Open": 8-11s in new timeline (was 12-15s)
+        # - "Eyes Closed": 21-31s in new timeline (was 25-35s)
         self.assertIsNotNone(cut_raw.annotations)
-        self.assertEqual(len(cut_raw.annotations), 2)
+        self.assertEqual(len(cut_raw.annotations), 3)
 
-        # First annotation should be truncated (only 5-8s portion remains = 3s)
-        # Plus (12-15s portion which becomes 8-11s after cut = 3s)
-        # Total should be 6s duration
+        # First annotation part (5-8s portion = 3s)
         self.assertAlmostEqual(cut_raw.annotations.onset[0], 5.0, delta=0.01)
-        self.assertAlmostEqual(cut_raw.annotations.duration[0], 6.0, delta=0.01)
+        self.assertAlmostEqual(cut_raw.annotations.duration[0], 3.0, delta=0.01)
+        self.assertEqual(cut_raw.annotations.description[0], "Eyes Open")
 
-        # Second annotation should be shifted by 4s (the cut duration)
-        self.assertAlmostEqual(cut_raw.annotations.onset[1], 21.0, delta=0.01)
-        self.assertAlmostEqual(cut_raw.annotations.duration[1], 10.0, delta=0.01)
+        # Second annotation part (was 12-15s, now 8-11s = 3s)
+        self.assertAlmostEqual(cut_raw.annotations.onset[1], 8.0, delta=0.01)
+        self.assertAlmostEqual(cut_raw.annotations.duration[1], 3.0, delta=0.01)
+        self.assertEqual(cut_raw.annotations.description[1], "Eyes Open")
+
+        # Third annotation - "Eyes Closed" shifted by 4s (the cut duration)
+        self.assertAlmostEqual(cut_raw.annotations.onset[2], 21.0, delta=0.01)
+        self.assertAlmostEqual(cut_raw.annotations.duration[2], 10.0, delta=0.01)
+        self.assertEqual(cut_raw.annotations.description[2], "Eyes Closed")
 
     def test_cut_signal_removes_contained_annotation(self):
         """Test that annotations fully contained in cut regions are removed"""

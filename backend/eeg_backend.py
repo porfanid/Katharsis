@@ -1030,7 +1030,8 @@ class SignalEditor:
         Adjust annotation positions after cutting signal regions.
 
         Annotations are shifted to account for removed time. Annotations
-        that fall entirely within cut regions are removed.
+        that fall entirely within cut regions are removed. Annotations
+        spanning multiple kept segments are split into separate annotations.
 
         Args:
             annotations: Original annotations
@@ -1047,26 +1048,13 @@ class SignalEditor:
         new_durations = []
         new_descriptions = []
 
-        # Calculate cumulative time removed before each kept segment
-        cumulative_removed = []
-        total_removed = 0.0
-        for i, (seg_start, seg_end) in enumerate(kept_segments):
-            cumulative_removed.append(total_removed)
-            if i < len(kept_segments) - 1:
-                # Time removed is the gap before next kept segment
-                next_seg_start = kept_segments[i + 1][0]
-                total_removed += next_seg_start - seg_end
-
         for annot in annotations:
             onset = annot["onset"]
             duration = annot["duration"]
             description = annot["description"]
             annot_end = onset + duration
 
-            # Find which kept segment(s) this annotation falls into
-            new_onset = None
-            new_duration = 0.0
-
+            # Process each kept segment to find overlapping portions
             for i, (seg_start, seg_end) in enumerate(kept_segments):
                 # Check if annotation overlaps with this segment
                 if annot_end <= seg_start:
@@ -1083,7 +1071,6 @@ class SignalEditor:
 
                 if overlap_start < overlap_end:
                     # Calculate new onset in the concatenated signal
-                    time_removed_before = cumulative_removed[i]
                     segment_offset = overlap_start - seg_start
 
                     # New position = kept segments before this one + offset within this segment
@@ -1091,16 +1078,11 @@ class SignalEditor:
                         end - start for start, end in kept_segments[:i]
                     )
                     adjusted_onset = kept_time_before + segment_offset
+                    adjusted_duration = overlap_end - overlap_start
 
-                    if new_onset is None:
-                        new_onset = adjusted_onset
-                    new_duration += overlap_end - overlap_start
-
-            # Only keep annotation if it has some remaining duration
-            if new_onset is not None and new_duration > 0:
-                new_onsets.append(new_onset)
-                new_durations.append(new_duration)
-                new_descriptions.append(description)
+                    new_onsets.append(adjusted_onset)
+                    new_durations.append(adjusted_duration)
+                    new_descriptions.append(description)
 
         if not new_onsets:
             return None
