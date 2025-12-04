@@ -519,9 +519,13 @@ class PreviewWidget(QWidget):
     def _update_band_power_displays(self):
         """Update the band power comparison displays for Range 1 and Range 2.
 
-        Range 1 = Eyes Closed (displayed first)
-        Range 2 = Eyes Open (displayed second)
+        Range 1 = Eyes Closed (displayed first) - Blue color
+        Range 2 = Eyes Open (displayed second) - Orange color
         """
+        # Define colors matching the range colors from signal preview screen
+        RANGE1_COLOR = "#007AFF"  # Blue - Eyes Closed
+        RANGE2_COLOR = "#fd7e14"  # Orange - Eyes Open
+
         if self._original_raw is None:
             self.band_power_widget_range1.clear()
             self.band_power_widget_range2.clear()
@@ -553,7 +557,10 @@ class PreviewWidget(QWidget):
                 else:
                     cleaned_powers_r1 = original_powers_r1
                 self.band_power_widget_range1.update_comparison(
-                    original_powers_r1, cleaned_powers_r1, title="😌 Eyes Closed"
+                    original_powers_r1,
+                    cleaned_powers_r1,
+                    title="😌 Eyes Closed",
+                    bar_color=RANGE1_COLOR,
                 )
             else:
                 self.band_power_widget_range1.clear()
@@ -585,7 +592,10 @@ class PreviewWidget(QWidget):
                 else:
                     cleaned_powers_r2 = original_powers_r2
                 self.band_power_widget_range2.update_comparison(
-                    original_powers_r2, cleaned_powers_r2, title="👁️ Eyes Open"
+                    original_powers_r2,
+                    cleaned_powers_r2,
+                    title="👁️ Eyes Open",
+                    bar_color=RANGE2_COLOR,
                 )
             else:
                 self.band_power_widget_range2.clear()

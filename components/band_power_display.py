@@ -241,6 +241,7 @@ class BandPowerComparisonWidget(QWidget):
         original_powers: Dict[str, float],
         cleaned_powers: Dict[str, float],
         title: Optional[str] = None,
+        bar_color: Optional[str] = None,
     ):
         """
         Update the comparison display with original and cleaned band powers.
@@ -249,6 +250,7 @@ class BandPowerComparisonWidget(QWidget):
             original_powers: Band power percentages for original signal
             cleaned_powers: Band power percentages for cleaned signal
             title: Optional custom title for the chart
+            bar_color: Optional color for the bars (uses band colors if None)
         """
         self.figure.clear()
 
@@ -262,13 +264,21 @@ class BandPowerComparisonWidget(QWidget):
         original_vals = [original_powers.get(b, 0) for b in bands]
         cleaned_vals = [cleaned_powers.get(b, 0) for b in bands]
 
+        # Use custom bar color if provided, otherwise use band colors
+        if bar_color:
+            original_colors = [bar_color] * len(bands)
+            cleaned_colors = [bar_color] * len(bands)
+        else:
+            original_colors = [self.BAND_COLORS[b] for b in bands]
+            cleaned_colors = [self.BAND_COLORS[b] for b in bands]
+
         # Create bars
         bars1 = ax.bar(
             x - width / 2,
             original_vals,
             width,
             label="Original",
-            color=[self.BAND_COLORS[b] for b in bands],
+            color=original_colors,
             alpha=0.5,
             edgecolor="black",
             linewidth=0.5,
@@ -278,7 +288,7 @@ class BandPowerComparisonWidget(QWidget):
             cleaned_vals,
             width,
             label="Cleaned",
-            color=[self.BAND_COLORS[b] for b in bands],
+            color=cleaned_colors,
             alpha=1.0,
             edgecolor="black",
             linewidth=0.5,
