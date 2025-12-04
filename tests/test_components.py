@@ -559,8 +559,20 @@ class TestRestingPhaseDisplay:
             {"label": "Eyes Closed", "start": 30.0, "end": 60.0},
         ]
         original_powers = {
-            "Eyes Open": {"Delta": 20.0, "Theta": 15.0, "Alpha": 30.0, "Beta": 25.0, "Gamma": 10.0},
-            "Eyes Closed": {"Delta": 25.0, "Theta": 20.0, "Alpha": 25.0, "Beta": 20.0, "Gamma": 10.0},
+            "Eyes Open": {
+                "Delta": 20.0,
+                "Theta": 15.0,
+                "Alpha": 30.0,
+                "Beta": 25.0,
+                "Gamma": 10.0,
+            },
+            "Eyes Closed": {
+                "Delta": 25.0,
+                "Theta": 20.0,
+                "Alpha": 25.0,
+                "Beta": 20.0,
+                "Gamma": 10.0,
+            },
         }
 
         self.widget.update_phases(phases, original_powers)

@@ -1253,11 +1253,7 @@ class TestSignalEditor(unittest.TestCase):
         cut_raw = self.editor.cut_signal_regions(self.test_raw, [])
 
         # Should return a copy with same duration
-        self.assertAlmostEqual(
-            cut_raw.times[-1],
-            self.test_raw.times[-1],
-            delta=0.01
-        )
+        self.assertAlmostEqual(cut_raw.times[-1], self.test_raw.times[-1], delta=0.01)
 
     def test_cut_signal_regions_invalid_range(self):
         """Test cutting with invalid region range raises error"""

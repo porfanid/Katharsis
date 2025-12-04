@@ -262,7 +262,9 @@ class EEGArtifactCleaningService:
 
             # Load raw data directly into backend core
             # Pass already_filtered flag to skip redundant filtering
-            result = self.backend_core.load_from_raw(raw, already_filtered=already_filtered)
+            result = self.backend_core.load_from_raw(
+                raw, already_filtered=already_filtered
+            )
 
             if not result["success"]:
                 self.is_processing = False

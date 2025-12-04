@@ -760,34 +760,36 @@ class SignalEditor:
 
             # Check for eyes open patterns
             is_eyes_open = any(
-                pattern in description
-                for pattern in SignalEditor.EYES_OPEN_PATTERNS
+                pattern in description for pattern in SignalEditor.EYES_OPEN_PATTERNS
             )
 
             # Check for eyes closed patterns
             is_eyes_closed = any(
-                pattern in description
-                for pattern in SignalEditor.EYES_CLOSED_PATTERNS
+                pattern in description for pattern in SignalEditor.EYES_CLOSED_PATTERNS
             )
 
             if is_eyes_open:
                 actual_duration = duration if duration > 0 else default_duration
-                phases.append({
-                    "label": "Eyes Open",
-                    "start": onset,
-                    "end": onset + actual_duration,
-                    "duration": actual_duration,
-                    "original_description": annot["description"],
-                })
+                phases.append(
+                    {
+                        "label": "Eyes Open",
+                        "start": onset,
+                        "end": onset + actual_duration,
+                        "duration": actual_duration,
+                        "original_description": annot["description"],
+                    }
+                )
             elif is_eyes_closed:
                 actual_duration = duration if duration > 0 else default_duration
-                phases.append({
-                    "label": "Eyes Closed",
-                    "start": onset,
-                    "end": onset + actual_duration,
-                    "duration": actual_duration,
-                    "original_description": annot["description"],
-                })
+                phases.append(
+                    {
+                        "label": "Eyes Closed",
+                        "start": onset,
+                        "end": onset + actual_duration,
+                        "duration": actual_duration,
+                        "original_description": annot["description"],
+                    }
+                )
 
         return phases
 
@@ -921,11 +923,13 @@ class SignalEditor:
 
             # Check if annotation overlaps with the time range
             if onset <= end_time and annot_end >= start_time:
-                annotations.append({
-                    "description": annot["description"],
-                    "onset": onset,
-                    "duration": duration,
-                })
+                annotations.append(
+                    {
+                        "description": annot["description"],
+                        "onset": onset,
+                        "duration": duration,
+                    }
+                )
 
         return annotations
 
@@ -1000,7 +1004,9 @@ class EEGBackendCore:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def load_from_raw(self, raw: mne.io.Raw, already_filtered: bool = False) -> Dict[str, Any]:
+    def load_from_raw(
+        self, raw: mne.io.Raw, already_filtered: bool = False
+    ) -> Dict[str, Any]:
         """
         Load and process from pre-loaded Raw object.
 
@@ -1039,7 +1045,9 @@ class EEGBackendCore:
                 self.filtered_data = self.raw_data.copy()
             else:
                 # Apply band-pass filter
-                self.filtered_data = self.preprocessor.apply_bandpass_filter(self.raw_data)
+                self.filtered_data = self.preprocessor.apply_bandpass_filter(
+                    self.raw_data
+                )
 
             # Return information
             return {

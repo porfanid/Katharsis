@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QDoubleSpinBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -176,10 +177,14 @@ class ElectrodeSignalWidget(QWidget):
     cut_region_removed = pyqtSignal(int)  # index
 
     # Debounce delays for updates (ms) - prevents excessive redraws during slider dragging
-    PLOT_UPDATE_DEBOUNCE_MS = 150  # Fast enough to feel responsive, slow enough to avoid lag
+    PLOT_UPDATE_DEBOUNCE_MS = (
+        150  # Fast enough to feel responsive, slow enough to avoid lag
+    )
     FREQ_UPDATE_DEBOUNCE_MS = 300  # Longer delay for heavier frequency computation
 
-    def __init__(self, channel_name: str, channel_idx: int, theme: Dict[str, str], parent=None):
+    def __init__(
+        self, channel_name: str, channel_idx: int, theme: Dict[str, str], parent=None
+    ):
         super().__init__(parent)
         self.theme = theme
         self.channel_name = channel_name
@@ -227,18 +232,26 @@ class ElectrodeSignalWidget(QWidget):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setStyleSheet(f"background-color: {self.theme.get('background', '#FFFFFF')};")
+        scroll.setStyleSheet(
+            f"background-color: {self.theme.get('background', '#FFFFFF')};"
+        )
 
         scroll_content = QWidget()
-        scroll_content.setStyleSheet(f"background-color: {self.theme.get('background', '#FFFFFF')};")
+        scroll_content.setStyleSheet(
+            f"background-color: {self.theme.get('background', '#FFFFFF')};"
+        )
         layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(8)
 
         # === Signal plot section ===
         signal_widget = QWidget()
-        signal_widget.setStyleSheet(f"background-color: {self.theme.get('background', '#FFFFFF')};")
-        signal_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        signal_widget.setStyleSheet(
+            f"background-color: {self.theme.get('background', '#FFFFFF')};"
+        )
+        signal_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         signal_layout = QVBoxLayout(signal_widget)
         signal_layout.setContentsMargins(0, 0, 0, 0)
         signal_layout.setSpacing(3)
@@ -249,19 +262,25 @@ class ElectrodeSignalWidget(QWidget):
 
         title_label = QLabel(f"📈 {self.channel_name}")
         title_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        title_label.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')}; background: transparent;")
+        title_label.setStyleSheet(
+            f"color: {self.theme.get('primary', '#007AFF')}; background: transparent;"
+        )
         header_layout.addWidget(title_label)
 
         header_layout.addStretch()
 
         # Loading indicator
         self.loading_label = QLabel("")
-        self.loading_label.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')}; background: transparent;")
+        self.loading_label.setStyleSheet(
+            f"color: {self.theme.get('primary', '#007AFF')}; background: transparent;"
+        )
         header_layout.addWidget(self.loading_label)
 
         # View window selector - compact
         view_label = QLabel("View:")
-        view_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        view_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
         header_layout.addWidget(view_label)
 
         self.view_combo = QComboBox()
@@ -297,7 +316,9 @@ class ElectrodeSignalWidget(QWidget):
         self.figure = Figure(figsize=(10, 2.5), dpi=80, facecolor="white")
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setMinimumHeight(150)
-        self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.canvas.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         signal_layout.addWidget(self.canvas)
 
         # Navigation slider - compact
@@ -305,7 +326,9 @@ class ElectrodeSignalWidget(QWidget):
         nav_layout.setSpacing(5)
 
         self.nav_label = QLabel("Pos: 0.0s")
-        self.nav_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        self.nav_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
         self.nav_label.setMinimumWidth(70)
         nav_layout.addWidget(self.nav_label)
 
@@ -333,7 +356,9 @@ class ElectrodeSignalWidget(QWidget):
         nav_layout.addWidget(self.nav_slider)
 
         self.duration_label = QLabel("/ 0.0s")
-        self.duration_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;")
+        self.duration_label.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;"
+        )
         self.duration_label.setFixedWidth(70)
         nav_layout.addWidget(self.duration_label)
 
@@ -380,7 +405,9 @@ class ElectrodeSignalWidget(QWidget):
 
         # Selection info label
         self.selection_info = QLabel("Selection: 0.0s - 10.0s (10.0s)")
-        self.selection_info.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        self.selection_info.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
         button_layout.addWidget(self.selection_info)
 
         button_layout.addStretch()
@@ -408,8 +435,12 @@ class ElectrodeSignalWidget(QWidget):
         cut_layout.addLayout(button_layout)
 
         # Current cut regions display
-        self.regions_label = QLabel("No cut regions defined. Drag the markers above to select a region.")
-        self.regions_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;")
+        self.regions_label = QLabel(
+            "No cut regions defined. Drag the markers above to select a region."
+        )
+        self.regions_label.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;"
+        )
         self.regions_label.setWordWrap(True)
         cut_layout.addWidget(self.regions_label)
 
@@ -418,15 +449,21 @@ class ElectrodeSignalWidget(QWidget):
 
         # === Frequency analysis section (collapsible-friendly) ===
         freq_widget = QWidget()
-        freq_widget.setStyleSheet(f"background-color: {self.theme.get('background', '#FFFFFF')};")
-        freq_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        freq_widget.setStyleSheet(
+            f"background-color: {self.theme.get('background', '#FFFFFF')};"
+        )
+        freq_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+        )
         freq_layout = QVBoxLayout(freq_widget)
         freq_layout.setContentsMargins(5, 5, 5, 5)
         freq_layout.setSpacing(5)
 
         freq_header = QLabel("📊 Frequency Band Analysis")
         freq_header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        freq_header.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')}; background: transparent;")
+        freq_header.setStyleSheet(
+            f"color: {self.theme.get('primary', '#007AFF')}; background: transparent;"
+        )
         freq_layout.addWidget(freq_header)
 
         # === Two time range selectors for frequency comparison - responsive ===
@@ -573,7 +610,9 @@ class ElectrodeSignalWidget(QWidget):
         threshold_layout.setSpacing(5)
 
         threshold_label = QLabel("⚡ Threshold:")
-        threshold_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        threshold_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
         threshold_layout.addWidget(threshold_label)
 
         self.voltage_threshold_spin = QSpinBox()
@@ -581,7 +620,9 @@ class ElectrodeSignalWidget(QWidget):
         self.voltage_threshold_spin.setMaximum(500)
         self.voltage_threshold_spin.setValue(100)
         self.voltage_threshold_spin.setSuffix(" μV")
-        self.voltage_threshold_spin.setToolTip("Signals exceeding this threshold will be marked for removal")
+        self.voltage_threshold_spin.setToolTip(
+            "Signals exceeding this threshold will be marked for removal"
+        )
         self.voltage_threshold_spin.valueChanged.connect(self._update_plot)
         self.voltage_threshold_spin.setStyleSheet(
             f"""
@@ -600,7 +641,9 @@ class ElectrodeSignalWidget(QWidget):
         # Auto-detect artifacts button - compact
         auto_detect_btn = QPushButton("🔍 Auto-detect")
         auto_detect_btn.clicked.connect(self._auto_detect_artifacts)
-        auto_detect_btn.setToolTip("Automatically mark regions exceeding the voltage threshold for cutting")
+        auto_detect_btn.setToolTip(
+            "Automatically mark regions exceeding the voltage threshold for cutting"
+        )
         auto_detect_btn.setStyleSheet(
             f"""
             QPushButton {{
@@ -655,7 +698,9 @@ class ElectrodeSignalWidget(QWidget):
             initial_end = min(10.0, self._max_time)
             self.cut_timeline.set_markers(0.0, initial_end)
             self._current_selection = (0.0, initial_end)
-            self.selection_info.setText(f"Sel: 0.0s - {initial_end:.1f}s ({initial_end:.1f}s)")
+            self.selection_info.setText(
+                f"Sel: 0.0s - {initial_end:.1f}s ({initial_end:.1f}s)"
+            )
 
             # Update frequency analysis ranges (two ranges for comparison)
             half_time = int(self._max_time / 2)
@@ -700,7 +745,9 @@ class ElectrodeSignalWidget(QWidget):
         """Handle timeline marker changes - debounced."""
         self._current_selection = (left, right)
         duration = right - left
-        self.selection_info.setText(f"Sel: {left:.1f}s - {right:.1f}s ({duration:.1f}s)")
+        self.selection_info.setText(
+            f"Sel: {left:.1f}s - {right:.1f}s ({duration:.1f}s)"
+        )
         self._update_plot()
 
     def _on_timeline_region_clicked(self, index: int):
@@ -719,7 +766,9 @@ class ElectrodeSignalWidget(QWidget):
         start, end = self._current_selection
 
         if start >= end:
-            QMessageBox.warning(self, "Invalid Region", "Start time must be less than end time.")
+            QMessageBox.warning(
+                self, "Invalid Region", "Start time must be less than end time."
+            )
             return
 
         # Check for overlaps
@@ -728,7 +777,8 @@ class ElectrodeSignalWidget(QWidget):
                 QMessageBox.warning(
                     self,
                     "Overlapping Region",
-                    f"This region overlaps with existing cut " f"({existing_start:.1f}s - {existing_end:.1f}s).",
+                    f"This region overlaps with existing cut "
+                    f"({existing_start:.1f}s - {existing_end:.1f}s).",
                 )
                 return
 
@@ -737,12 +787,20 @@ class ElectrodeSignalWidget(QWidget):
     def _update_regions_display(self):
         """Update the cut regions display label."""
         if not self._cut_regions:
-            self.regions_label.setText("No cut regions defined. Drag the markers above to select a region.")
-            self.regions_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;")
+            self.regions_label.setText(
+                "No cut regions defined. Drag the markers above to select a region."
+            )
+            self.regions_label.setStyleSheet(
+                f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;"
+            )
         else:
-            regions_str = ", ".join(f"[{s:.1f}s - {e:.1f}s]" for s, e in self._cut_regions)
+            regions_str = ", ".join(
+                f"[{s:.1f}s - {e:.1f}s]" for s, e in self._cut_regions
+            )
             total = sum(e - s for s, e in self._cut_regions)
-            self.regions_label.setText(f"Cut regions: {regions_str} (Total: {total:.1f}s) - Click on timeline to remove")
+            self.regions_label.setText(
+                f"Cut regions: {regions_str} (Total: {total:.1f}s) - Click on timeline to remove"
+            )
             self.regions_label.setStyleSheet(
                 f"color: {self.theme.get('danger', '#dc3545')}; font-weight: bold; background: transparent;"
             )
@@ -769,7 +827,9 @@ class ElectrodeSignalWidget(QWidget):
             sfreq = self._raw_data.info["sfreq"]
 
             # Get data for this channel only
-            data = self._raw_data.get_data(picks=[self.channel_idx]) * 1e6  # Convert to μV
+            data = (
+                self._raw_data.get_data(picks=[self.channel_idx]) * 1e6
+            )  # Convert to μV
             times = self._raw_data.times
 
             # Calculate view range
@@ -789,13 +849,21 @@ class ElectrodeSignalWidget(QWidget):
             threshold = self.voltage_threshold_spin.value()
 
             # Plot signal in blue
-            ax.plot(display_times, display_data, color=self.theme.get("primary", "#007AFF"), linewidth=0.8, alpha=0.9)
+            ax.plot(
+                display_times,
+                display_data,
+                color=self.theme.get("primary", "#007AFF"),
+                linewidth=0.8,
+                alpha=0.9,
+            )
 
             # Highlight regions exceeding threshold in red
             exceeds_threshold = np.abs(display_data) > threshold
             if np.any(exceeds_threshold):
                 masked_data = np.ma.masked_where(~exceeds_threshold, display_data)
-                ax.plot(display_times, masked_data, color="red", linewidth=1.5, alpha=0.9)
+                ax.plot(
+                    display_times, masked_data, color="red", linewidth=1.5, alpha=0.9
+                )
                 violation_count = np.sum(np.diff(exceeds_threshold.astype(int)) == 1)
                 self.threshold_violations_label.setText(f"⚠️ {violation_count}")
             else:
@@ -803,7 +871,9 @@ class ElectrodeSignalWidget(QWidget):
 
             # Draw threshold lines
             ax.axhline(y=threshold, color="red", linestyle="--", linewidth=1, alpha=0.7)
-            ax.axhline(y=-threshold, color="red", linestyle="--", linewidth=1, alpha=0.7)
+            ax.axhline(
+                y=-threshold, color="red", linestyle="--", linewidth=1, alpha=0.7
+            )
 
             # Add annotations (eyes open/closed)
             if self._raw_data.annotations is not None:
@@ -839,7 +909,11 @@ class ElectrodeSignalWidget(QWidget):
                                 fontsize=7,
                                 color=color,
                                 fontweight="bold",
-                                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
+                                bbox=dict(
+                                    boxstyle="round,pad=0.2",
+                                    facecolor="white",
+                                    alpha=0.8,
+                                ),
                             )
 
             # Highlight cut regions
@@ -848,7 +922,12 @@ class ElectrodeSignalWidget(QWidget):
                     draw_start = max(start, self._view_start)
                     draw_end = min(end, view_end)
                     ax.axvspan(
-                        draw_start, draw_end, alpha=0.4, color=self.theme.get("danger", "#dc3545"), hatch="///", edgecolor="darkred"
+                        draw_start,
+                        draw_end,
+                        alpha=0.4,
+                        color=self.theme.get("danger", "#dc3545"),
+                        hatch="///",
+                        edgecolor="darkred",
                     )
 
             # Highlight current selection
@@ -876,7 +955,16 @@ class ElectrodeSignalWidget(QWidget):
 
         except Exception as e:
             ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, f"Error: {str(e)}", ha="center", va="center", fontsize=10, color="red", transform=ax.transAxes)
+            ax.text(
+                0.5,
+                0.5,
+                f"Error: {str(e)}",
+                ha="center",
+                va="center",
+                fontsize=10,
+                color="red",
+                transform=ax.transAxes,
+            )
 
         self.canvas.draw()
 
@@ -964,7 +1052,9 @@ class ElectrodeSignalWidget(QWidget):
 
         try:
             # Get data for this channel
-            data = self._raw_data.get_data(picks=[self.channel_idx]) * 1e6  # Convert to μV
+            data = (
+                self._raw_data.get_data(picks=[self.channel_idx]) * 1e6
+            )  # Convert to μV
             times = self._raw_data.times
             sfreq = self._raw_data.info["sfreq"]
 
@@ -972,7 +1062,11 @@ class ElectrodeSignalWidget(QWidget):
             exceeds = np.abs(data[0]) > threshold
 
             if not np.any(exceeds):
-                QMessageBox.information(self, "No Artifacts Found", f"No signal segments exceed the {threshold} μV threshold.")
+                QMessageBox.information(
+                    self,
+                    "No Artifacts Found",
+                    f"No signal segments exceed the {threshold} μV threshold.",
+                )
                 return
 
             # Find continuous regions exceeding threshold
@@ -1011,7 +1105,11 @@ class ElectrodeSignalWidget(QWidget):
                     new_regions.append((start_time, end_time))
 
             if not new_regions:
-                QMessageBox.information(self, "No New Artifacts", "All detected artifacts are already marked for cutting.")
+                QMessageBox.information(
+                    self,
+                    "No New Artifacts",
+                    "All detected artifacts are already marked for cutting.",
+                )
                 return
 
             # Ask user to confirm
@@ -1030,10 +1128,16 @@ class ElectrodeSignalWidget(QWidget):
                 for start, end in new_regions:
                     self.cut_region_added.emit(start, end)
 
-                QMessageBox.information(self, "Regions Added", f"Added {len(new_regions)} artifact region(s) to the cut list.")
+                QMessageBox.information(
+                    self,
+                    "Regions Added",
+                    f"Added {len(new_regions)} artifact region(s) to the cut list.",
+                )
 
         except Exception as e:
-            QMessageBox.warning(self, "Detection Error", f"Failed to detect artifacts: {str(e)}")
+            QMessageBox.warning(
+                self, "Detection Error", f"Failed to detect artifacts: {str(e)}"
+            )
 
     def clear(self):
         """Clear the widget and stop timers."""
@@ -1071,9 +1175,12 @@ class SignalPreviewScreen(QWidget):
         self.theme = theme
         self._raw_data = None
         self._original_raw_data = None
+        self._unfiltered_raw_data = None  # Store unfiltered data for re-filtering
         self._file_path = ""
         self._cut_regions: List[Tuple[float, float]] = []
         self._electrode_widgets: Dict[str, ElectrodeSignalWidget] = {}
+        self._low_freq = 1.0  # Default low frequency
+        self._high_freq = 40.0  # Default high frequency
         self.setup_ui()
 
     def setup_ui(self):
@@ -1095,7 +1202,9 @@ class SignalPreviewScreen(QWidget):
         title_label = QLabel("🔬 Signal Preview & Editing")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet(f"color: {self.theme.get('primary', '#007AFF')}; margin: 2px; background: transparent;")
+        title_label.setStyleSheet(
+            f"color: {self.theme.get('primary', '#007AFF')}; margin: 2px; background: transparent;"
+        )
         layout.addWidget(title_label)
 
         # Description - compact and word wrap
@@ -1117,7 +1226,9 @@ class SignalPreviewScreen(QWidget):
         self.file_info_label = QLabel("No file loaded")
         self.file_info_label.setFont(QFont("Arial", 9))
         self.file_info_label.setWordWrap(True)
-        self.file_info_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        self.file_info_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
         header_layout.addWidget(self.file_info_label, 1)
 
         # Help button - compact
@@ -1141,11 +1252,102 @@ class SignalPreviewScreen(QWidget):
 
         layout.addLayout(header_layout)
 
+        # Filter controls section
+        filter_layout = QHBoxLayout()
+        filter_layout.setSpacing(10)
+
+        filter_label = QLabel("🔧 Filter:")
+        filter_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        filter_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
+        filter_layout.addWidget(filter_label)
+
+        # Low frequency spinbox
+        low_freq_label = QLabel("Low:")
+        low_freq_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
+        filter_layout.addWidget(low_freq_label)
+
+        self.low_freq_spinbox = QDoubleSpinBox()
+        self.low_freq_spinbox.setRange(0.1, 50.0)
+        self.low_freq_spinbox.setValue(self._low_freq)
+        self.low_freq_spinbox.setSuffix(" Hz")
+        self.low_freq_spinbox.setDecimals(1)
+        self.low_freq_spinbox.setSingleStep(0.5)
+        self.low_freq_spinbox.setFixedWidth(80)
+        self.low_freq_spinbox.setStyleSheet(
+            f"""
+            QDoubleSpinBox {{
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 3px;
+                color: {self.theme.get('text', '#212529')};
+            }}
+        """
+        )
+        filter_layout.addWidget(self.low_freq_spinbox)
+
+        # High frequency spinbox
+        high_freq_label = QLabel("High:")
+        high_freq_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
+        filter_layout.addWidget(high_freq_label)
+
+        self.high_freq_spinbox = QDoubleSpinBox()
+        self.high_freq_spinbox.setRange(1.0, 100.0)
+        self.high_freq_spinbox.setValue(self._high_freq)
+        self.high_freq_spinbox.setSuffix(" Hz")
+        self.high_freq_spinbox.setDecimals(1)
+        self.high_freq_spinbox.setSingleStep(1.0)
+        self.high_freq_spinbox.setFixedWidth(80)
+        self.high_freq_spinbox.setStyleSheet(
+            f"""
+            QDoubleSpinBox {{
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 3px;
+                color: {self.theme.get('text', '#212529')};
+            }}
+        """
+        )
+        filter_layout.addWidget(self.high_freq_spinbox)
+
+        # Apply filter button
+        self.apply_filter_btn = QPushButton("🔄 Apply Filter")
+        self.apply_filter_btn.clicked.connect(self._apply_new_filter)
+        self.apply_filter_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {self.theme.get('success', '#28a745')};
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 4px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #218838;
+            }}
+        """
+        )
+        filter_layout.addWidget(self.apply_filter_btn)
+
+        filter_layout.addStretch()
+
+        layout.addLayout(filter_layout)
+
         # Tab widget for electrodes - scrollable tabs for many electrodes
         self.electrode_tabs = QTabWidget()
         self.electrode_tabs.setFont(QFont("Arial", 9))
         self.electrode_tabs.setUsesScrollButtons(True)
-        self.electrode_tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.electrode_tabs.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         self.electrode_tabs.setStyleSheet(
             f"""
             QTabWidget::pane {{
@@ -1178,7 +1380,9 @@ class SignalPreviewScreen(QWidget):
         # Regions summary
         self.regions_summary = QLabel("No cut regions")
         self.regions_summary.setFont(QFont("Arial", 9))
-        self.regions_summary.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')};")
+        self.regions_summary.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')};"
+        )
         action_layout.addWidget(self.regions_summary)
 
         action_layout.addStretch()
@@ -1299,7 +1503,7 @@ class SignalPreviewScreen(QWidget):
         """
         Set the EEG data for preview and editing.
 
-        The data is automatically filtered with a band-pass filter (1-40 Hz)
+        The data is automatically filtered with a band-pass filter
         to remove DC offset and high-frequency noise before display.
 
         Args:
@@ -1309,6 +1513,7 @@ class SignalPreviewScreen(QWidget):
         if raw is None:
             self._raw_data = None
             self._original_raw_data = None
+            self._unfiltered_raw_data = None
             self._file_path = ""
             self._cut_regions = []
             self.electrode_tabs.clear()
@@ -1317,17 +1522,29 @@ class SignalPreviewScreen(QWidget):
             self._update_regions_summary()
             return
 
+        # Store unfiltered data for re-filtering with different parameters
+        self._unfiltered_raw_data = raw.copy()
+        self._file_path = file_path
+
+        # Get filter frequencies from spinboxes
+        self._low_freq = self.low_freq_spinbox.value()
+        self._high_freq = self.high_freq_spinbox.value()
+
         # Apply band-pass filter to remove DC offset and high-frequency noise
-        # This is the same preprocessing done before ICA/PCA
+        self._apply_filter_and_update(raw)
+
+    def _apply_filter_and_update(self, raw: mne.io.Raw):
+        """Apply filter and update the display."""
         try:
-            filtered_raw = EEGPreprocessor.apply_bandpass_filter(raw, low_freq=1.0, high_freq=40.0)
+            filtered_raw = EEGPreprocessor.apply_bandpass_filter(
+                raw, low_freq=self._low_freq, high_freq=self._high_freq
+            )
         except Exception:
             # If filtering fails, use original data
             filtered_raw = raw.copy()
 
         self._raw_data = filtered_raw
         self._original_raw_data = filtered_raw.copy()
-        self._file_path = file_path
         self._cut_regions = []
 
         # Clear existing tabs
@@ -1341,17 +1558,19 @@ class SignalPreviewScreen(QWidget):
         n_annotations = len(filtered_raw.annotations) if filtered_raw.annotations else 0
 
         self.file_info_label.setText(
-            f"📁 {file_path.split('/')[-1] if file_path else 'Unknown'} | "
+            f"📁 {self._file_path.split('/')[-1] if self._file_path else 'Unknown'} | "
             f"🧠 {n_channels} ch | "
             f"⏱️ {duration:.1f}s | "
             f"⚡ {sfreq:.0f} Hz | "
             f"📌 {n_annotations} annot | "
-            f"🔧 Filtered 1-40 Hz"
+            f"🔧 Filtered {self._low_freq:.1f}-{self._high_freq:.1f} Hz"
         )
 
         # Create tab for each electrode
         for idx, ch_name in enumerate(filtered_raw.ch_names):
-            electrode_widget = ElectrodeSignalWidget(channel_name=ch_name, channel_idx=idx, theme=self.theme, parent=self)
+            electrode_widget = ElectrodeSignalWidget(
+                channel_name=ch_name, channel_idx=idx, theme=self.theme, parent=self
+            )
             electrode_widget.set_data(filtered_raw)
             electrode_widget.cut_region_added.connect(self._on_cut_region_added)
 
@@ -1359,6 +1578,30 @@ class SignalPreviewScreen(QWidget):
             self.electrode_tabs.addTab(electrode_widget, f"🧠 {ch_name}")
 
         self._update_regions_summary()
+
+    def _apply_new_filter(self):
+        """Apply new filter settings from the spinboxes."""
+        if self._unfiltered_raw_data is None:
+            QMessageBox.warning(self, "No Data", "No EEG data loaded to filter.")
+            return
+
+        # Get new filter frequencies
+        new_low = self.low_freq_spinbox.value()
+        new_high = self.high_freq_spinbox.value()
+
+        if new_low >= new_high:
+            QMessageBox.warning(
+                self,
+                "Invalid Filter",
+                "Low frequency must be less than high frequency.",
+            )
+            return
+
+        self._low_freq = new_low
+        self._high_freq = new_high
+
+        # Re-apply filter with new settings
+        self._apply_filter_and_update(self._unfiltered_raw_data)
 
     def _on_cut_region_added(self, start: float, end: float):
         """Handle cut region added from any electrode widget."""
@@ -1381,7 +1624,9 @@ class SignalPreviewScreen(QWidget):
     def _apply_cuts(self):
         """Apply the cut regions to the signal."""
         if self._raw_data is None or not self._cut_regions:
-            QMessageBox.information(self, "No Cuts", "No cut regions have been defined.")
+            QMessageBox.information(
+                self, "No Cuts", "No cut regions have been defined."
+            )
             return
 
         try:
@@ -1413,11 +1658,14 @@ class SignalPreviewScreen(QWidget):
             QMessageBox.information(
                 self,
                 "Signal Modified",
-                f"Signal regions have been cut successfully.\n" f"New duration: {duration:.1f} seconds",
+                f"Signal regions have been cut successfully.\n"
+                f"New duration: {duration:.1f} seconds",
             )
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to cut signal regions:\n{str(e)}")
+            QMessageBox.critical(
+                self, "Error", f"Failed to cut signal regions:\n{str(e)}"
+            )
 
     def _reset_signal(self):
         """Reset signal to original (filtered) state."""
@@ -1427,7 +1675,8 @@ class SignalPreviewScreen(QWidget):
         reply = QMessageBox.question(
             self,
             "Reset Signal",
-            "Are you sure you want to reset to the original filtered signal?\n" "All cuts will be removed.",
+            "Are you sure you want to reset to the original filtered signal?\n"
+            "All cuts will be removed.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1435,38 +1684,47 @@ class SignalPreviewScreen(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             self._raw_data = self._original_raw_data.copy()
             self._cut_regions = []
-            
+
             # Update all electrode widgets with original data
             for idx, (ch_name, widget) in enumerate(self._electrode_widgets.items()):
                 widget.set_data(self._raw_data)
                 widget.set_cut_regions([])
-            
+
             # Update file info
             duration = self._raw_data.times[-1]
             n_channels = len(self._raw_data.ch_names)
             sfreq = self._raw_data.info["sfreq"]
-            n_annotations = len(self._raw_data.annotations) if self._raw_data.annotations else 0
-            
+            n_annotations = (
+                len(self._raw_data.annotations) if self._raw_data.annotations else 0
+            )
+
             self.file_info_label.setText(
                 f"📁 {self._file_path.split('/')[-1] if self._file_path else 'Unknown'} | "
                 f"🧠 {n_channels} ch | "
                 f"⏱️ {duration:.1f}s | "
                 f"⚡ {sfreq:.0f} Hz | "
                 f"📌 {n_annotations} annot | "
-                f"🔧 Filtered 1-40 Hz"
+                f"🔧 Filtered {self._low_freq:.1f}-{self._high_freq:.1f} Hz"
             )
-            
+
             self._update_regions_summary()
 
     def _update_regions_summary(self):
         """Update the regions summary label."""
         if not self._cut_regions:
             self.regions_summary.setText("No cut regions")
-            self.regions_summary.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')};")
+            self.regions_summary.setStyleSheet(
+                f"color: {self.theme.get('text_light', '#6c757d')};"
+            )
         else:
             total = sum(e - s for s, e in self._cut_regions)
-            self.regions_summary.setText(f"✂️ {len(self._cut_regions)} cut region(s) | " f"Total: {total:.1f}s to remove")
-            self.regions_summary.setStyleSheet(f"color: {self.theme.get('danger', '#dc3545')}; font-weight: bold;")
+            self.regions_summary.setText(
+                f"✂️ {len(self._cut_regions)} cut region(s) | "
+                f"Total: {total:.1f}s to remove"
+            )
+            self.regions_summary.setStyleSheet(
+                f"color: {self.theme.get('danger', '#dc3545')}; font-weight: bold;"
+            )
 
     def _show_help_dialog(self):
         """Show the help dialog."""

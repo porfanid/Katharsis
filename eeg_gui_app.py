@@ -45,15 +45,15 @@ from PyQt6.QtWidgets import (
 def create_light_palette() -> QPalette:
     """
     Create a light color palette for the application.
-    
+
     This ensures the app always uses a light theme regardless of
     the system's dark mode setting.
-    
+
     Returns:
         QPalette: A light-themed color palette
     """
     palette = QPalette()
-    
+
     # Window and base colors (white/light gray)
     palette.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(33, 37, 41))
@@ -61,33 +61,33 @@ def create_light_palette() -> QPalette:
     palette.setColor(QPalette.ColorRole.AlternateBase, QColor(248, 249, 250))
     palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 255))
     palette.setColor(QPalette.ColorRole.ToolTipText, QColor(33, 37, 41))
-    
+
     # Text colors
     palette.setColor(QPalette.ColorRole.Text, QColor(33, 37, 41))
     palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(108, 117, 125))
-    
+
     # Button colors
     palette.setColor(QPalette.ColorRole.Button, QColor(248, 249, 250))
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(33, 37, 41))
-    
+
     # Highlight colors (selection)
     palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 122, 255))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-    
+
     # Link colors
     palette.setColor(QPalette.ColorRole.Link, QColor(0, 122, 255))
     palette.setColor(QPalette.ColorRole.LinkVisited, QColor(0, 86, 179))
-    
+
     # Bright text (for contrast)
     palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 255, 255))
-    
+
     # Light and dark shades
     palette.setColor(QPalette.ColorRole.Light, QColor(255, 255, 255))
     palette.setColor(QPalette.ColorRole.Midlight, QColor(248, 249, 250))
     palette.setColor(QPalette.ColorRole.Mid, QColor(222, 226, 230))
     palette.setColor(QPalette.ColorRole.Dark, QColor(173, 181, 189))
     palette.setColor(QPalette.ColorRole.Shadow, QColor(108, 117, 125))
-    
+
     return palette
 
 
@@ -401,7 +401,9 @@ class EEGProcessingThreadWithRaw(QThread):
 
             # Use the service's method to load from raw data
             # Pass already_filtered=True since data from Signal Preview is pre-filtered
-            load_result = self.service.load_from_raw(self.raw_data, already_filtered=True)
+            load_result = self.service.load_from_raw(
+                self.raw_data, already_filtered=True
+            )
             if not load_result["success"]:
                 self.processing_complete.emit(
                     False,
@@ -659,11 +661,11 @@ class EEGArtifactCleanerGUI(QMainWindow):
         self.welcome_screen = self.create_welcome_screen()
 
         # Add screens in order: Welcome -> Channel Selection -> Signal Preview -> ICA -> Comparison
-        self.stacked_widget.addWidget(self.welcome_screen)           # Index 0
+        self.stacked_widget.addWidget(self.welcome_screen)  # Index 0
         self.stacked_widget.addWidget(self.channel_selector_screen)  # Index 1
-        self.stacked_widget.addWidget(self.signal_preview_screen)    # Index 2 (NEW)
-        self.stacked_widget.addWidget(self.ica_selector_screen)      # Index 3
-        self.stacked_widget.addWidget(self.comparison_screen)        # Index 4
+        self.stacked_widget.addWidget(self.signal_preview_screen)  # Index 2 (NEW)
+        self.stacked_widget.addWidget(self.ica_selector_screen)  # Index 3
+        self.stacked_widget.addWidget(self.comparison_screen)  # Index 4
 
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
@@ -1184,7 +1186,7 @@ def main():
     and starts the main application window.
     """
     app = QApplication(sys.argv)
-    
+
     # Force light theme regardless of system dark mode
     # This ensures consistent appearance across all platforms
     app.setPalette(create_light_palette())

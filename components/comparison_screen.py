@@ -76,9 +76,7 @@ class ComparisonScreen(QWidget):
         # Scroll area for band power analysis
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.band_power_widget = BandPowerAnalysisWidget(
             theme=self.theme,

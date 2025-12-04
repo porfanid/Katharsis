@@ -92,9 +92,7 @@ class TimeRangeSelector(QWidget):
         # Title
         title_label = QLabel("📊 Time Range Selection")
         title_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        title_label.setStyleSheet(
-            f"color: {self.theme.get('text', '#212529')};"
-        )
+        title_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
         layout.addWidget(title_label)
 
         # Start time controls
@@ -347,9 +345,7 @@ class RestingPhaseDisplay(QWidget):
         # Title
         title_label = QLabel("👁️ Resting Phase Analysis")
         title_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        title_label.setStyleSheet(
-            f"color: {self.theme.get('text', '#212529')};"
-        )
+        title_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
         layout.addWidget(title_label)
 
         # Container for phase displays
@@ -363,8 +359,7 @@ class RestingPhaseDisplay(QWidget):
         )
         self.no_phases_label.setFont(QFont("Arial", 9))
         self.no_phases_label.setStyleSheet(
-            f"color: {self.theme.get('text_light', '#6c757d')};"
-            "padding: 10px;"
+            f"color: {self.theme.get('text_light', '#6c757d')};" "padding: 10px;"
         )
         self.no_phases_label.setWordWrap(True)
         self.phases_container.addWidget(self.no_phases_label)
@@ -401,8 +396,7 @@ class RestingPhaseDisplay(QWidget):
             )
             self.no_phases_label.setFont(QFont("Arial", 9))
             self.no_phases_label.setStyleSheet(
-                f"color: {self.theme.get('text_light', '#6c757d')};"
-                "padding: 10px;"
+                f"color: {self.theme.get('text_light', '#6c757d')};" "padding: 10px;"
             )
             self.no_phases_label.setWordWrap(True)
             self.phases_container.addWidget(self.no_phases_label)
@@ -461,9 +455,7 @@ class RestingPhaseDisplay(QWidget):
             f"(Duration: {phase['end'] - phase['start']:.1f}s)"
         )
         time_label.setFont(QFont("Arial", 9))
-        time_label.setStyleSheet(
-            f"color: {self.theme.get('text_light', '#6c757d')};"
-        )
+        time_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')};")
         layout.addWidget(time_label)
 
         # Band powers
@@ -523,18 +515,18 @@ class RestingPhaseDisplay(QWidget):
 class SignalCutterTimeline(QWidget):
     """
     Visual timeline widget for selecting and displaying multiple cut regions.
-    
+
     Shows a timeline bar with:
     - Draggable left/right markers for current selection
     - Visual display of all added cut regions
     - Ability to click on existing regions to remove them
     """
-    
+
     # Marker positions changed signal (left_pos, right_pos in seconds)
     markers_changed = pyqtSignal(float, float)
     # Signal when user clicks on an existing region to remove it
     region_clicked = pyqtSignal(int)  # Index of clicked region
-    
+
     def __init__(
         self,
         theme: Optional[Dict[str, str]] = None,
@@ -548,17 +540,17 @@ class SignalCutterTimeline(QWidget):
         self._cut_regions: List[Tuple[float, float]] = []  # List of (start, end) tuples
         self._dragging = None  # None, 'left', 'right', or 'region'
         self._drag_offset = 0
-        
+
         self.setMinimumHeight(100)
         self.setMaximumHeight(120)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMouseTracking(True)
-    
+
     def set_cut_regions(self, regions: List[Tuple[float, float]]):
         """Set the list of cut regions to display."""
         self._cut_regions = regions.copy()
         self.update()
-        
+
     def set_max_time(self, max_time: float):
         """Set the maximum time for the timeline."""
         self._max_time = max(max_time, 1.0)
@@ -567,115 +559,128 @@ class SignalCutterTimeline(QWidget):
         if self._left_marker > self._right_marker:
             self._left_marker = max(0, self._right_marker - 1)
         self.update()
-        
+
     def set_markers(self, left: float, right: float):
         """Set marker positions."""
         self._left_marker = max(0, min(left, self._max_time))
         self._right_marker = max(0, min(right, self._max_time))
         if self._left_marker > self._right_marker:
-            self._left_marker, self._right_marker = self._right_marker, self._left_marker
+            self._left_marker, self._right_marker = (
+                self._right_marker,
+                self._left_marker,
+            )
         self.update()
         self.markers_changed.emit(self._left_marker, self._right_marker)
-        
+
     def get_markers(self) -> Tuple[float, float]:
         """Get current marker positions."""
         return (self._left_marker, self._right_marker)
-    
+
     def _time_to_x(self, time: float) -> int:
         """Convert time to x position."""
         margin = 20
         usable_width = self.width() - 2 * margin
         return int(margin + (time / self._max_time) * usable_width)
-    
+
     def _x_to_time(self, x: int) -> float:
         """Convert x position to time."""
         margin = 20
         usable_width = self.width() - 2 * margin
         time = ((x - margin) / usable_width) * self._max_time
         return max(0, min(time, self._max_time))
-    
+
     def _get_region_at_pos(self, x: int, y: int) -> int:
         """Get index of cut region at position, or -1 if none."""
         timeline_top = 30
         timeline_height = 35
-        
+
         # Check if y is in the timeline area
         if not (timeline_top <= y <= timeline_top + timeline_height):
             return -1
-        
+
         for i, (start, end) in enumerate(self._cut_regions):
             left_x = self._time_to_x(start)
             right_x = self._time_to_x(end)
             if left_x <= x <= right_x:
                 return i
         return -1
-    
+
     def paintEvent(self, event):
         """Paint the timeline with all cut regions."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
+
         # Colors from theme
-        bg_color = QColor(self.theme.get('background', '#FFFFFF'))
-        primary = QColor(self.theme.get('primary', '#007AFF'))
-        danger = QColor(self.theme.get('danger', '#dc3545'))
-        success = QColor(self.theme.get('success', '#28a745'))
-        border = QColor(self.theme.get('border', '#dee2e6'))
-        text_color = QColor(self.theme.get('text', '#212529'))
-        
+        bg_color = QColor(self.theme.get("background", "#FFFFFF"))
+        primary = QColor(self.theme.get("primary", "#007AFF"))
+        danger = QColor(self.theme.get("danger", "#dc3545"))
+        success = QColor(self.theme.get("success", "#28a745"))
+        border = QColor(self.theme.get("border", "#dee2e6"))
+        text_color = QColor(self.theme.get("text", "#212529"))
+
         # Background
         painter.fillRect(self.rect(), bg_color)
-        
+
         margin = 20
         timeline_top = 30
         timeline_height = 35
-        
+
         # Title
         painter.setPen(QPen(text_color))
         painter.setFont(QFont("Arial", 9))
-        painter.drawText(margin, 18, "Drag markers to select region, then click 'Add Region'. Click existing regions to remove them.")
-        
+        painter.drawText(
+            margin,
+            18,
+            "Drag markers to select region, then click 'Add Region'. Click existing regions to remove them.",
+        )
+
         # Timeline track background
-        track_rect = QRect(margin, timeline_top, self.width() - 2 * margin, timeline_height)
+        track_rect = QRect(
+            margin, timeline_top, self.width() - 2 * margin, timeline_height
+        )
         painter.setPen(QPen(border, 1))
-        painter.setBrush(QBrush(QColor('#f8f9fa')))
+        painter.setBrush(QBrush(QColor("#f8f9fa")))
         painter.drawRoundedRect(track_rect, 4, 4)
-        
+
         # Draw existing cut regions (darker red, already added)
         for i, (start, end) in enumerate(self._cut_regions):
             left_x = self._time_to_x(start)
             right_x = self._time_to_x(end)
-            
-            region_rect = QRect(left_x, timeline_top + 2, right_x - left_x, timeline_height - 4)
-            
+
+            region_rect = QRect(
+                left_x, timeline_top + 2, right_x - left_x, timeline_height - 4
+            )
+
             # Darker red for committed regions
             committed_color = QColor(danger)
             committed_color.setAlpha(180)
             painter.setBrush(QBrush(committed_color))
             painter.setPen(QPen(danger.darker(110), 2))
             painter.drawRect(region_rect)
-            
+
             # Region number label
-            painter.setPen(QPen(QColor('white')))
+            painter.setPen(QPen(QColor("white")))
             painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
             label_text = f"#{i+1}"
             painter.drawText(region_rect, Qt.AlignmentFlag.AlignCenter, label_text)
-        
+
         # Draw current selection (lighter, not yet added)
         left_x = self._time_to_x(self._left_marker)
         right_x = self._time_to_x(self._right_marker)
-        
-        selection_rect = QRect(left_x, timeline_top + 2, right_x - left_x, timeline_height - 4)
+
+        selection_rect = QRect(
+            left_x, timeline_top + 2, right_x - left_x, timeline_height - 4
+        )
         selection_color = QColor(primary)
         selection_color.setAlpha(80)
         painter.setBrush(QBrush(selection_color))
         painter.setPen(QPen(primary, 2, Qt.PenStyle.DashLine))
         painter.drawRect(selection_rect)
-        
+
         # Left marker handle
         painter.setBrush(QBrush(primary))
         painter.setPen(QPen(primary.darker(110), 2))
-        
+
         # Left triangle marker
         left_points = [
             QPoint(left_x, timeline_top - 5),
@@ -684,7 +689,7 @@ class SignalCutterTimeline(QWidget):
         ]
         painter.drawPolygon(left_points)
         painter.drawLine(left_x, timeline_top, left_x, timeline_top + timeline_height)
-        
+
         # Right triangle marker
         right_points = [
             QPoint(right_x, timeline_top - 5),
@@ -693,100 +698,104 @@ class SignalCutterTimeline(QWidget):
         ]
         painter.drawPolygon(right_points)
         painter.drawLine(right_x, timeline_top, right_x, timeline_top + timeline_height)
-        
+
         # Time labels at bottom
         painter.setPen(QPen(text_color))
         painter.setFont(QFont("Arial", 8))
-        
+
         # Start (0s)
         painter.drawText(margin, self.height() - 5, "0s")
-        
+
         # End
         end_text = f"{self._max_time:.0f}s"
         painter.drawText(self.width() - margin - 30, self.height() - 5, end_text)
-        
+
         # Middle markers
         for frac in [0.25, 0.5, 0.75]:
             x = self._time_to_x(self._max_time * frac)
-            painter.drawLine(x, timeline_top + timeline_height, x, timeline_top + timeline_height + 5)
+            painter.drawLine(
+                x, timeline_top + timeline_height, x, timeline_top + timeline_height + 5
+            )
             time_label = f"{self._max_time * frac:.0f}s"
             painter.drawText(x - 15, self.height() - 5, time_label)
-        
+
         # Current selection time labels (above markers)
         painter.setPen(QPen(primary))
         painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        
+
         left_text = f"{self._left_marker:.1f}s"
         painter.drawText(left_x - 20, timeline_top - 22, left_text)
-        
+
         right_text = f"{self._right_marker:.1f}s"
         painter.drawText(right_x - 20, timeline_top - 22, right_text)
-        
+
         # Selection duration in the middle
         duration = self._right_marker - self._left_marker
         duration_text = f"Selection: {duration:.1f}s"
         center_x = (left_x + right_x) // 2
-        painter.drawText(center_x - 40, timeline_top + timeline_height // 2 + 4, duration_text)
-        
+        painter.drawText(
+            center_x - 40, timeline_top + timeline_height // 2 + 4, duration_text
+        )
+
     def mousePressEvent(self, event):
         """Handle mouse press for dragging markers or clicking regions."""
         if event.button() != Qt.MouseButton.LeftButton:
             return
-            
+
         x = event.position().x()
         y = event.position().y()
-        
+
         # Check if clicking on an existing region
         region_idx = self._get_region_at_pos(int(x), int(y))
         if region_idx >= 0:
             # Emit signal to remove this region
             self.region_clicked.emit(region_idx)
             return
-        
+
         left_x = self._time_to_x(self._left_marker)
         right_x = self._time_to_x(self._right_marker)
-        
+
         # Check if clicking on left marker (within 15px)
         if abs(x - left_x) < 15:
-            self._dragging = 'left'
+            self._dragging = "left"
         # Check if clicking on right marker
         elif abs(x - right_x) < 15:
-            self._dragging = 'right'
+            self._dragging = "right"
         # Check if clicking in the selection region (to drag both)
         elif left_x < x < right_x:
-            self._dragging = 'region'
+            self._dragging = "region"
             self._drag_offset = x - left_x
-        
+
     def mouseMoveEvent(self, event):
         """Handle mouse move for dragging."""
         x = event.position().x()
         y = event.position().y()
-        
-        if self._dragging == 'left':
+
+        if self._dragging == "left":
             new_time = self._x_to_time(x)
             if new_time < self._right_marker - 0.5:  # Minimum 0.5s region
                 self._left_marker = new_time
                 self.update()
                 self.markers_changed.emit(self._left_marker, self._right_marker)
-                
-        elif self._dragging == 'right':
+
+        elif self._dragging == "right":
             new_time = self._x_to_time(x)
             if new_time > self._left_marker + 0.5:  # Minimum 0.5s region
                 self._right_marker = new_time
                 self.update()
                 self.markers_changed.emit(self._left_marker, self._right_marker)
-                
-        elif self._dragging == 'region':
+
+        elif self._dragging == "region":
             new_left_x = x - self._drag_offset
             new_left = self._x_to_time(new_left_x)
             duration = self._right_marker - self._left_marker
-            
+
             # Keep within bounds
             if new_left < 0:
                 new_left = 0
             if new_left + duration > self._max_time:
                 new_left = self._max_time - duration
-                
+
             self._left_marker = new_left
             self._right_marker = new_left + duration
             self.update()
@@ -795,7 +804,7 @@ class SignalCutterTimeline(QWidget):
             # Update cursor based on position
             left_x = self._time_to_x(self._left_marker)
             right_x = self._time_to_x(self._right_marker)
-            
+
             # Check if over an existing region
             region_idx = self._get_region_at_pos(int(x), int(y))
             if region_idx >= 0:
@@ -810,7 +819,7 @@ class SignalCutterTimeline(QWidget):
             else:
                 self.setCursor(Qt.CursorShape.ArrowCursor)
                 self.setToolTip("")
-            
+
     def mouseReleaseEvent(self, event):
         """Handle mouse release."""
         self._dragging = None
@@ -855,13 +864,15 @@ class SignalCutter(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(12)
-        
+
         # Apply white theme background
-        self.setStyleSheet(f"""
+        self.setStyleSheet(
+            f"""
             QWidget {{
                 background-color: {self.theme.get('background', '#FFFFFF')};
             }}
-        """)
+        """
+        )
 
         # Title
         title_label = QLabel("✂️ Signal Region Cutter")
@@ -886,7 +897,8 @@ class SignalCutter(QWidget):
         # Visual Timeline
         timeline_group = QGroupBox("📍 Cut Region Timeline")
         timeline_group.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        timeline_group.setStyleSheet(f"""
+        timeline_group.setStyleSheet(
+            f"""
             QGroupBox {{
                 font-weight: bold;
                 border: 2px solid {self.theme.get('border', '#dee2e6')};
@@ -902,29 +914,33 @@ class SignalCutter(QWidget):
                 color: {self.theme.get('primary', '#007AFF')};
                 background-color: {self.theme.get('background', '#FFFFFF')};
             }}
-        """)
+        """
+        )
         timeline_layout = QVBoxLayout(timeline_group)
-        
+
         # Timeline widget
         self.timeline = SignalCutterTimeline(theme=self.theme)
         self.timeline.markers_changed.connect(self._on_markers_changed)
         self.timeline.region_clicked.connect(self._on_region_clicked)
         timeline_layout.addWidget(self.timeline)
-        
+
         # Fine-tune controls
         fine_tune_layout = QHBoxLayout()
-        
+
         # Start time spinbox
         start_label = QLabel("Start:")
-        start_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        start_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
         fine_tune_layout.addWidget(start_label)
-        
+
         self.start_spinbox = QSpinBox()
         self.start_spinbox.setMinimum(0)
         self.start_spinbox.setMaximum(int(self._max_time))
         self.start_spinbox.setSuffix(" s")
         self.start_spinbox.valueChanged.connect(self._on_spinbox_changed)
-        self.start_spinbox.setStyleSheet(f"""
+        self.start_spinbox.setStyleSheet(
+            f"""
             QSpinBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
@@ -932,23 +948,27 @@ class SignalCutter(QWidget):
                 padding: 5px;
                 color: {self.theme.get('text', '#212529')};
             }}
-        """)
+        """
+        )
         fine_tune_layout.addWidget(self.start_spinbox)
-        
+
         fine_tune_layout.addSpacing(20)
-        
+
         # End time spinbox
         end_label = QLabel("End:")
-        end_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')}; background: transparent;")
+        end_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; background: transparent;"
+        )
         fine_tune_layout.addWidget(end_label)
-        
+
         self.end_spinbox = QSpinBox()
         self.end_spinbox.setMinimum(0)
         self.end_spinbox.setMaximum(int(self._max_time))
         self.end_spinbox.setValue(10)
         self.end_spinbox.setSuffix(" s")
         self.end_spinbox.valueChanged.connect(self._on_spinbox_changed)
-        self.end_spinbox.setStyleSheet(f"""
+        self.end_spinbox.setStyleSheet(
+            f"""
             QSpinBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
@@ -956,12 +976,13 @@ class SignalCutter(QWidget):
                 padding: 5px;
                 color: {self.theme.get('text', '#212529')};
             }}
-        """)
+        """
+        )
         fine_tune_layout.addWidget(self.end_spinbox)
-        
+
         fine_tune_layout.addStretch()
         timeline_layout.addLayout(fine_tune_layout)
-        
+
         layout.addWidget(timeline_group)
 
         # Add to cut list button
@@ -987,7 +1008,8 @@ class SignalCutter(QWidget):
         # Current regions display
         regions_group = QGroupBox("📋 Regions to Cut")
         regions_group.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        regions_group.setStyleSheet(f"""
+        regions_group.setStyleSheet(
+            f"""
             QGroupBox {{
                 font-weight: bold;
                 border: 2px solid {self.theme.get('border', '#dee2e6')};
@@ -1003,15 +1025,20 @@ class SignalCutter(QWidget):
                 color: {self.theme.get('text', '#212529')};
                 background-color: {self.theme.get('background', '#FFFFFF')};
             }}
-        """)
+        """
+        )
         regions_layout = QVBoxLayout(regions_group)
-        
-        self.regions_label = QLabel("No regions selected yet.\nUse the timeline above to select regions to cut.")
+
+        self.regions_label = QLabel(
+            "No regions selected yet.\nUse the timeline above to select regions to cut."
+        )
         self.regions_label.setFont(QFont("Arial", 10))
-        self.regions_label.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;")
+        self.regions_label.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')}; background: transparent;"
+        )
         self.regions_label.setWordWrap(True)
         regions_layout.addWidget(self.regions_label)
-        
+
         layout.addWidget(regions_group)
 
         # Action buttons
@@ -1056,7 +1083,7 @@ class SignalCutter(QWidget):
         buttons_layout.addWidget(apply_btn)
 
         layout.addLayout(buttons_layout)
-    
+
     def _on_markers_changed(self, left: float, right: float):
         """Handle timeline marker changes."""
         self.start_spinbox.blockSignals(True)
@@ -1065,7 +1092,7 @@ class SignalCutter(QWidget):
         self.end_spinbox.setValue(int(right))
         self.start_spinbox.blockSignals(False)
         self.end_spinbox.blockSignals(False)
-    
+
     def _on_spinbox_changed(self):
         """Handle spinbox value changes."""
         left = float(self.start_spinbox.value())
@@ -1132,7 +1159,7 @@ class SignalCutter(QWidget):
             self._update_regions_display()
             self._update_timeline()
             self.regions_changed.emit(self._cut_regions)
-            
+
             # Show brief confirmation
             QMessageBox.information(
                 self,
@@ -1181,8 +1208,7 @@ class SignalCutter(QWidget):
             )
             total_cut = sum(end - start for start, end in self._cut_regions)
             self.regions_label.setText(
-                f"{regions_str}\n\n"
-                f"📊 Total time to remove: {total_cut:.1f}s"
+                f"{regions_str}\n\n" f"📊 Total time to remove: {total_cut:.1f}s"
             )
             self.regions_label.setStyleSheet(
                 f"color: {self.theme.get('text', '#212529')}; background: transparent;"
