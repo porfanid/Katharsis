@@ -860,7 +860,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 f"Unable to load signal for preview:\n{str(e)}",
             )
 
-    def on_signal_preview_continue(self, modified_raw):
+    def on_signal_preview_continue(self, modified_raw, frequency_ranges):
         """
         Handle continuation from signal preview screen.
 
@@ -869,9 +869,12 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
         Args:
             modified_raw: The (possibly modified) raw data from preview screen
+            frequency_ranges: Dictionary with custom frequency analysis ranges
+                             from the preview screen (range1, range2)
         """
-        # Store the modified raw data for processing
+        # Store the modified raw data and frequency ranges for processing
         self._preview_raw = modified_raw
+        self._frequency_ranges = frequency_ranges
         self.start_processing()
 
     def on_return_to_channels(self):
@@ -923,7 +926,14 @@ class EEGArtifactCleanerGUI(QMainWindow):
         Args:
             viz_data (dict): Data for ICA component visualization
         """
+        # Pass custom frequency ranges from preview screen if available
+        frequency_ranges = getattr(self, "_frequency_ranges", None)
         self.ica_selector_screen.set_ica_data(**viz_data)
+
+        # Set custom frequency ranges in the preview widget if available
+        if frequency_ranges:
+            self.ica_selector_screen.set_frequency_ranges(frequency_ranges)
+
         # Navigate to ICA selector screen (index 3)
         self.stacked_widget.setCurrentIndex(3)
 

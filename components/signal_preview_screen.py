@@ -1222,7 +1222,7 @@ class SignalPreviewScreen(QWidget):
         return_to_channels: Emitted when user wants to go back to channel selection
     """
 
-    proceed_to_processing = pyqtSignal(object)  # Emits modified raw data
+    proceed_to_processing = pyqtSignal(object, dict)  # Emits (raw data, frequency_ranges)
     signal_modified = pyqtSignal(object)  # Emits modified raw data
     return_to_channels = pyqtSignal()
 
@@ -1790,7 +1790,33 @@ class SignalPreviewScreen(QWidget):
     def _on_continue(self):
         """Continue to processing with current signal."""
         if self._raw_data is not None:
-            self.proceed_to_processing.emit(self._raw_data)
+            # Get frequency ranges from the first electrode widget
+            frequency_ranges = self.get_frequency_ranges()
+            self.proceed_to_processing.emit(self._raw_data, frequency_ranges)
+
+    def get_frequency_ranges(self) -> Dict[str, Tuple[float, float]]:
+        """
+        Get the current frequency analysis ranges from the first electrode widget.
+
+        Returns:
+            Dictionary with 'range1' and 'range2' keys containing (start, end) tuples.
+            Returns empty dict if no electrode widgets exist.
+        """
+        if not self._electrode_widgets:
+            return {}
+
+        # Get the first electrode widget (all electrodes share same time ranges)
+        first_widget = next(iter(self._electrode_widgets.values()))
+
+        range1_start = first_widget.freq_start1_spin.value()
+        range1_end = first_widget.freq_end1_spin.value()
+        range2_start = first_widget.freq_start2_spin.value()
+        range2_end = first_widget.freq_end2_spin.value()
+
+        return {
+            "range1": (float(range1_start), float(range1_end)),
+            "range2": (float(range2_start), float(range2_end)),
+        }
 
     def get_current_raw(self) -> Optional[mne.io.Raw]:
         """Get the current (possibly modified) raw data."""
