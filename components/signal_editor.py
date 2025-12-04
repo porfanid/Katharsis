@@ -684,13 +684,16 @@ class SignalCutterTimeline(QWidget):
             duration = annot.get("duration", 0)
             description = annot.get("description", "")
 
-            # Skip annotations outside visible range (onset < 0 or onset > max_time)
-            if onset > self._max_time or onset < 0:
+            # Calculate annotation end time
+            annot_end = onset + duration if duration > 0 else onset + 1.0
+
+            # Skip annotations completely outside visible range
+            # (annotation ends before timeline starts OR starts after timeline ends)
+            if annot_end < 0 or onset > self._max_time:
                 continue
 
-            # Calculate positions
+            # Calculate positions (clip to visible range)
             annot_left_x = self._time_to_x(max(0, onset))
-            annot_end = onset + duration if duration > 0 else onset + 1.0
             annot_right_x = self._time_to_x(min(self._max_time, annot_end))
 
             # Ensure minimum width for visibility
