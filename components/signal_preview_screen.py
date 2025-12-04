@@ -470,8 +470,8 @@ class ElectrodeSignalWidget(QWidget):
         comparison_layout = QHBoxLayout()
         comparison_layout.setSpacing(5)
 
-        # Range 1 (Original/Left) - compact
-        range1_group = QGroupBox("Range 1 (Blue)")
+        # Range 1 (Eyes Closed/Blue) - compact
+        range1_group = QGroupBox("😌 Eyes Closed (Blue)")
         range1_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -536,8 +536,8 @@ class ElectrodeSignalWidget(QWidget):
 
         comparison_layout.addWidget(range1_group)
 
-        # Range 2 (Comparison/Right) - compact
-        range2_group = QGroupBox("Range 2 (Orange)")
+        # Range 2 (Eyes Open/Orange) - compact
+        range2_group = QGroupBox("👁️ Eyes Open (Orange)")
         range2_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -714,7 +714,9 @@ class ElectrodeSignalWidget(QWidget):
                 ]
                 self.cut_timeline.set_annotations(annotations_list)
 
-                # Set default frequency ranges to "Eyes Open" and "Eyes Closed" annotations
+                # Set default frequency ranges to "Eyes Closed" and "Eyes Open" annotations
+                # Range 1 (Blue) = Eyes Closed (displayed first in ICA selector)
+                # Range 2 (Orange) = Eyes Open (displayed second in ICA selector)
                 eyes_open_annot = None
                 eyes_closed_annot = None
                 for annot in annotations_list:
@@ -727,15 +729,16 @@ class ElectrodeSignalWidget(QWidget):
                             eyes_closed_annot = annot
 
                 # Update frequency analysis ranges based on annotations
-                if eyes_open_annot is not None:
-                    self.freq_start1_spin.setValue(int(eyes_open_annot["onset"]))
-                    self.freq_end1_spin.setValue(
-                        int(eyes_open_annot["onset"] + eyes_open_annot["duration"])
-                    )
+                # Range 1 = Eyes Closed (first), Range 2 = Eyes Open (second)
                 if eyes_closed_annot is not None:
-                    self.freq_start2_spin.setValue(int(eyes_closed_annot["onset"]))
-                    self.freq_end2_spin.setValue(
+                    self.freq_start1_spin.setValue(int(eyes_closed_annot["onset"]))
+                    self.freq_end1_spin.setValue(
                         int(eyes_closed_annot["onset"] + eyes_closed_annot["duration"])
+                    )
+                if eyes_open_annot is not None:
+                    self.freq_start2_spin.setValue(int(eyes_open_annot["onset"]))
+                    self.freq_end2_spin.setValue(
+                        int(eyes_open_annot["onset"] + eyes_open_annot["duration"])
                     )
             else:
                 self.cut_timeline.set_annotations([])

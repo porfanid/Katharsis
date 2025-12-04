@@ -2,7 +2,7 @@
 """
 ICA Component Selector Widget - v4.0 - Correct Event Bubbling for Scrolling
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -105,8 +105,8 @@ class PreviewWidget(QWidget):
         self.channel_names = []
         self.update_callback = None  # Callback for preview update
         self.band_power_analyzer = None  # Will be set on first use
-        # Range 1 is displayed first (typically Eyes Closed)
-        # Range 2 is displayed second (typically Eyes Open)
+        # Range 1 is Eyes Closed (displayed first)
+        # Range 2 is Eyes Open (displayed second)
         self.range1 = None  # (start, end) tuple for Range 1 (Eyes Closed)
         self.range2 = None  # (start, end) tuple for Range 2 (Eyes Open)
         self._custom_ranges_set = False  # Track if custom ranges were set
@@ -347,7 +347,7 @@ class PreviewWidget(QWidget):
         if self.view_combo.currentText() == "Full":
             self._view_window = self._max_time
 
-    def set_frequency_ranges(self, frequency_ranges: Dict):
+    def set_frequency_ranges(self, frequency_ranges: Dict[str, Tuple[float, float]]):
         """
         Set custom frequency analysis ranges from the preview screen.
 
@@ -1190,7 +1190,7 @@ class ICAComponentSelector(QWidget):
         if self.suggested_artifacts:
             self._start_preview_update()
 
-    def set_frequency_ranges(self, frequency_ranges: Dict):
+    def set_frequency_ranges(self, frequency_ranges: Dict[str, Tuple[float, float]]):
         """
         Set custom frequency analysis ranges from the preview screen.
 
