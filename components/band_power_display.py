@@ -242,15 +242,23 @@ class BandPowerComparisonWidget(QWidget):
         cleaned_powers: Dict[str, float],
         title: Optional[str] = None,
         bar_color: Optional[str] = None,
+        label1: Optional[str] = None,
+        label2: Optional[str] = None,
+        color1: Optional[str] = None,
+        color2: Optional[str] = None,
     ):
         """
         Update the comparison display with original and cleaned band powers.
 
         Args:
-            original_powers: Band power percentages for original signal
-            cleaned_powers: Band power percentages for cleaned signal
+            original_powers: Band power percentages for first signal (or original)
+            cleaned_powers: Band power percentages for second signal (or cleaned)
             title: Optional custom title for the chart
-            bar_color: Optional color for the bars (uses band colors if None)
+            bar_color: Optional color for both bar sets (uses band colors if None)
+            label1: Optional custom label for first bars (default: "Original")
+            label2: Optional custom label for second bars (default: "Cleaned")
+            color1: Optional color for first bars (overrides bar_color for first set)
+            color2: Optional color for second bars (overrides bar_color for second set)
         """
         self.figure.clear()
 
@@ -264,22 +272,33 @@ class BandPowerComparisonWidget(QWidget):
         original_vals = [original_powers.get(b, 0) for b in bands]
         cleaned_vals = [cleaned_powers.get(b, 0) for b in bands]
 
-        # Use custom bar color if provided, otherwise use band colors
-        if bar_color:
+        # Determine colors for each bar set
+        if color1:
+            original_colors = [color1] * len(bands)
+        elif bar_color:
             original_colors = [bar_color] * len(bands)
-            cleaned_colors = [bar_color] * len(bands)
         else:
             original_colors = [self.BAND_COLORS[b] for b in bands]
+
+        if color2:
+            cleaned_colors = [color2] * len(bands)
+        elif bar_color:
+            cleaned_colors = [bar_color] * len(bands)
+        else:
             cleaned_colors = [self.BAND_COLORS[b] for b in bands]
+
+        # Use custom labels or defaults
+        legend_label1 = label1 if label1 else "Original"
+        legend_label2 = label2 if label2 else "Cleaned"
 
         # Create bars
         bars1 = ax.bar(
             x - width / 2,
             original_vals,
             width,
-            label="Original",
+            label=legend_label1,
             color=original_colors,
-            alpha=0.5,
+            alpha=0.7,
             edgecolor="black",
             linewidth=0.5,
         )
@@ -287,9 +306,9 @@ class BandPowerComparisonWidget(QWidget):
             x + width / 2,
             cleaned_vals,
             width,
-            label="Cleaned",
+            label=legend_label2,
             color=cleaned_colors,
-            alpha=1.0,
+            alpha=0.7,
             edgecolor="black",
             linewidth=0.5,
         )

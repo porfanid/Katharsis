@@ -1062,6 +1062,10 @@ class ElectrodeSignalWidget(QWidget):
             self.band_power_widget.clear()
             return
 
+        # Define colors matching the range colors
+        RANGE1_COLOR = "#007AFF"  # Blue - Eyes Closed
+        RANGE2_COLOR = "#fd7e14"  # Orange - Eyes Open
+
         try:
             analyzer = BandPowerAnalyzer()
 
@@ -1091,11 +1095,32 @@ class ElectrodeSignalWidget(QWidget):
                 )
 
             if powers1 is not None and powers2 is not None:
-                self.band_power_widget.update_comparison(powers1, powers2)
+                self.band_power_widget.update_comparison(
+                    powers1,
+                    powers2,
+                    label1="😌 Eyes Closed",
+                    label2="👁️ Eyes Open",
+                    color1=RANGE1_COLOR,
+                    color2=RANGE2_COLOR,
+                )
             elif powers1 is not None:
-                self.band_power_widget.update_comparison(powers1, powers1)
+                self.band_power_widget.update_comparison(
+                    powers1,
+                    powers1,
+                    label1="😌 Eyes Closed",
+                    label2="😌 Eyes Closed",
+                    color1=RANGE1_COLOR,
+                    color2=RANGE1_COLOR,
+                )
             elif powers2 is not None:
-                self.band_power_widget.update_comparison(powers2, powers2)
+                self.band_power_widget.update_comparison(
+                    powers2,
+                    powers2,
+                    label1="👁️ Eyes Open",
+                    label2="👁️ Eyes Open",
+                    color1=RANGE2_COLOR,
+                    color2=RANGE2_COLOR,
+                )
             else:
                 self.band_power_widget.clear()
 
