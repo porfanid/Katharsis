@@ -289,6 +289,8 @@ class PreviewWidget(QWidget):
 
     def set_channel_data(self, raw):
         """Update dropdown with available channels and extract annotation time ranges"""
+        print(f"[DEBUG] set_channel_data called: _custom_ranges_set={self._custom_ranges_set}")
+        print(f"[DEBUG] set_channel_data before: range1={self.range1}, range2={self.range2}")
         self.channel_names = raw.ch_names
         self.channel_dropdown.clear()
         self.channel_dropdown.addItems(self.channel_names)
@@ -301,6 +303,7 @@ class PreviewWidget(QWidget):
 
         # Only extract from annotations if custom ranges weren't set
         if not self._custom_ranges_set:
+            print("[DEBUG] set_channel_data: Extracting ranges from annotations (custom ranges not set)")
             # Extract Eyes Closed and Eyes Open annotation time ranges
             # Range 1 = Eyes Closed (first), Range 2 = Eyes Open (second)
             self.range1 = None  # Eyes Closed
@@ -347,6 +350,8 @@ class PreviewWidget(QWidget):
         # Update view window if needed
         if self.view_combo.currentText() == "Full":
             self._view_window = self._max_time
+        
+        print(f"[DEBUG] set_channel_data after: range1={self.range1}, range2={self.range2}")
 
     def set_frequency_ranges(self, frequency_ranges: Dict[str, Tuple[float, float]]):
         """
@@ -357,6 +362,7 @@ class PreviewWidget(QWidget):
                              'range1' and 'range2' contain (start, end) tuples.
                              'label1' and 'label2' contain the annotation labels.
         """
+        print(f"[DEBUG] PreviewWidget.set_frequency_ranges received: {frequency_ranges}")
         if not frequency_ranges:
             return
 
@@ -370,6 +376,7 @@ class PreviewWidget(QWidget):
             self._range2_label = frequency_ranges["label2"]
 
         self._custom_ranges_set = True
+        print(f"[DEBUG] PreviewWidget ranges set: range1={self.range1}, range2={self.range2}")
 
         # If we have data, update the displays
         if self._original_raw is not None:
@@ -525,6 +532,7 @@ class PreviewWidget(QWidget):
 
         Uses dynamic labels based on what's passed from the preview screen.
         """
+        print(f"[DEBUG] _update_band_power_displays called: range1={self.range1}, range2={self.range2}")
         # Define colors matching the range colors from signal preview screen
         RANGE1_COLOR = "#007AFF"  # Blue
         RANGE2_COLOR = "#fd7e14"  # Orange
@@ -540,6 +548,7 @@ class PreviewWidget(QWidget):
         try:
             if self.range1 is not None:
                 tmin_r1, tmax_r1 = self.range1
+                print(f"[DEBUG] Computing Range 1 band power: tmin={tmin_r1}, tmax={tmax_r1}")
                 original_powers_r1 = (
                     self.band_power_analyzer.compute_band_power_for_raw(
                         self._original_raw,
@@ -1214,6 +1223,7 @@ class ICAComponentSelector(QWidget):
         Args:
             frequency_ranges: Dictionary with 'range1', 'range2', 'label1', 'label2' keys.
         """
+        print(f"[DEBUG] ICAComponentSelector.set_frequency_ranges: {frequency_ranges}")
         if frequency_ranges and self.preview_widget:
             self.preview_widget.set_frequency_ranges(frequency_ranges)
 

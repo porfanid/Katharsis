@@ -930,6 +930,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
         # IMPORTANT: Set frequency ranges BEFORE set_ica_data so that
         # _custom_ranges_set is True when set_channel_data is called
         frequency_ranges = getattr(self, "_frequency_ranges", None)
+        print(f"[DEBUG] on_ica_ready: frequency_ranges = {frequency_ranges}")
         if frequency_ranges:
             self.ica_selector_screen.set_frequency_ranges(frequency_ranges)
 

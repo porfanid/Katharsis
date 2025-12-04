@@ -1855,12 +1855,14 @@ class SignalPreviewScreen(QWidget):
         range2_start = first_widget.freq_start2_spin.value()
         range2_end = first_widget.freq_end2_spin.value()
 
-        return {
+        frequency_ranges = {
             "range1": (float(range1_start), float(range1_end)),
             "range2": (float(range2_start), float(range2_end)),
             "label1": first_widget._range1_label,
             "label2": first_widget._range2_label,
         }
+        print(f"[DEBUG] SignalPreviewScreen.get_frequency_ranges: {frequency_ranges}")
+        return frequency_ranges
 
     def get_current_raw(self) -> Optional[mne.io.Raw]:
         """Get the current (possibly modified) raw data."""
