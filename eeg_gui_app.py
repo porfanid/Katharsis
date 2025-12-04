@@ -718,7 +718,19 @@ class EEGArtifactCleanerGUI(QMainWindow):
             self.on_return_to_channels
         )
         self.ica_selector_screen.components_selected.connect(self.apply_cleaning)
+        self.ica_selector_screen.back_requested.connect(self.on_return_to_preview)
         self.comparison_screen.return_to_home.connect(self.reset_ui)
+
+    def on_return_to_preview(self):
+        """
+        Handle return to signal preview from ICA/PCA component selector.
+
+        Navigates back to the signal preview screen (index 2).
+        """
+        self.stacked_widget.setCurrentIndex(2)
+        self.status_bar.showMessage(
+            "Returned to signal preview. You can edit the signal or continue to component selection."
+        )
 
     def show_message_box(self, icon, title, text):
         """

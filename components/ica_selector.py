@@ -783,6 +783,7 @@ class ICAComponentSelector(QWidget):
     """Component selector widget that works for both ICA and PCA analysis"""
 
     components_selected = pyqtSignal(list)
+    back_requested = pyqtSignal()  # Signal emitted when user wants to go back
 
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
@@ -813,6 +814,31 @@ class ICAComponentSelector(QWidget):
         main_layout.setSpacing(15)
 
         header_layout = QHBoxLayout()
+
+        # Back button
+        self.back_btn = QPushButton("⬅️ Back to Preview")
+        self.back_btn.setMinimumHeight(40)
+        self.back_btn.clicked.connect(self._on_back_clicked)
+        self.back_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {self.theme.get('secondary', '#6c757d')};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {self.theme.get('text_light', '#5a6268')};
+            }}
+        """
+        )
+        header_layout.addWidget(self.back_btn)
+
+        header_layout.addStretch()
+
         self.title_label = QLabel("🔍 Select Components for Removal")
         self.title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         header_layout.addWidget(self.title_label)
@@ -858,6 +884,10 @@ class ICAComponentSelector(QWidget):
         main_layout.addWidget(self.apply_btn)
 
         self.apply_styling()
+
+    def _on_back_clicked(self):
+        """Handle back button click"""
+        self.back_requested.emit()
 
         self.select_all_btn.clicked.connect(lambda: self.set_all_checkboxes(True))
         self.select_none_btn.clicked.connect(lambda: self.set_all_checkboxes(False))
