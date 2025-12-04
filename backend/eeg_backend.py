@@ -735,6 +735,8 @@ class SignalEditor:
 
         Looks for annotations indicating "eyes open" or "eyes closed"
         states commonly used in resting state EEG paradigms.
+        Also checks for marker channels (MarkerValueInt, MarkerIndex) if
+        standard annotations are not present.
 
         Args:
             raw: Raw EEG data with annotations
@@ -748,48 +750,180 @@ class SignalEditor:
         """
         phases = []
 
-        if not raw.annotations or len(raw.annotations) == 0:
+        # First try standard annotations
+        if raw.annotations and len(raw.annotations) > 0:
+            default_duration = SignalEditor.DEFAULT_PHASE_DURATION
+
+            for annot in raw.annotations:
+                description = annot["description"].lower().strip()
+                onset = annot["onset"]
+                duration = annot["duration"]
+
+                # Check for eyes open patterns
+                is_eyes_open = any(
+                    pattern in description
+                    for pattern in SignalEditor.EYES_OPEN_PATTERNS
+                )
+
+                # Check for eyes closed patterns
+                is_eyes_closed = any(
+                    pattern in description
+                    for pattern in SignalEditor.EYES_CLOSED_PATTERNS
+                )
+
+                if is_eyes_open:
+                    actual_duration = duration if duration > 0 else default_duration
+                    phases.append(
+                        {
+                            "label": "Eyes Open",
+                            "start": onset,
+                            "end": onset + actual_duration,
+                            "duration": actual_duration,
+                            "original_description": annot["description"],
+                        }
+                    )
+                elif is_eyes_closed:
+                    actual_duration = duration if duration > 0 else default_duration
+                    phases.append(
+                        {
+                            "label": "Eyes Closed",
+                            "start": onset,
+                            "end": onset + actual_duration,
+                            "duration": actual_duration,
+                            "original_description": annot["description"],
+                        }
+                    )
+
+            if phases:
+                return phases
+
+        # If no standard annotations, check for marker channels
+        # Common in Emotiv and other EEG systems
+        phases = SignalEditor._detect_phases_from_marker_channels(raw)
+
+        return phases
+
+    @staticmethod
+    def _detect_phases_from_marker_channels(raw: mne.io.Raw) -> List[Dict[str, Any]]:
+        """
+        Detect resting phases from marker channels in EEG data.
+
+        Some EEG systems (like Emotiv) store markers in dedicated channels
+        rather than as annotations. This method checks for common marker
+        channel patterns.
+
+        Common marker values:
+        - MarkerValueInt: 1 = Eyes Open condition, 3 = Eyes Closed condition
+        - MarkerIndex: positive = start, negative = end of a phase
+
+        Args:
+            raw: Raw EEG data
+
+        Returns:
+            List of phase dictionaries
+        """
+        import numpy as np
+
+        phases = []
+
+        # Check for marker channels
+        marker_channels = ["MarkerValueInt", "MarkerIndex", "Marker", "MARKER"]
+        available_markers = [ch for ch in marker_channels if ch in raw.ch_names]
+
+        if not available_markers:
             return phases
 
-        default_duration = SignalEditor.DEFAULT_PHASE_DURATION
+        # Try MarkerValueInt + MarkerIndex combination (Emotiv style)
+        if "MarkerValueInt" in raw.ch_names and "MarkerIndex" in raw.ch_names:
+            try:
+                marker_val_data = raw.get_data(picks=["MarkerValueInt"])[0]
+                marker_idx_data = raw.get_data(picks=["MarkerIndex"])[0]
 
-        for annot in raw.annotations:
-            description = annot["description"].lower().strip()
-            onset = annot["onset"]
-            duration = annot["duration"]
+                # Scale values (they may be stored as microvolts)
+                # Detect scaling by checking max absolute value
+                max_val = np.max(np.abs(marker_val_data))
+                if max_val < 0.001:
+                    scale_factor = 1e6
+                else:
+                    scale_factor = 1
 
-            # Check for eyes open patterns
-            is_eyes_open = any(
-                pattern in description for pattern in SignalEditor.EYES_OPEN_PATTERNS
-            )
+                marker_val_scaled = np.round(marker_val_data * scale_factor).astype(int)
+                marker_idx_scaled = np.round(marker_idx_data * scale_factor).astype(int)
 
-            # Check for eyes closed patterns
-            is_eyes_closed = any(
-                pattern in description for pattern in SignalEditor.EYES_CLOSED_PATTERNS
-            )
+                # Find marker events (non-zero values)
+                non_zero_idx = np.where(marker_val_scaled != 0)[0]
 
-            if is_eyes_open:
-                actual_duration = duration if duration > 0 else default_duration
-                phases.append(
-                    {
-                        "label": "Eyes Open",
-                        "start": onset,
-                        "end": onset + actual_duration,
-                        "duration": actual_duration,
-                        "original_description": annot["description"],
-                    }
-                )
-            elif is_eyes_closed:
-                actual_duration = duration if duration > 0 else default_duration
-                phases.append(
-                    {
-                        "label": "Eyes Closed",
-                        "start": onset,
-                        "end": onset + actual_duration,
-                        "duration": actual_duration,
-                        "original_description": annot["description"],
-                    }
-                )
+                # Build event list: (time, marker_value, marker_index)
+                events = []
+                for idx in non_zero_idx:
+                    time = raw.times[idx]
+                    val = marker_val_scaled[idx]
+                    idx_val = marker_idx_scaled[idx]
+                    events.append((time, val, idx_val))
+
+                # Define marker value to label mapping
+                # Common convention: 1 = Eyes Open, 3 = Eyes Closed
+                # But this can vary, so we'll use a flexible approach
+                marker_labels = {}
+                unique_vals = set(e[1] for e in events)
+
+                # Assign labels based on marker values
+                for val in sorted(unique_vals):
+                    if val == 1:
+                        marker_labels[val] = "Eyes Open"
+                    elif val == 3:
+                        marker_labels[val] = "Eyes Closed"
+                    elif val == 2:
+                        marker_labels[val] = "Eyes Closed"
+                    else:
+                        marker_labels[val] = f"Condition {val}"
+
+                # Parse events to find phase start/end
+                # Positive marker_index = start, negative = end
+                active_phases = {}  # marker_value -> start_time
+
+                for time, marker_val, marker_idx in events:
+                    if marker_idx > 0:
+                        # Start of a phase
+                        active_phases[marker_val] = time
+                    elif marker_idx < 0:
+                        # End of a phase
+                        if marker_val in active_phases:
+                            start_time = active_phases.pop(marker_val)
+                            duration = time - start_time
+                            label = marker_labels.get(
+                                marker_val, f"Condition {marker_val}"
+                            )
+                            phases.append(
+                                {
+                                    "label": label,
+                                    "start": start_time,
+                                    "end": time,
+                                    "duration": duration,
+                                    "original_description": f"Marker {marker_val}",
+                                }
+                            )
+
+                # Handle any phases that started but didn't end
+                for marker_val, start_time in active_phases.items():
+                    end_time = raw.times[-1]
+                    duration = end_time - start_time
+                    label = marker_labels.get(marker_val, f"Condition {marker_val}")
+                    phases.append(
+                        {
+                            "label": label,
+                            "start": start_time,
+                            "end": end_time,
+                            "duration": duration,
+                            "original_description": f"Marker {marker_val} (unclosed)",
+                        }
+                    )
+
+            except (ValueError, IndexError, RuntimeError):
+                pass
+
+        # Sort phases by start time
+        phases.sort(key=lambda x: x["start"])
 
         return phases
 
