@@ -166,7 +166,6 @@ Desktop.ini
 $RECYCLE.BIN/
 
 # Data files that shouldn't be committed
-*.edf
 *.bdf
 *.gdf
 *.fif
