@@ -702,6 +702,20 @@ class ElectrodeSignalWidget(QWidget):
                 f"Sel: 0.0s - {initial_end:.1f}s ({initial_end:.1f}s)"
             )
 
+            # Pass annotations to timeline for display
+            if raw.annotations and len(raw.annotations) > 0:
+                annotations_list = [
+                    {
+                        "onset": annot["onset"],
+                        "duration": annot["duration"],
+                        "description": annot["description"],
+                    }
+                    for annot in raw.annotations
+                ]
+                self.cut_timeline.set_annotations(annotations_list)
+            else:
+                self.cut_timeline.set_annotations([])
+
             # Update frequency analysis ranges (two ranges for comparison)
             half_time = int(self._max_time / 2)
             self.freq_start1_spin.setMaximum(int(self._max_time))

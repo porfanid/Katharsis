@@ -1314,6 +1314,119 @@ class TestSignalEditor(unittest.TestCase):
         self.assertIn("event3", descriptions)
         self.assertNotIn("event4", descriptions)
 
+    def test_cut_signal_preserves_annotations_basic(self):
+        """Test that annotations are preserved and adjusted after cutting"""
+        # Create raw data with annotations
+        raw_with_annot = self.test_raw.copy()
+        annotations = mne.Annotations(
+            onset=[5.0, 25.0, 45.0],
+            duration=[10.0, 10.0, 10.0],
+            description=["Eyes Open", "Eyes Closed", "Eyes Open"],
+        )
+        raw_with_annot.set_annotations(annotations)
+
+        # Cut a region in the middle (15-20s, which is between annotations)
+        regions_to_cut = [(15.0, 20.0)]
+        cut_raw = self.editor.cut_signal_regions(raw_with_annot, regions_to_cut)
+
+        # Check annotations are preserved
+        self.assertIsNotNone(cut_raw.annotations)
+        self.assertEqual(len(cut_raw.annotations), 3)
+
+        # Check first annotation (before cut) is unchanged
+        self.assertAlmostEqual(cut_raw.annotations.onset[0], 5.0, delta=0.01)
+        self.assertAlmostEqual(cut_raw.annotations.duration[0], 10.0, delta=0.01)
+
+        # Check annotations after cut are shifted by 5s (the cut duration)
+        self.assertAlmostEqual(cut_raw.annotations.onset[1], 20.0, delta=0.01)
+        self.assertAlmostEqual(cut_raw.annotations.onset[2], 40.0, delta=0.01)
+
+    def test_cut_signal_truncates_overlapping_annotation(self):
+        """Test that annotations overlapping with cuts are properly truncated"""
+        # Create raw data with annotation
+        raw_with_annot = self.test_raw.copy()
+        annotations = mne.Annotations(
+            onset=[5.0, 25.0],
+            duration=[10.0, 10.0],  # First: 5-15s, Second: 25-35s
+            description=["Eyes Open", "Eyes Closed"],
+        )
+        raw_with_annot.set_annotations(annotations)
+
+        # Cut a region that overlaps with the first annotation (8-12s)
+        regions_to_cut = [(8.0, 12.0)]
+        cut_raw = self.editor.cut_signal_regions(raw_with_annot, regions_to_cut)
+
+        # Check annotations are preserved
+        self.assertIsNotNone(cut_raw.annotations)
+        self.assertEqual(len(cut_raw.annotations), 2)
+
+        # First annotation should be truncated (only 5-8s portion remains = 3s)
+        # Plus (12-15s portion which becomes 8-11s after cut = 3s)
+        # Total should be 6s duration
+        self.assertAlmostEqual(cut_raw.annotations.onset[0], 5.0, delta=0.01)
+        self.assertAlmostEqual(cut_raw.annotations.duration[0], 6.0, delta=0.01)
+
+        # Second annotation should be shifted by 4s (the cut duration)
+        self.assertAlmostEqual(cut_raw.annotations.onset[1], 21.0, delta=0.01)
+        self.assertAlmostEqual(cut_raw.annotations.duration[1], 10.0, delta=0.01)
+
+    def test_cut_signal_removes_contained_annotation(self):
+        """Test that annotations fully contained in cut regions are removed"""
+        # Create raw data with annotations
+        raw_with_annot = self.test_raw.copy()
+        annotations = mne.Annotations(
+            onset=[5.0, 12.0, 45.0],
+            duration=[5.0, 3.0, 5.0],  # First: 5-10s, Second: 12-15s (will be cut), Third: 45-50s
+            description=["Keep", "Remove", "Keep"],
+        )
+        raw_with_annot.set_annotations(annotations)
+
+        # Cut a region that completely contains the second annotation (10-20s)
+        regions_to_cut = [(10.0, 20.0)]
+        cut_raw = self.editor.cut_signal_regions(raw_with_annot, regions_to_cut)
+
+        # Check only 2 annotations remain
+        self.assertIsNotNone(cut_raw.annotations)
+        self.assertEqual(len(cut_raw.annotations), 2)
+
+        # Verify descriptions
+        descriptions = list(cut_raw.annotations.description)
+        self.assertIn("Keep", descriptions)
+        self.assertNotIn("Remove", descriptions)
+
+        # Check positions are correct
+        self.assertAlmostEqual(cut_raw.annotations.onset[0], 5.0, delta=0.01)
+        # Third annotation should be shifted by 10s
+        self.assertAlmostEqual(cut_raw.annotations.onset[1], 35.0, delta=0.01)
+
+    def test_cut_signal_multiple_regions_adjusts_annotations(self):
+        """Test annotation adjustment with multiple cut regions"""
+        # Create raw data with annotations
+        raw_with_annot = self.test_raw.copy()
+        annotations = mne.Annotations(
+            onset=[2.0, 15.0, 35.0],
+            duration=[3.0, 5.0, 5.0],
+            description=["Early", "Middle", "Late"],
+        )
+        raw_with_annot.set_annotations(annotations)
+
+        # Cut multiple regions: 5-10s, 25-30s (total 10s cut)
+        regions_to_cut = [(5.0, 10.0), (25.0, 30.0)]
+        cut_raw = self.editor.cut_signal_regions(raw_with_annot, regions_to_cut)
+
+        # All annotations should remain
+        self.assertIsNotNone(cut_raw.annotations)
+        self.assertEqual(len(cut_raw.annotations), 3)
+
+        # First annotation (before first cut) - unchanged
+        self.assertAlmostEqual(cut_raw.annotations.onset[0], 2.0, delta=0.01)
+
+        # Second annotation (after first cut, before second cut) - shifted by 5s
+        self.assertAlmostEqual(cut_raw.annotations.onset[1], 10.0, delta=0.01)
+
+        # Third annotation (after both cuts) - shifted by 10s
+        self.assertAlmostEqual(cut_raw.annotations.onset[2], 25.0, delta=0.01)
+
 
 if __name__ == "__main__":
     # Run tests

@@ -520,12 +520,26 @@ class SignalCutterTimeline(QWidget):
     - Draggable left/right markers for current selection
     - Visual display of all added cut regions
     - Ability to click on existing regions to remove them
+    - Display of EEG annotations/labels on the timeline
     """
 
     # Marker positions changed signal (left_pos, right_pos in seconds)
     markers_changed = pyqtSignal(float, float)
     # Signal when user clicks on an existing region to remove it
     region_clicked = pyqtSignal(int)  # Index of clicked region
+
+    # Color mapping for common annotation types
+    ANNOTATION_COLORS = {
+        "eyes open": "#28a745",  # Green
+        "eyes_open": "#28a745",
+        "eyesopen": "#28a745",
+        "eo": "#28a745",
+        "eyes closed": "#6f42c1",  # Purple
+        "eyes_closed": "#6f42c1",
+        "eyesclosed": "#6f42c1",
+        "ec": "#6f42c1",
+    }
+    DEFAULT_ANNOTATION_COLOR = "#ffc107"  # Yellow for unknown types
 
     def __init__(
         self,
@@ -538,6 +552,7 @@ class SignalCutterTimeline(QWidget):
         self._left_marker = 0.0
         self._right_marker = 10.0
         self._cut_regions: List[Tuple[float, float]] = []  # List of (start, end) tuples
+        self._annotations: List[Dict] = []  # List of annotation dicts
         self._dragging = None  # None, 'left', 'right', or 'region'
         self._drag_offset = 0
 
@@ -545,6 +560,24 @@ class SignalCutterTimeline(QWidget):
         self.setMaximumHeight(120)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMouseTracking(True)
+
+    def set_annotations(self, annotations: List[Dict]):
+        """
+        Set the list of annotations to display on the timeline.
+
+        Args:
+            annotations: List of annotation dicts with keys:
+                - onset: Start time in seconds
+                - duration: Duration in seconds
+                - description: Annotation description/label
+        """
+        self._annotations = annotations.copy() if annotations else []
+        self.update()
+
+    def _get_annotation_color(self, description: str) -> str:
+        """Get the color for an annotation based on its description."""
+        desc_lower = description.lower().strip()
+        return self.ANNOTATION_COLORS.get(desc_lower, self.DEFAULT_ANNOTATION_COLOR)
 
     def set_cut_regions(self, regions: List[Tuple[float, float]]):
         """Set the list of cut regions to display."""
@@ -641,6 +674,50 @@ class SignalCutterTimeline(QWidget):
         painter.setPen(QPen(border, 1))
         painter.setBrush(QBrush(QColor("#f8f9fa")))
         painter.drawRoundedRect(track_rect, 4, 4)
+
+        # Draw annotations/labels on the timeline (below cut regions so they show through)
+        for annot in self._annotations:
+            onset = annot.get("onset", 0)
+            duration = annot.get("duration", 0)
+            description = annot.get("description", "")
+
+            # Skip annotations outside visible range
+            if onset > self._max_time or onset + duration < 0:
+                continue
+
+            # Calculate positions
+            annot_left_x = self._time_to_x(max(0, onset))
+            annot_end = onset + duration if duration > 0 else onset + 1.0
+            annot_right_x = self._time_to_x(min(self._max_time, annot_end))
+
+            # Ensure minimum width for visibility
+            if annot_right_x - annot_left_x < 4:
+                annot_right_x = annot_left_x + 4
+
+            # Get color for this annotation type
+            annot_color = QColor(self._get_annotation_color(description))
+            annot_color.setAlpha(100)
+
+            # Draw annotation region
+            annot_rect = QRect(
+                annot_left_x,
+                timeline_top + 2,
+                annot_right_x - annot_left_x,
+                timeline_height - 4,
+            )
+            painter.setBrush(QBrush(annot_color))
+            painter.setPen(QPen(QColor(self._get_annotation_color(description)), 1))
+            painter.drawRect(annot_rect)
+
+            # Draw label text if there's enough space
+            if annot_right_x - annot_left_x > 30:
+                # Truncate description if too long
+                label = description[:15] + "..." if len(description) > 15 else description
+                painter.setPen(QPen(QColor(self._get_annotation_color(description)).darker(150)))
+                painter.setFont(QFont("Arial", 7, QFont.Weight.Bold))
+                painter.drawText(
+                    annot_rect, Qt.AlignmentFlag.AlignCenter, label
+                )
 
         # Draw existing cut regions (darker red, already added)
         for i, (start, end) in enumerate(self._cut_regions):
