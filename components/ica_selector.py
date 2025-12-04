@@ -105,11 +105,11 @@ class PreviewWidget(QWidget):
         self.channel_names = []
         self.update_callback = None  # Callback for preview update
         self.band_power_analyzer = None  # Will be set on first use
-        # Range labels - dynamically set based on what's passed from preview screen
-        self._range1_label = "Range 1"
-        self._range2_label = "Range 2"
-        self.range1 = None  # (start, end) tuple for Range 1
-        self.range2 = None  # (start, end) tuple for Range 2
+        # Range labels - fixed mapping: Blue = Eyes Closed, Orange = Eyes Open
+        self._range1_label = "😌 Eyes Closed"
+        self._range2_label = "👁️ Eyes Open"
+        self.range1 = None  # (start, end) tuple for Range 1 (Eyes Closed)
+        self.range2 = None  # (start, end) tuple for Range 2 (Eyes Open)
         self._custom_ranges_set = False  # Track if custom ranges were set
         self._max_time = 100.0
         self._view_window = 10.0  # View window in seconds

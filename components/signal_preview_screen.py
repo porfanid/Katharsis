@@ -196,9 +196,9 @@ class ElectrodeSignalWidget(QWidget):
         self._cut_regions: List[Tuple[float, float]] = []
         self._current_selection = (0.0, 10.0)  # Current marker positions
 
-        # Range labels - dynamically set based on EEG annotations
-        self._range1_label = "Range 1"
-        self._range2_label = "Range 2"
+        # Range labels - fixed mapping: Blue = Eyes Closed, Orange = Eyes Open
+        self._range1_label = "😌 Eyes Closed"
+        self._range2_label = "👁️ Eyes Open"
 
         # Debounce timers to avoid excessive updates
         self._plot_timer = QTimer()
@@ -474,8 +474,8 @@ class ElectrodeSignalWidget(QWidget):
         comparison_layout = QHBoxLayout()
         comparison_layout.setSpacing(5)
 
-        # Range 1 (Blue) - compact - label will be updated based on EEG annotations
-        self.range1_group = QGroupBox("Range 1 (Blue)")
+        # Range 1 (Blue) = Eyes Closed - fixed mapping
+        self.range1_group = QGroupBox("😌 Eyes Closed (Blue)")
         self.range1_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -540,8 +540,8 @@ class ElectrodeSignalWidget(QWidget):
 
         comparison_layout.addWidget(self.range1_group)
 
-        # Range 2 (Orange) - compact - label will be updated based on EEG annotations
-        self.range2_group = QGroupBox("Range 2 (Orange)")
+        # Range 2 (Orange) = Eyes Open - fixed mapping
+        self.range2_group = QGroupBox("👁️ Eyes Open (Orange)")
         self.range2_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -718,45 +718,44 @@ class ElectrodeSignalWidget(QWidget):
                 ]
                 self.cut_timeline.set_annotations(annotations_list)
 
-                # Find eye-related annotations and assign to ranges based on chronological order
-                # The first annotation in time goes to Range 1, the second to Range 2
-                eye_annotations = []
+                # Find eye-related annotations and assign to ranges with fixed mapping:
+                # Range 1 (Blue) = Eyes Closed, Range 2 (Orange) = Eyes Open
+                eyes_closed_annot = None
+                eyes_open_annot = None
                 for annot in annotations_list:
                     desc_lower = annot["description"].lower()
                     if "eyes open" in desc_lower or "open" in desc_lower:
-                        eye_annotations.append((annot, "👁️ Eyes Open"))
+                        if eyes_open_annot is None:
+                            eyes_open_annot = annot
                     elif "eyes closed" in desc_lower or "closed" in desc_lower:
-                        eye_annotations.append((annot, "😌 Eyes Closed"))
+                        if eyes_closed_annot is None:
+                            eyes_closed_annot = annot
 
-                # Sort by onset time to match EEG annotation order
-                eye_annotations.sort(key=lambda x: x[0]["onset"])
-
-                # Assign annotations to ranges based on chronological order
-                if len(eye_annotations) >= 1:
-                    first_annot, first_label = eye_annotations[0]
-                    self._range1_label = first_label
-                    self.range1_group.setTitle(f"{first_label} (Blue)")
-                    self.freq_start1_spin.setValue(int(first_annot["onset"]))
+                # Fixed mapping: Range 1 (Blue) = Eyes Closed
+                self._range1_label = "😌 Eyes Closed"
+                self.range1_group.setTitle("😌 Eyes Closed (Blue)")
+                if eyes_closed_annot is not None:
+                    self.freq_start1_spin.setValue(int(eyes_closed_annot["onset"]))
                     self.freq_end1_spin.setValue(
-                        int(first_annot["onset"] + first_annot["duration"])
+                        int(eyes_closed_annot["onset"] + eyes_closed_annot["duration"])
                     )
 
-                if len(eye_annotations) >= 2:
-                    second_annot, second_label = eye_annotations[1]
-                    self._range2_label = second_label
-                    self.range2_group.setTitle(f"{second_label} (Orange)")
-                    self.freq_start2_spin.setValue(int(second_annot["onset"]))
+                # Fixed mapping: Range 2 (Orange) = Eyes Open
+                self._range2_label = "👁️ Eyes Open"
+                self.range2_group.setTitle("👁️ Eyes Open (Orange)")
+                if eyes_open_annot is not None:
+                    self.freq_start2_spin.setValue(int(eyes_open_annot["onset"]))
                     self.freq_end2_spin.setValue(
-                        int(second_annot["onset"] + second_annot["duration"])
+                        int(eyes_open_annot["onset"] + eyes_open_annot["duration"])
                     )
             else:
                 self.cut_timeline.set_annotations([])
 
-                # Reset labels to defaults when no annotations
-                self._range1_label = "Range 1"
-                self._range2_label = "Range 2"
-                self.range1_group.setTitle("Range 1 (Blue)")
-                self.range2_group.setTitle("Range 2 (Orange)")
+                # Keep fixed labels even when no annotations
+                self._range1_label = "😌 Eyes Closed"
+                self._range2_label = "👁️ Eyes Open"
+                self.range1_group.setTitle("😌 Eyes Closed (Blue)")
+                self.range2_group.setTitle("👁️ Eyes Open (Orange)")
 
                 # Update frequency analysis ranges (two ranges for comparison)
                 half_time = int(self._max_time / 2)
