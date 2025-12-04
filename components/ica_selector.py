@@ -105,10 +105,11 @@ class PreviewWidget(QWidget):
         self.channel_names = []
         self.update_callback = None  # Callback for preview update
         self.band_power_analyzer = None  # Will be set on first use
-        # Range 1 is Eyes Closed (displayed first)
-        # Range 2 is Eyes Open (displayed second)
-        self.range1 = None  # (start, end) tuple for Range 1 (Eyes Closed)
-        self.range2 = None  # (start, end) tuple for Range 2 (Eyes Open)
+        # Range labels - dynamically set based on what's passed from preview screen
+        self._range1_label = "Range 1"
+        self._range2_label = "Range 2"
+        self.range1 = None  # (start, end) tuple for Range 1
+        self.range2 = None  # (start, end) tuple for Range 2
         self._custom_ranges_set = False  # Track if custom ranges were set
         self._max_time = 100.0
         self._view_window = 10.0  # View window in seconds
@@ -352,10 +353,9 @@ class PreviewWidget(QWidget):
         Set custom frequency analysis ranges from the preview screen.
 
         Args:
-            frequency_ranges: Dictionary with 'range1' and 'range2' keys,
-                             each containing (start, end) tuples.
-                             Range 1 = Eyes Closed (displayed first)
-                             Range 2 = Eyes Open (displayed second)
+            frequency_ranges: Dictionary with 'range1', 'range2', 'label1', 'label2' keys.
+                             'range1' and 'range2' contain (start, end) tuples.
+                             'label1' and 'label2' contain the annotation labels.
         """
         if not frequency_ranges:
             return
@@ -364,6 +364,10 @@ class PreviewWidget(QWidget):
             self.range1 = frequency_ranges["range1"]
         if "range2" in frequency_ranges:
             self.range2 = frequency_ranges["range2"]
+        if "label1" in frequency_ranges:
+            self._range1_label = frequency_ranges["label1"]
+        if "label2" in frequency_ranges:
+            self._range2_label = frequency_ranges["label2"]
 
         self._custom_ranges_set = True
 
@@ -519,12 +523,11 @@ class PreviewWidget(QWidget):
     def _update_band_power_displays(self):
         """Update the band power comparison displays for Range 1 and Range 2.
 
-        Range 1 = Eyes Closed (displayed first) - Blue color
-        Range 2 = Eyes Open (displayed second) - Orange color
+        Uses dynamic labels based on what's passed from the preview screen.
         """
         # Define colors matching the range colors from signal preview screen
-        RANGE1_COLOR = "#007AFF"  # Blue - Eyes Closed
-        RANGE2_COLOR = "#fd7e14"  # Orange - Eyes Open
+        RANGE1_COLOR = "#007AFF"  # Blue
+        RANGE2_COLOR = "#fd7e14"  # Orange
 
         if self._original_raw is None:
             self.band_power_widget_range1.clear()
@@ -533,7 +536,7 @@ class PreviewWidget(QWidget):
 
         channel_idx = self.selected_channel_idx
 
-        # Compute and display band power comparison for Range 1 (Eyes Closed)
+        # Compute and display band power comparison for Range 1
         try:
             if self.range1 is not None:
                 tmin_r1, tmax_r1 = self.range1
@@ -559,16 +562,16 @@ class PreviewWidget(QWidget):
                 self.band_power_widget_range1.update_comparison(
                     original_powers_r1,
                     cleaned_powers_r1,
-                    title="😌 Eyes Closed",
+                    title=self._range1_label,
                     bar_color=RANGE1_COLOR,
                 )
             else:
                 self.band_power_widget_range1.clear()
         except Exception as bp_error:
-            print(f"Error computing Range 1 (Eyes Closed) band power: {bp_error}")
+            print(f"Error computing Range 1 band power: {bp_error}")
             self.band_power_widget_range1.clear()
 
-        # Compute and display band power comparison for Range 2 (Eyes Open)
+        # Compute and display band power comparison for Range 2
         try:
             if self.range2 is not None:
                 tmin_r2, tmax_r2 = self.range2
@@ -594,13 +597,13 @@ class PreviewWidget(QWidget):
                 self.band_power_widget_range2.update_comparison(
                     original_powers_r2,
                     cleaned_powers_r2,
-                    title="👁️ Eyes Open",
+                    title=self._range2_label,
                     bar_color=RANGE2_COLOR,
                 )
             else:
                 self.band_power_widget_range2.clear()
         except Exception as bp_error:
-            print(f"Error computing Range 2 (Eyes Open) band power: {bp_error}")
+            print(f"Error computing Range 2 band power: {bp_error}")
             self.band_power_widget_range2.clear()
 
     def show_error_plot(self, error_msg: str):
@@ -1200,7 +1203,7 @@ class ICAComponentSelector(QWidget):
         if self.suggested_artifacts:
             self._start_preview_update()
 
-    def set_frequency_ranges(self, frequency_ranges: Dict[str, Tuple[float, float]]):
+    def set_frequency_ranges(self, frequency_ranges: Dict):
         """
         Set custom frequency analysis ranges from the preview screen.
 
@@ -1209,10 +1212,7 @@ class ICAComponentSelector(QWidget):
         the signal preview screen to the ICA/PCA component selector.
 
         Args:
-            frequency_ranges: Dictionary with 'range1' and 'range2' keys,
-                             each containing (start, end) tuples.
-                             Range 1 = Eyes Closed (displayed first)
-                             Range 2 = Eyes Open (displayed second)
+            frequency_ranges: Dictionary with 'range1', 'range2', 'label1', 'label2' keys.
         """
         if frequency_ranges and self.preview_widget:
             self.preview_widget.set_frequency_ranges(frequency_ranges)

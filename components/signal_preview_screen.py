@@ -196,6 +196,10 @@ class ElectrodeSignalWidget(QWidget):
         self._cut_regions: List[Tuple[float, float]] = []
         self._current_selection = (0.0, 10.0)  # Current marker positions
 
+        # Range labels - dynamically set based on EEG annotations
+        self._range1_label = "Range 1"
+        self._range2_label = "Range 2"
+
         # Debounce timers to avoid excessive updates
         self._plot_timer = QTimer()
         self._plot_timer.setSingleShot(True)
@@ -470,9 +474,9 @@ class ElectrodeSignalWidget(QWidget):
         comparison_layout = QHBoxLayout()
         comparison_layout.setSpacing(5)
 
-        # Range 1 (Eyes Closed/Blue) - compact
-        range1_group = QGroupBox("😌 Eyes Closed (Blue)")
-        range1_group.setStyleSheet(
+        # Range 1 (Blue) - compact - label will be updated based on EEG annotations
+        self.range1_group = QGroupBox("Range 1 (Blue)")
+        self.range1_group.setStyleSheet(
             f"""
             QGroupBox {{
                 font-weight: bold;
@@ -491,7 +495,7 @@ class ElectrodeSignalWidget(QWidget):
             }}
         """
         )
-        range1_layout = QHBoxLayout(range1_group)
+        range1_layout = QHBoxLayout(self.range1_group)
         range1_layout.setSpacing(3)
         range1_layout.setContentsMargins(3, 3, 3, 3)
 
@@ -534,11 +538,11 @@ class ElectrodeSignalWidget(QWidget):
         )
         range1_layout.addWidget(self.freq_end1_spin)
 
-        comparison_layout.addWidget(range1_group)
+        comparison_layout.addWidget(self.range1_group)
 
-        # Range 2 (Eyes Open/Orange) - compact
-        range2_group = QGroupBox("👁️ Eyes Open (Orange)")
-        range2_group.setStyleSheet(
+        # Range 2 (Orange) - compact - label will be updated based on EEG annotations
+        self.range2_group = QGroupBox("Range 2 (Orange)")
+        self.range2_group.setStyleSheet(
             f"""
             QGroupBox {{
                 font-weight: bold;
@@ -557,7 +561,7 @@ class ElectrodeSignalWidget(QWidget):
             }}
         """
         )
-        range2_layout = QHBoxLayout(range2_group)
+        range2_layout = QHBoxLayout(self.range2_group)
         range2_layout.setSpacing(3)
         range2_layout.setContentsMargins(3, 3, 3, 3)
 
@@ -601,7 +605,7 @@ class ElectrodeSignalWidget(QWidget):
         )
         range2_layout.addWidget(self.freq_end2_spin)
 
-        comparison_layout.addWidget(range2_group)
+        comparison_layout.addWidget(self.range2_group)
 
         freq_layout.addLayout(comparison_layout)
 
@@ -714,34 +718,45 @@ class ElectrodeSignalWidget(QWidget):
                 ]
                 self.cut_timeline.set_annotations(annotations_list)
 
-                # Set default frequency ranges to "Eyes Closed" and "Eyes Open" annotations
-                # Range 1 (Blue) = Eyes Closed (displayed first in ICA selector)
-                # Range 2 (Orange) = Eyes Open (displayed second in ICA selector)
-                eyes_open_annot = None
-                eyes_closed_annot = None
+                # Find eye-related annotations and assign to ranges based on chronological order
+                # The first annotation in time goes to Range 1, the second to Range 2
+                eye_annotations = []
                 for annot in annotations_list:
                     desc_lower = annot["description"].lower()
                     if "eyes open" in desc_lower or "open" in desc_lower:
-                        if eyes_open_annot is None:
-                            eyes_open_annot = annot
+                        eye_annotations.append((annot, "👁️ Eyes Open"))
                     elif "eyes closed" in desc_lower or "closed" in desc_lower:
-                        if eyes_closed_annot is None:
-                            eyes_closed_annot = annot
+                        eye_annotations.append((annot, "😌 Eyes Closed"))
 
-                # Update frequency analysis ranges based on annotations
-                # Range 1 = Eyes Closed (first), Range 2 = Eyes Open (second)
-                if eyes_closed_annot is not None:
-                    self.freq_start1_spin.setValue(int(eyes_closed_annot["onset"]))
+                # Sort by onset time to match EEG annotation order
+                eye_annotations.sort(key=lambda x: x[0]["onset"])
+
+                # Assign annotations to ranges based on chronological order
+                if len(eye_annotations) >= 1:
+                    first_annot, first_label = eye_annotations[0]
+                    self._range1_label = first_label
+                    self.range1_group.setTitle(f"{first_label} (Blue)")
+                    self.freq_start1_spin.setValue(int(first_annot["onset"]))
                     self.freq_end1_spin.setValue(
-                        int(eyes_closed_annot["onset"] + eyes_closed_annot["duration"])
+                        int(first_annot["onset"] + first_annot["duration"])
                     )
-                if eyes_open_annot is not None:
-                    self.freq_start2_spin.setValue(int(eyes_open_annot["onset"]))
+
+                if len(eye_annotations) >= 2:
+                    second_annot, second_label = eye_annotations[1]
+                    self._range2_label = second_label
+                    self.range2_group.setTitle(f"{second_label} (Orange)")
+                    self.freq_start2_spin.setValue(int(second_annot["onset"]))
                     self.freq_end2_spin.setValue(
-                        int(eyes_open_annot["onset"] + eyes_open_annot["duration"])
+                        int(second_annot["onset"] + second_annot["duration"])
                     )
             else:
                 self.cut_timeline.set_annotations([])
+
+                # Reset labels to defaults when no annotations
+                self._range1_label = "Range 1"
+                self._range2_label = "Range 2"
+                self.range1_group.setTitle("Range 1 (Blue)")
+                self.range2_group.setTitle("Range 2 (Orange)")
 
                 # Update frequency analysis ranges (two ranges for comparison)
                 half_time = int(self._max_time / 2)
@@ -1063,8 +1078,8 @@ class ElectrodeSignalWidget(QWidget):
             return
 
         # Define colors matching the range colors
-        RANGE1_COLOR = "#007AFF"  # Blue - Eyes Closed
-        RANGE2_COLOR = "#fd7e14"  # Orange - Eyes Open
+        RANGE1_COLOR = "#007AFF"  # Blue
+        RANGE2_COLOR = "#fd7e14"  # Orange
 
         try:
             analyzer = BandPowerAnalyzer()
@@ -1098,8 +1113,8 @@ class ElectrodeSignalWidget(QWidget):
                 self.band_power_widget.update_comparison(
                     powers1,
                     powers2,
-                    label1="😌 Eyes Closed",
-                    label2="👁️ Eyes Open",
+                    label1=self._range1_label,
+                    label2=self._range2_label,
                     color1=RANGE1_COLOR,
                     color2=RANGE2_COLOR,
                 )
@@ -1107,8 +1122,8 @@ class ElectrodeSignalWidget(QWidget):
                 self.band_power_widget.update_comparison(
                     powers1,
                     powers1,
-                    label1="😌 Eyes Closed",
-                    label2="😌 Eyes Closed",
+                    label1=self._range1_label,
+                    label2=self._range1_label,
                     color1=RANGE1_COLOR,
                     color2=RANGE1_COLOR,
                 )
@@ -1116,8 +1131,8 @@ class ElectrodeSignalWidget(QWidget):
                 self.band_power_widget.update_comparison(
                     powers2,
                     powers2,
-                    label1="👁️ Eyes Open",
-                    label2="👁️ Eyes Open",
+                    label1=self._range2_label,
+                    label2=self._range2_label,
                     color1=RANGE2_COLOR,
                     color2=RANGE2_COLOR,
                 )
@@ -1822,12 +1837,12 @@ class SignalPreviewScreen(QWidget):
             frequency_ranges = self.get_frequency_ranges()
             self.proceed_to_processing.emit(self._raw_data, frequency_ranges)
 
-    def get_frequency_ranges(self) -> Dict[str, Tuple[float, float]]:
+    def get_frequency_ranges(self) -> Dict:
         """
         Get the current frequency analysis ranges from the first electrode widget.
 
         Returns:
-            Dictionary with 'range1' and 'range2' keys containing (start, end) tuples.
+            Dictionary with 'range1', 'range2', 'label1', 'label2' keys.
             Returns empty dict if no electrode widgets exist.
         """
         if not self._electrode_widgets:
@@ -1844,6 +1859,8 @@ class SignalPreviewScreen(QWidget):
         return {
             "range1": (float(range1_start), float(range1_end)),
             "range2": (float(range2_start), float(range2_end)),
+            "label1": first_widget._range1_label,
+            "label2": first_widget._range2_label,
         }
 
     def get_current_raw(self) -> Optional[mne.io.Raw]:
