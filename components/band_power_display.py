@@ -240,6 +240,7 @@ class BandPowerComparisonWidget(QWidget):
         self,
         original_powers: Dict[str, float],
         cleaned_powers: Dict[str, float],
+        title: Optional[str] = None,
     ):
         """
         Update the comparison display with original and cleaned band powers.
@@ -247,6 +248,7 @@ class BandPowerComparisonWidget(QWidget):
         Args:
             original_powers: Band power percentages for original signal
             cleaned_powers: Band power percentages for cleaned signal
+            title: Optional custom title for the chart
         """
         self.figure.clear()
 
@@ -281,6 +283,10 @@ class BandPowerComparisonWidget(QWidget):
             edgecolor="black",
             linewidth=0.5,
         )
+
+        # Set title if provided
+        if title:
+            ax.set_title(title, fontsize=10, fontweight="bold")
 
         # Labels and formatting
         ax.set_ylabel("Percentage (%)", fontsize=9)
