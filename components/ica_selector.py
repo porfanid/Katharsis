@@ -229,10 +229,10 @@ class PreviewWidget(QWidget):
 
         signal_layout.addLayout(nav_layout)
 
-        # Timeline with annotations
+        # Timeline with annotations (no drag markers - display only)
         from .signal_editor import SignalCutterTimeline
 
-        self.timeline = SignalCutterTimeline(theme=self.theme)
+        self.timeline = SignalCutterTimeline(theme=self.theme, show_markers=False)
         self.timeline.setMinimumHeight(60)
         self.timeline.setMaximumHeight(80)
         signal_layout.addWidget(self.timeline)

@@ -552,6 +552,7 @@ class SignalCutterTimeline(QWidget):
         self,
         theme: Optional[Dict[str, str]] = None,
         parent: Optional[QWidget] = None,
+        show_markers: bool = True,
     ):
         super().__init__(parent)
         self.theme = theme or {}
@@ -563,10 +564,12 @@ class SignalCutterTimeline(QWidget):
         self._freq_ranges: List[Tuple[float, float, str]] = []  # List of (start, end, label) tuples
         self._dragging = None  # None, 'left', 'right', or 'region'
         self._drag_offset = 0
+        self._show_markers = show_markers  # Whether to show draggable markers
 
         self.setMinimumHeight(100)
         self.setMaximumHeight(120)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        if show_markers:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMouseTracking(True)
 
     def set_annotations(self, annotations: List[Dict]):
@@ -805,40 +808,41 @@ class SignalCutterTimeline(QWidget):
             label_text = f"#{i+1}"
             painter.drawText(region_rect, Qt.AlignmentFlag.AlignCenter, label_text)
 
-        # Draw current selection (lighter, not yet added)
-        left_x = self._time_to_x(self._left_marker)
-        right_x = self._time_to_x(self._right_marker)
+        # Draw current selection and markers only if enabled
+        if self._show_markers:
+            left_x = self._time_to_x(self._left_marker)
+            right_x = self._time_to_x(self._right_marker)
 
-        selection_rect = QRect(
-            left_x, timeline_top + 2, right_x - left_x, timeline_height - 4
-        )
-        selection_color = QColor(primary)
-        selection_color.setAlpha(80)
-        painter.setBrush(QBrush(selection_color))
-        painter.setPen(QPen(primary, 2, Qt.PenStyle.DashLine))
-        painter.drawRect(selection_rect)
+            selection_rect = QRect(
+                left_x, timeline_top + 2, right_x - left_x, timeline_height - 4
+            )
+            selection_color = QColor(primary)
+            selection_color.setAlpha(80)
+            painter.setBrush(QBrush(selection_color))
+            painter.setPen(QPen(primary, 2, Qt.PenStyle.DashLine))
+            painter.drawRect(selection_rect)
 
-        # Left marker handle
-        painter.setBrush(QBrush(primary))
-        painter.setPen(QPen(primary.darker(110), 2))
+            # Left marker handle
+            painter.setBrush(QBrush(primary))
+            painter.setPen(QPen(primary.darker(110), 2))
 
-        # Left triangle marker
-        left_points = [
-            QPoint(left_x, timeline_top - 5),
-            QPoint(left_x - 10, timeline_top - 18),
-            QPoint(left_x + 10, timeline_top - 18),
-        ]
-        painter.drawPolygon(left_points)
-        painter.drawLine(left_x, timeline_top, left_x, timeline_top + timeline_height)
+            # Left triangle marker
+            left_points = [
+                QPoint(left_x, timeline_top - 5),
+                QPoint(left_x - 10, timeline_top - 18),
+                QPoint(left_x + 10, timeline_top - 18),
+            ]
+            painter.drawPolygon(left_points)
+            painter.drawLine(left_x, timeline_top, left_x, timeline_top + timeline_height)
 
-        # Right triangle marker
-        right_points = [
-            QPoint(right_x, timeline_top - 5),
-            QPoint(right_x - 10, timeline_top - 18),
-            QPoint(right_x + 10, timeline_top - 18),
-        ]
-        painter.drawPolygon(right_points)
-        painter.drawLine(right_x, timeline_top, right_x, timeline_top + timeline_height)
+            # Right triangle marker
+            right_points = [
+                QPoint(right_x, timeline_top - 5),
+                QPoint(right_x - 10, timeline_top - 18),
+                QPoint(right_x + 10, timeline_top - 18),
+            ]
+            painter.drawPolygon(right_points)
+            painter.drawLine(right_x, timeline_top, right_x, timeline_top + timeline_height)
 
         # Time labels at bottom
         painter.setPen(QPen(text_color))
@@ -860,26 +864,33 @@ class SignalCutterTimeline(QWidget):
             time_label = f"{self._max_time * frac:.0f}s"
             painter.drawText(x - 15, self.height() - 5, time_label)
 
-        # Current selection time labels (above markers)
-        painter.setPen(QPen(primary))
-        painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        # Current selection time labels (above markers) - only if markers enabled
+        if self._show_markers:
+            left_x = self._time_to_x(self._left_marker)
+            right_x = self._time_to_x(self._right_marker)
 
-        left_text = f"{self._left_marker:.1f}s"
-        painter.drawText(left_x - 20, timeline_top - 22, left_text)
+            painter.setPen(QPen(primary))
+            painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
 
-        right_text = f"{self._right_marker:.1f}s"
-        painter.drawText(right_x - 20, timeline_top - 22, right_text)
+            left_text = f"{self._left_marker:.1f}s"
+            painter.drawText(left_x - 20, timeline_top - 22, left_text)
 
-        # Selection duration in the middle
-        duration = self._right_marker - self._left_marker
-        duration_text = f"Selection: {duration:.1f}s"
-        center_x = (left_x + right_x) // 2
-        painter.drawText(
-            center_x - 40, timeline_top + timeline_height // 2 + 4, duration_text
-        )
+            right_text = f"{self._right_marker:.1f}s"
+            painter.drawText(right_x - 20, timeline_top - 22, right_text)
+
+            # Selection duration in the middle
+            duration = self._right_marker - self._left_marker
+            duration_text = f"Selection: {duration:.1f}s"
+            center_x = (left_x + right_x) // 2
+            painter.drawText(
+                center_x - 40, timeline_top + timeline_height // 2 + 4, duration_text
+            )
 
     def mousePressEvent(self, event):
         """Handle mouse press for dragging markers or clicking regions."""
+        if not self._show_markers:
+            return
+
         if event.button() != Qt.MouseButton.LeftButton:
             return
 
@@ -909,6 +920,9 @@ class SignalCutterTimeline(QWidget):
 
     def mouseMoveEvent(self, event):
         """Handle mouse move for dragging."""
+        if not self._show_markers:
+            return
+
         x = event.position().x()
         y = event.position().y()
 
@@ -963,6 +977,8 @@ class SignalCutterTimeline(QWidget):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release."""
+        if not self._show_markers:
+            return
         self._dragging = None
 
 
