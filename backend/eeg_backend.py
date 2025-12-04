@@ -935,6 +935,11 @@ class SignalEditor:
         """
         Cut specified regions from the signal and join remaining segments.
 
+        Annotations are preserved and their positions are adjusted to account
+        for the removed regions. Annotations that fall entirely within cut
+        regions are removed, and annotations that span cut boundaries are
+        truncated or split as appropriate.
+
         Args:
             raw: Raw EEG data
             regions_to_cut: List of (start_time, end_time) tuples in seconds
@@ -1005,7 +1010,88 @@ class SignalEditor:
         info = raw.info.copy()
         new_raw = mne.io.RawArray(concatenated_data, info, verbose=False)
 
+        # Adjust annotations to account for cut regions
+        if raw.annotations and len(raw.annotations) > 0:
+            adjusted_annotations = SignalEditor._adjust_annotations_after_cuts(
+                raw.annotations, sorted_regions, segments_to_keep
+            )
+            if adjusted_annotations is not None:
+                new_raw.set_annotations(adjusted_annotations)
+
         return new_raw
+
+    @staticmethod
+    def _adjust_annotations_after_cuts(
+        annotations: mne.Annotations,
+        cut_regions: List[Tuple[float, float]],
+        kept_segments: List[Tuple[float, float]],
+    ) -> Optional[mne.Annotations]:
+        """
+        Adjust annotation positions after cutting signal regions.
+
+        Annotations are shifted to account for removed time. Annotations
+        that fall entirely within cut regions are removed. Annotations
+        spanning multiple kept segments are split into separate annotations.
+
+        Args:
+            annotations: Original annotations
+            cut_regions: List of (start, end) tuples that were cut
+            kept_segments: List of (start, end) tuples that were kept
+
+        Returns:
+            New Annotations object with adjusted positions, or None if empty
+        """
+        if not annotations or len(annotations) == 0:
+            return None
+
+        new_onsets = []
+        new_durations = []
+        new_descriptions = []
+
+        for annot in annotations:
+            onset = annot["onset"]
+            duration = annot["duration"]
+            description = annot["description"]
+            annot_end = onset + duration
+
+            # Process each kept segment to find overlapping portions
+            for i, (seg_start, seg_end) in enumerate(kept_segments):
+                # Check if annotation overlaps with this segment
+                if annot_end <= seg_start:
+                    # Annotation is before this segment
+                    continue
+                if onset >= seg_end:
+                    # Annotation is after this segment
+                    continue
+
+                # Annotation overlaps with this segment
+                # Calculate the portion within this segment
+                overlap_start = max(onset, seg_start)
+                overlap_end = min(annot_end, seg_end)
+
+                if overlap_start < overlap_end:
+                    # Calculate new onset in the concatenated signal
+                    segment_offset = overlap_start - seg_start
+
+                    # New position = kept segments before this one + offset within this segment
+                    kept_time_before = sum(
+                        end - start for start, end in kept_segments[:i]
+                    )
+                    adjusted_onset = kept_time_before + segment_offset
+                    adjusted_duration = overlap_end - overlap_start
+
+                    new_onsets.append(adjusted_onset)
+                    new_durations.append(adjusted_duration)
+                    new_descriptions.append(description)
+
+        if not new_onsets:
+            return None
+
+        return mne.Annotations(
+            onset=new_onsets,
+            duration=new_durations,
+            description=new_descriptions,
+        )
 
     @staticmethod
     def get_time_segment(

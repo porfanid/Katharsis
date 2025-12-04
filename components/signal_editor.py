@@ -520,6 +520,7 @@ class SignalCutterTimeline(QWidget):
     - Draggable left/right markers for current selection
     - Visual display of all added cut regions
     - Ability to click on existing regions to remove them
+    - Display of EEG annotations/labels on the timeline
     """
 
     # Marker positions changed signal (left_pos, right_pos in seconds)
@@ -527,10 +528,31 @@ class SignalCutterTimeline(QWidget):
     # Signal when user clicks on an existing region to remove it
     region_clicked = pyqtSignal(int)  # Index of clicked region
 
+    # Color mapping for common annotation types
+    ANNOTATION_COLORS = {
+        "eyes open": "#28a745",  # Green
+        "eyes_open": "#28a745",
+        "eyesopen": "#28a745",
+        "eo": "#28a745",
+        "eyes closed": "#6f42c1",  # Purple
+        "eyes_closed": "#6f42c1",
+        "eyesclosed": "#6f42c1",
+        "ec": "#6f42c1",
+    }
+    DEFAULT_ANNOTATION_COLOR = "#ffc107"  # Yellow for unknown types
+
+    # Maximum length for annotation labels on timeline
+    MAX_LABEL_LENGTH = 15
+
+    # Colors for frequency analysis ranges
+    FREQ_RANGE1_COLOR = "#007AFF"  # Blue for Range 1
+    FREQ_RANGE2_COLOR = "#fd7e14"  # Orange for Range 2
+
     def __init__(
         self,
         theme: Optional[Dict[str, str]] = None,
         parent: Optional[QWidget] = None,
+        show_markers: bool = True,
     ):
         super().__init__(parent)
         self.theme = theme or {}
@@ -538,13 +560,54 @@ class SignalCutterTimeline(QWidget):
         self._left_marker = 0.0
         self._right_marker = 10.0
         self._cut_regions: List[Tuple[float, float]] = []  # List of (start, end) tuples
+        self._annotations: List[Dict] = []  # List of annotation dicts
+        self._freq_ranges: List[Tuple[float, float, str]] = []  # List of (start, end, label) tuples
         self._dragging = None  # None, 'left', 'right', or 'region'
         self._drag_offset = 0
+        self._show_markers = show_markers  # Whether to show draggable markers
 
         self.setMinimumHeight(100)
         self.setMaximumHeight(120)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        if show_markers:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMouseTracking(True)
+
+    def set_annotations(self, annotations: List[Dict]):
+        """
+        Set the list of annotations to display on the timeline.
+
+        Args:
+            annotations: List of annotation dicts with keys:
+                - onset: Start time in seconds
+                - duration: Duration in seconds
+                - description: Annotation description/label
+        """
+        self._annotations = annotations.copy() if annotations else []
+        self.update()
+
+    def _get_annotation_color(self, description: str) -> str:
+        """Get the color for an annotation based on its description."""
+        desc_lower = description.lower().strip()
+        return self.ANNOTATION_COLORS.get(desc_lower, self.DEFAULT_ANNOTATION_COLOR)
+
+    def set_frequency_ranges(
+        self,
+        range1: Optional[Tuple[float, float, str]] = None,
+        range2: Optional[Tuple[float, float, str]] = None,
+    ):
+        """
+        Set the frequency analysis ranges to display on the timeline.
+
+        Args:
+            range1: Tuple of (start, end, label) for Range 1 (Blue)
+            range2: Tuple of (start, end, label) for Range 2 (Orange)
+        """
+        self._freq_ranges = []
+        if range1 is not None:
+            self._freq_ranges.append((range1[0], range1[1], range1[2], self.FREQ_RANGE1_COLOR))
+        if range2 is not None:
+            self._freq_ranges.append((range2[0], range2[1], range2[2], self.FREQ_RANGE2_COLOR))
+        self.update()
 
     def set_cut_regions(self, regions: List[Tuple[float, float]]):
         """Set the list of cut regions to display."""
@@ -642,6 +705,87 @@ class SignalCutterTimeline(QWidget):
         painter.setBrush(QBrush(QColor("#f8f9fa")))
         painter.drawRoundedRect(track_rect, 4, 4)
 
+        # Draw annotations/labels on the timeline (similar style to cut regions)
+        for annot in self._annotations:
+            onset = annot.get("onset", 0)
+            duration = annot.get("duration", 0)
+            description = annot.get("description", "")
+
+            # Calculate annotation end time
+            annot_end = onset + duration if duration > 0 else onset + 1.0
+
+            # Skip annotations completely outside visible range
+            # (annotation ends before timeline starts OR starts after timeline ends)
+            if annot_end < 0 or onset > self._max_time:
+                continue
+
+            # Calculate positions (clip to visible range)
+            annot_left_x = self._time_to_x(max(0, onset))
+            annot_right_x = self._time_to_x(min(self._max_time, annot_end))
+
+            # Ensure minimum width for visibility
+            region_width = annot_right_x - annot_left_x
+            if region_width < 4:
+                annot_right_x = annot_left_x + 4
+                region_width = 4
+
+            # Get color for this annotation type
+            base_color = QColor(self._get_annotation_color(description))
+
+            # Draw annotation region with strong visibility (like cut regions)
+            annot_rect = QRect(
+                annot_left_x,
+                timeline_top + 2,
+                annot_right_x - annot_left_x,
+                timeline_height - 4,
+            )
+
+            # Fill with semi-transparent color
+            fill_color = QColor(base_color)
+            fill_color.setAlpha(150)  # More opaque for better visibility
+            painter.setBrush(QBrush(fill_color))
+            painter.setPen(QPen(base_color.darker(110), 2))  # Solid border like cut regions
+            painter.drawRect(annot_rect)
+
+            # Always draw label text - truncate based on available width
+            # Truncate description if too long for the region
+            if len(description) > self.MAX_LABEL_LENGTH:
+                label = description[: self.MAX_LABEL_LENGTH] + "..."
+            else:
+                label = description
+
+            # Draw label with contrasting color (white text like cut region numbers)
+            painter.setPen(QPen(QColor("white")))
+            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+            painter.drawText(
+                annot_rect, Qt.AlignmentFlag.AlignCenter, label
+            )
+
+        # Draw frequency analysis ranges (before cut regions so they appear behind)
+        for freq_range in self._freq_ranges:
+            start, end, label, color = freq_range
+            if start >= end or end < 0 or start > self._max_time:
+                continue
+
+            freq_left_x = self._time_to_x(max(0, start))
+            freq_right_x = self._time_to_x(min(self._max_time, end))
+
+            freq_rect = QRect(
+                freq_left_x, timeline_top + 2, freq_right_x - freq_left_x, timeline_height - 4
+            )
+
+            # Semi-transparent fill
+            freq_color = QColor(color)
+            freq_color.setAlpha(120)
+            painter.setBrush(QBrush(freq_color))
+            painter.setPen(QPen(QColor(color).darker(110), 2))
+            painter.drawRect(freq_rect)
+
+            # Label with white text
+            painter.setPen(QPen(QColor("white")))
+            painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+            painter.drawText(freq_rect, Qt.AlignmentFlag.AlignCenter, label)
+
         # Draw existing cut regions (darker red, already added)
         for i, (start, end) in enumerate(self._cut_regions):
             left_x = self._time_to_x(start)
@@ -664,40 +808,41 @@ class SignalCutterTimeline(QWidget):
             label_text = f"#{i+1}"
             painter.drawText(region_rect, Qt.AlignmentFlag.AlignCenter, label_text)
 
-        # Draw current selection (lighter, not yet added)
-        left_x = self._time_to_x(self._left_marker)
-        right_x = self._time_to_x(self._right_marker)
+        # Draw current selection and markers only if enabled
+        if self._show_markers:
+            left_x = self._time_to_x(self._left_marker)
+            right_x = self._time_to_x(self._right_marker)
 
-        selection_rect = QRect(
-            left_x, timeline_top + 2, right_x - left_x, timeline_height - 4
-        )
-        selection_color = QColor(primary)
-        selection_color.setAlpha(80)
-        painter.setBrush(QBrush(selection_color))
-        painter.setPen(QPen(primary, 2, Qt.PenStyle.DashLine))
-        painter.drawRect(selection_rect)
+            selection_rect = QRect(
+                left_x, timeline_top + 2, right_x - left_x, timeline_height - 4
+            )
+            selection_color = QColor(primary)
+            selection_color.setAlpha(80)
+            painter.setBrush(QBrush(selection_color))
+            painter.setPen(QPen(primary, 2, Qt.PenStyle.DashLine))
+            painter.drawRect(selection_rect)
 
-        # Left marker handle
-        painter.setBrush(QBrush(primary))
-        painter.setPen(QPen(primary.darker(110), 2))
+            # Left marker handle
+            painter.setBrush(QBrush(primary))
+            painter.setPen(QPen(primary.darker(110), 2))
 
-        # Left triangle marker
-        left_points = [
-            QPoint(left_x, timeline_top - 5),
-            QPoint(left_x - 10, timeline_top - 18),
-            QPoint(left_x + 10, timeline_top - 18),
-        ]
-        painter.drawPolygon(left_points)
-        painter.drawLine(left_x, timeline_top, left_x, timeline_top + timeline_height)
+            # Left triangle marker
+            left_points = [
+                QPoint(left_x, timeline_top - 5),
+                QPoint(left_x - 10, timeline_top - 18),
+                QPoint(left_x + 10, timeline_top - 18),
+            ]
+            painter.drawPolygon(left_points)
+            painter.drawLine(left_x, timeline_top, left_x, timeline_top + timeline_height)
 
-        # Right triangle marker
-        right_points = [
-            QPoint(right_x, timeline_top - 5),
-            QPoint(right_x - 10, timeline_top - 18),
-            QPoint(right_x + 10, timeline_top - 18),
-        ]
-        painter.drawPolygon(right_points)
-        painter.drawLine(right_x, timeline_top, right_x, timeline_top + timeline_height)
+            # Right triangle marker
+            right_points = [
+                QPoint(right_x, timeline_top - 5),
+                QPoint(right_x - 10, timeline_top - 18),
+                QPoint(right_x + 10, timeline_top - 18),
+            ]
+            painter.drawPolygon(right_points)
+            painter.drawLine(right_x, timeline_top, right_x, timeline_top + timeline_height)
 
         # Time labels at bottom
         painter.setPen(QPen(text_color))
@@ -719,26 +864,33 @@ class SignalCutterTimeline(QWidget):
             time_label = f"{self._max_time * frac:.0f}s"
             painter.drawText(x - 15, self.height() - 5, time_label)
 
-        # Current selection time labels (above markers)
-        painter.setPen(QPen(primary))
-        painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        # Current selection time labels (above markers) - only if markers enabled
+        if self._show_markers:
+            left_x = self._time_to_x(self._left_marker)
+            right_x = self._time_to_x(self._right_marker)
 
-        left_text = f"{self._left_marker:.1f}s"
-        painter.drawText(left_x - 20, timeline_top - 22, left_text)
+            painter.setPen(QPen(primary))
+            painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
 
-        right_text = f"{self._right_marker:.1f}s"
-        painter.drawText(right_x - 20, timeline_top - 22, right_text)
+            left_text = f"{self._left_marker:.1f}s"
+            painter.drawText(left_x - 20, timeline_top - 22, left_text)
 
-        # Selection duration in the middle
-        duration = self._right_marker - self._left_marker
-        duration_text = f"Selection: {duration:.1f}s"
-        center_x = (left_x + right_x) // 2
-        painter.drawText(
-            center_x - 40, timeline_top + timeline_height // 2 + 4, duration_text
-        )
+            right_text = f"{self._right_marker:.1f}s"
+            painter.drawText(right_x - 20, timeline_top - 22, right_text)
+
+            # Selection duration in the middle
+            duration = self._right_marker - self._left_marker
+            duration_text = f"Selection: {duration:.1f}s"
+            center_x = (left_x + right_x) // 2
+            painter.drawText(
+                center_x - 40, timeline_top + timeline_height // 2 + 4, duration_text
+            )
 
     def mousePressEvent(self, event):
         """Handle mouse press for dragging markers or clicking regions."""
+        if not self._show_markers:
+            return
+
         if event.button() != Qt.MouseButton.LeftButton:
             return
 
@@ -768,6 +920,9 @@ class SignalCutterTimeline(QWidget):
 
     def mouseMoveEvent(self, event):
         """Handle mouse move for dragging."""
+        if not self._show_markers:
+            return
+
         x = event.position().x()
         y = event.position().y()
 
@@ -822,6 +977,8 @@ class SignalCutterTimeline(QWidget):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release."""
+        if not self._show_markers:
+            return
         self._dragging = None
 
 

@@ -702,16 +702,57 @@ class ElectrodeSignalWidget(QWidget):
                 f"Sel: 0.0s - {initial_end:.1f}s ({initial_end:.1f}s)"
             )
 
-            # Update frequency analysis ranges (two ranges for comparison)
-            half_time = int(self._max_time / 2)
-            self.freq_start1_spin.setMaximum(int(self._max_time))
-            self.freq_end1_spin.setMaximum(int(self._max_time))
-            self.freq_end1_spin.setValue(half_time)
+            # Pass annotations to timeline for display
+            if raw.annotations and len(raw.annotations) > 0:
+                annotations_list = [
+                    {
+                        "onset": annot["onset"],
+                        "duration": annot["duration"],
+                        "description": annot["description"],
+                    }
+                    for annot in raw.annotations
+                ]
+                self.cut_timeline.set_annotations(annotations_list)
 
-            self.freq_start2_spin.setMaximum(int(self._max_time))
-            self.freq_start2_spin.setValue(half_time)
-            self.freq_end2_spin.setMaximum(int(self._max_time))
-            self.freq_end2_spin.setValue(int(self._max_time))
+                # Set default frequency ranges to "Eyes Open" and "Eyes Closed" annotations
+                eyes_open_annot = None
+                eyes_closed_annot = None
+                for annot in annotations_list:
+                    desc_lower = annot["description"].lower()
+                    if "eyes open" in desc_lower or "open" in desc_lower:
+                        if eyes_open_annot is None:
+                            eyes_open_annot = annot
+                    elif "eyes closed" in desc_lower or "closed" in desc_lower:
+                        if eyes_closed_annot is None:
+                            eyes_closed_annot = annot
+
+                # Update frequency analysis ranges based on annotations
+                if eyes_open_annot is not None:
+                    self.freq_start1_spin.setValue(int(eyes_open_annot["onset"]))
+                    self.freq_end1_spin.setValue(
+                        int(eyes_open_annot["onset"] + eyes_open_annot["duration"])
+                    )
+                if eyes_closed_annot is not None:
+                    self.freq_start2_spin.setValue(int(eyes_closed_annot["onset"]))
+                    self.freq_end2_spin.setValue(
+                        int(eyes_closed_annot["onset"] + eyes_closed_annot["duration"])
+                    )
+            else:
+                self.cut_timeline.set_annotations([])
+
+                # Update frequency analysis ranges (two ranges for comparison)
+                half_time = int(self._max_time / 2)
+                self.freq_start1_spin.setMaximum(int(self._max_time))
+                self.freq_end1_spin.setMaximum(int(self._max_time))
+                self.freq_end1_spin.setValue(half_time)
+
+                self.freq_start2_spin.setMaximum(int(self._max_time))
+                self.freq_start2_spin.setValue(half_time)
+                self.freq_end2_spin.setMaximum(int(self._max_time))
+                self.freq_end2_spin.setValue(int(self._max_time))
+
+            # Update frequency ranges on timeline
+            self._update_frequency_ranges_on_timeline()
 
             if self.view_combo.currentText() == "Full":
                 self._view_window = self._max_time
@@ -994,8 +1035,23 @@ class ElectrodeSignalWidget(QWidget):
             self.band_power_widget.clear()
             return
 
+        # Update frequency ranges on timeline
+        self._update_frequency_ranges_on_timeline()
+
         # Use debounce timer to avoid excessive computation
         self._freq_timer.start(self.FREQ_UPDATE_DEBOUNCE_MS)
+
+    def _update_frequency_ranges_on_timeline(self):
+        """Update the frequency analysis ranges displayed on the timeline."""
+        start1 = self.freq_start1_spin.value()
+        end1 = self.freq_end1_spin.value()
+        start2 = self.freq_start2_spin.value()
+        end2 = self.freq_end2_spin.value()
+
+        range1 = (float(start1), float(end1), "Range 1") if start1 < end1 else None
+        range2 = (float(start2), float(end2), "Range 2") if start2 < end2 else None
+
+        self.cut_timeline.set_frequency_ranges(range1, range2)
 
     def _do_update_frequency(self):
         """Actually update frequency analysis (called after debounce)."""

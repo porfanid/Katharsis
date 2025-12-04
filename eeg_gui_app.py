@@ -718,7 +718,19 @@ class EEGArtifactCleanerGUI(QMainWindow):
             self.on_return_to_channels
         )
         self.ica_selector_screen.components_selected.connect(self.apply_cleaning)
+        self.ica_selector_screen.back_requested.connect(self.on_return_to_preview)
         self.comparison_screen.return_to_home.connect(self.reset_ui)
+
+    def on_return_to_preview(self):
+        """
+        Handle return to signal preview from ICA/PCA component selector.
+
+        Navigates back to the signal preview screen (index 2).
+        """
+        self.stacked_widget.setCurrentIndex(2)
+        self.status_bar.showMessage(
+            "Returned to signal preview. You can edit the signal or continue to component selection."
+        )
 
     def show_message_box(self, icon, title, text):
         """
@@ -808,12 +820,29 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
         # Load the raw data with selected channels for preview
         try:
-            from backend.eeg_backend import EEGDataManager
+            from backend.eeg_backend import EEGDataManager, SignalEditor
 
             raw = EEGDataManager.read_raw(self.current_input_file, preload=True)
 
+            # Detect resting phases/annotations BEFORE picking channels
+            # This is important because marker channels may be removed by picking
+            phases = SignalEditor.detect_resting_phases(raw)
+
             # Pick only selected channels
             raw.pick(selected_channels)
+
+            # Convert detected phases to MNE annotations and set on raw data
+            if phases:
+                onsets = [p["start"] for p in phases]
+                durations = [p["duration"] for p in phases]
+                descriptions = [p["label"] for p in phases]
+
+                import mne
+
+                annotations = mne.Annotations(
+                    onset=onsets, duration=durations, description=descriptions
+                )
+                raw.set_annotations(annotations)
 
             # Set data in preview screen
             self.signal_preview_screen.set_data(raw, self.current_input_file)

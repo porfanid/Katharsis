@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -95,7 +96,7 @@ class PreviewUpdateThread(QThread):
 
 # --- 3. PREVIEW WIDGET ---
 class PreviewWidget(QWidget):
-    """Widget for displaying preview of the cleaned signal"""
+    """Widget for displaying preview of the cleaned signal with full timeline"""
 
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
@@ -104,96 +105,70 @@ class PreviewWidget(QWidget):
         self.channel_names = []
         self.update_callback = None  # Callback for preview update
         self.band_power_analyzer = None  # Will be set on first use
+        self.eyes_open_range = None  # (start, end) tuple for Eyes Open annotation
+        self.eyes_closed_range = None  # (start, end) tuple for Eyes Closed annotation
+        self._max_time = 100.0
+        self._view_window = 10.0  # View window in seconds
+        self._view_start = 0.0  # Current view start position
+        self._original_raw = None
+        self._cleaned_raw = None
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
 
-        # Header layout with title and dropdown for channel selection
+        # Header layout with title and controls
         header_layout = QHBoxLayout()
+        header_layout.setSpacing(10)
 
         # Title
         title_label = QLabel("📊 Live Preview of Cleaning Result")
-        title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        title_label.setStyleSheet(f"color: {self.theme['text']}; margin-bottom: 5px;")
+        title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        title_label.setStyleSheet(f"color: {self.theme['text']};")
         header_layout.addWidget(title_label)
 
         header_layout.addStretch()
 
-        # Dropdown for channel selection
+        # View window selector
+        view_label = QLabel("View:")
+        view_label.setStyleSheet(f"color: {self.theme['text']}; font-size: 11px;")
+        header_layout.addWidget(view_label)
+
+        self.view_combo = QComboBox()
+        self.view_combo.addItems(["5s", "10s", "30s", "60s", "Full"])
+        self.view_combo.setCurrentText("10s")
+        self.view_combo.currentTextChanged.connect(self._on_view_changed)
+        self.view_combo.setMinimumWidth(60)
+        self.view_combo.setStyleSheet(
+            f"""
+            QComboBox {{
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                padding: 3px 6px;
+                color: {self.theme.get('text', '#212529')};
+            }}
+        """
+        )
+        header_layout.addWidget(self.view_combo)
+
+        # Channel selection
         channel_label = QLabel("Channel:")
-        channel_label.setStyleSheet(f"color: {self.theme['text']}; font-size: 12px;")
+        channel_label.setStyleSheet(f"color: {self.theme['text']}; font-size: 11px;")
         header_layout.addWidget(channel_label)
 
         self.channel_dropdown = QComboBox()
-        self.channel_dropdown.setMinimumWidth(180)
+        self.channel_dropdown.setMinimumWidth(100)
         self.channel_dropdown.setStyleSheet(
             f"""
             QComboBox {{
-                background-color: {self.theme.get('background', '#ffffff')};
-                color: {self.theme['text']};
-                border: 2px solid {self.theme.get('border', '#dee2e6')};
-                border-radius: 8px;
-                padding: 8px 12px;
-                font-size: 12px;
-                font-weight: 500;
-                min-height: 20px;
-            }}
-            QComboBox:hover {{
-                border-color: {self.theme.get('primary', '#007AFF')};
-                background-color: {self.theme.get('background', '#ffffff')};
-            }}
-            QComboBox:focus {{
-                border-color: {self.theme.get('primary', '#007AFF')};
-                outline: none;
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 25px;
-                border-left: none;
-                border-top-right-radius: 8px;
-                border-bottom-right-radius: 8px;
-                background-color: transparent;
-            }}
-            QComboBox::drop-down:hover {{
-                background-color: rgba(0, 122, 255, 0.1);
-            }}
-            QComboBox::down-arrow {{
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 6px solid {self.theme['text']};
-                margin: 0px;
-            }}
-            QComboBox::down-arrow:hover {{
-                border-top-color: {self.theme.get('primary', '#007AFF')};
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {self.theme.get('background', '#ffffff')};
-                color: {self.theme['text']};
-                border: 2px solid {self.theme.get('primary', '#007AFF')};
-                border-radius: 8px;
-                padding: 4px;
-                outline: none;
-                selection-background-color: {self.theme.get('primary', '#007AFF')};
-                selection-color: white;
-            }}
-            QComboBox QAbstractItemView::item {{
-                padding: 8px 12px;
-                margin: 2px;
+                background-color: white;
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
                 border-radius: 4px;
-                background-color: transparent;
-                color: {self.theme['text']};
-            }}
-            QComboBox QAbstractItemView::item:hover {{
-                background-color: rgba(0, 122, 255, 0.1);
-                color: {self.theme.get('primary', '#007AFF')};
-            }}
-            QComboBox QAbstractItemView::item:selected {{
-                background-color: {self.theme.get('primary', '#007AFF')};
-                color: white;
+                padding: 3px 6px;
+                color: {self.theme.get('text', '#212529')};
             }}
         """
         )
@@ -202,37 +177,156 @@ class PreviewWidget(QWidget):
 
         layout.addLayout(header_layout)
 
-        # Horizontal layout for signal plots and band power display
+        # Main content: signal plot + band power widgets
         content_layout = QHBoxLayout()
+        content_layout.setSpacing(5)
 
-        # Canvas για τα γραφήματα (left side)
-        self.figure = Figure(figsize=(10, 6), dpi=80)
+        # Left side: Signal plots with timeline
+        signal_layout = QVBoxLayout()
+        signal_layout.setSpacing(3)
+
+        # Canvas for signal plots
+        self.figure = Figure(figsize=(8, 4), dpi=80)
         self.canvas = CustomCanvas(self.figure)
-        content_layout.addWidget(self.canvas, stretch=3)
+        self.canvas.setMinimumHeight(180)
+        signal_layout.addWidget(self.canvas)
 
-        # Band power display (right side)
+        # Navigation slider
+        nav_layout = QHBoxLayout()
+        nav_layout.setSpacing(5)
+
+        self.nav_label = QLabel("Pos: 0.0s")
+        self.nav_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        self.nav_label.setMinimumWidth(60)
+        nav_layout.addWidget(self.nav_label)
+
+        self.nav_slider = QSlider(Qt.Orientation.Horizontal)
+        self.nav_slider.setMinimum(0)
+        self.nav_slider.setMaximum(1000)
+        self.nav_slider.setValue(0)
+        self.nav_slider.valueChanged.connect(self._on_nav_changed)
+        self.nav_slider.setStyleSheet(
+            f"""
+            QSlider::groove:horizontal {{
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                height: 6px;
+                background: #f8f9fa;
+                border-radius: 3px;
+            }}
+            QSlider::handle:horizontal {{
+                background: {self.theme.get('primary', '#007AFF')};
+                width: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
+            }}
+        """
+        )
+        nav_layout.addWidget(self.nav_slider)
+
+        self.duration_label = QLabel("/ 0.0s")
+        self.duration_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        nav_layout.addWidget(self.duration_label)
+
+        signal_layout.addLayout(nav_layout)
+
+        # Timeline with annotations (no drag markers - display only)
+        from .signal_editor import SignalCutterTimeline
+
+        self.timeline = SignalCutterTimeline(theme=self.theme, show_markers=False)
+        self.timeline.setMinimumHeight(60)
+        self.timeline.setMaximumHeight(80)
+        signal_layout.addWidget(self.timeline)
+
+        content_layout.addLayout(signal_layout, stretch=3)
+
+        # Right side: Band power displays (stacked vertically)
         from .band_power_display import BandPowerComparisonWidget
 
-        self.band_power_widget = BandPowerComparisonWidget(self.theme)
-        self.band_power_widget.setMinimumWidth(300)
-        self.band_power_widget.setMaximumWidth(400)
-        content_layout.addWidget(self.band_power_widget, stretch=1)
+        band_power_layout = QVBoxLayout()
+        band_power_layout.setSpacing(5)
+
+        # Eyes Open band power widget
+        self.band_power_widget_eyes_open = BandPowerComparisonWidget(self.theme)
+        self.band_power_widget_eyes_open.setMinimumWidth(250)
+        self.band_power_widget_eyes_open.setMaximumWidth(320)
+        band_power_layout.addWidget(self.band_power_widget_eyes_open)
+
+        # Eyes Closed band power widget
+        self.band_power_widget_eyes_closed = BandPowerComparisonWidget(self.theme)
+        self.band_power_widget_eyes_closed.setMinimumWidth(250)
+        self.band_power_widget_eyes_closed.setMaximumWidth(320)
+        band_power_layout.addWidget(self.band_power_widget_eyes_closed)
+
+        content_layout.addLayout(band_power_layout, stretch=1)
 
         layout.addLayout(content_layout)
 
         # Initial empty plot
         self.show_empty_plot()
 
+    def _on_view_changed(self, text: str):
+        """Handle view window change."""
+        if text == "Full":
+            self._view_window = self._max_time
+        else:
+            self._view_window = float(text.replace("s", ""))
+        self._update_signal_plot()
+
+    def _on_nav_changed(self, value: int):
+        """Handle navigation slider change."""
+        max_start = max(0, self._max_time - self._view_window)
+        self._view_start = (value / 1000.0) * max_start
+        self.nav_label.setText(f"Pos: {self._view_start:.1f}s")
+        self._update_signal_plot()
+
     def set_update_callback(self, callback):
         """Set callback for preview update"""
         self.update_callback = callback
 
     def set_channel_data(self, raw):
-        """Update dropdown with available channels"""
+        """Update dropdown with available channels and extract annotation time ranges"""
         self.channel_names = raw.ch_names
         self.channel_dropdown.clear()
         self.channel_dropdown.addItems(self.channel_names)
         self.selected_channel_idx = 0
+
+        # Store max time and update duration label
+        self._max_time = raw.times[-1]
+        self.duration_label.setText(f"/ {self._max_time:.1f}s")
+        self.timeline.set_max_time(self._max_time)
+
+        # Extract Eyes Open and Eyes Closed annotation time ranges
+        self.eyes_open_range = None
+        self.eyes_closed_range = None
+        annotations_list = []
+
+        if raw.annotations and len(raw.annotations) > 0:
+            for annot in raw.annotations:
+                desc_lower = annot["description"].lower()
+                onset = float(annot["onset"])
+                duration = float(annot["duration"])
+                end_time = onset + duration
+
+                # Add to annotations list for timeline display
+                annotations_list.append({
+                    "onset": onset,
+                    "duration": duration,
+                    "description": annot["description"],
+                })
+
+                if "eyes open" in desc_lower or "open" in desc_lower:
+                    if self.eyes_open_range is None:
+                        self.eyes_open_range = (onset, end_time)
+                elif "eyes closed" in desc_lower or "closed" in desc_lower:
+                    if self.eyes_closed_range is None:
+                        self.eyes_closed_range = (onset, end_time)
+
+        # Set annotations on timeline
+        self.timeline.set_annotations(annotations_list)
+
+        # Update view window if needed
+        if self.view_combo.currentText() == "Full":
+            self._view_window = self._max_time
 
     def _on_channel_changed(self, index):
         """Called when channel selection changes"""
@@ -264,31 +358,53 @@ class PreviewWidget(QWidget):
         self.canvas.draw()
 
     def update_preview(self, original_raw, cleaned_raw):
-        """Update preview with new data"""
+        """Update preview with new data - stores raw data and updates plot"""
+        # Store raw data for navigation
+        self._original_raw = original_raw
+        self._cleaned_raw = cleaned_raw
+
+        # Initialize band power analyzer if needed
+        if self.band_power_analyzer is None:
+            from backend.band_power_analyzer import BandPowerAnalyzer
+            self.band_power_analyzer = BandPowerAnalyzer()
+
+        # Update signal plot
+        self._update_signal_plot()
+
+        # Update band power comparisons (these use full annotation time ranges)
+        self._update_band_power_displays()
+
+    def _update_signal_plot(self):
+        """Update the signal plot with current view window and position"""
+        if self._original_raw is None:
+            self.show_empty_plot()
+            return
+
         try:
             self.figure.clear()
 
-            # Use first 10 seconds for preview
-            preview_duration = 10.0
-            n_samples = int(preview_duration * original_raw.info["sfreq"])
+            sfreq = self._original_raw.info["sfreq"]
+            channel_idx = self.selected_channel_idx
 
-            # Get data
-            original_data = original_raw.get_data()[:, :n_samples]
-            time_points = np.arange(n_samples) / original_raw.info["sfreq"]
+            # Calculate sample indices for current view
+            start_sample = int(self._view_start * sfreq)
+            end_sample = int((self._view_start + self._view_window) * sfreq)
 
-            # Initialize band power analyzer if needed
-            if self.band_power_analyzer is None:
-                from backend.band_power_analyzer import BandPowerAnalyzer
+            # Get data for current view window
+            original_data = self._original_raw.get_data()[:, start_sample:end_sample]
+            time_points = np.arange(original_data.shape[1]) / sfreq + self._view_start
 
-                self.band_power_analyzer = BandPowerAnalyzer()
+            channel_name = (
+                self.channel_names[channel_idx]
+                if channel_idx < len(self.channel_names)
+                else f"Channel {channel_idx}"
+            )
 
-            if cleaned_raw is not None:
-                cleaned_data = cleaned_raw.get_data()[:, :n_samples]
+            if self._cleaned_raw is not None:
+                cleaned_data = self._cleaned_raw.get_data()[:, start_sample:end_sample]
 
-                # Ensure cleaned_data matches the expected length
-                min_samples = min(
-                    original_data.shape[1], cleaned_data.shape[1], len(time_points)
-                )
+                # Ensure data matches
+                min_samples = min(original_data.shape[1], cleaned_data.shape[1])
                 original_data = original_data[:, :min_samples]
                 cleaned_data = cleaned_data[:, :min_samples]
                 time_points = time_points[:min_samples]
@@ -297,99 +413,138 @@ class PreviewWidget(QWidget):
                 ax1 = self.figure.add_subplot(2, 1, 1)
                 ax2 = self.figure.add_subplot(2, 1, 2)
 
-                # Display selected channel
-                channel_idx = self.selected_channel_idx
-
                 # Original signal
                 ax1.plot(
                     time_points,
                     original_data[channel_idx, :],
                     color=self.theme.get("danger", "#e74c3c"),
-                    linewidth=1,
-                    alpha=0.8,
-                )
-                channel_name = (
-                    self.channel_names[channel_idx]
-                    if channel_idx < len(self.channel_names)
-                    else f"Channel {channel_idx}"
+                    linewidth=0.8,
+                    alpha=0.9,
                 )
                 ax1.set_title(
                     f"Original Signal - {channel_name}",
-                    fontsize=10,
+                    fontsize=9,
                     color=self.theme["text"],
                 )
-                ax1.set_ylabel("Amplitude (μV)", fontsize=9)
+                ax1.set_ylabel("Amp (μV)", fontsize=8)
                 ax1.grid(True, alpha=0.3)
+                ax1.tick_params(axis='both', labelsize=7)
 
                 # Cleaned signal
                 ax2.plot(
                     time_points,
                     cleaned_data[channel_idx, :],
                     color=self.theme.get("success", "#27ae60"),
-                    linewidth=1,
-                    alpha=0.8,
+                    linewidth=0.8,
+                    alpha=0.9,
                 )
                 ax2.set_title(
                     f"Cleaned Signal - {channel_name}",
-                    fontsize=10,
+                    fontsize=9,
                     color=self.theme["text"],
                 )
-                ax2.set_xlabel("Time (s)", fontsize=9)
-                ax2.set_ylabel("Amplitude (μV)", fontsize=9)
+                ax2.set_xlabel("Time (s)", fontsize=8)
+                ax2.set_ylabel("Amp (μV)", fontsize=8)
                 ax2.grid(True, alpha=0.3)
-
-                # Compute and display band power comparison
-                try:
-                    original_powers = (
-                        self.band_power_analyzer.compute_band_power_for_raw(
-                            original_raw, channel_idx=channel_idx
-                        )
-                    )
-                    cleaned_powers = (
-                        self.band_power_analyzer.compute_band_power_for_raw(
-                            cleaned_raw, channel_idx=channel_idx
-                        )
-                    )
-                    self.band_power_widget.update_comparison(
-                        original_powers, cleaned_powers
-                    )
-                except Exception as bp_error:
-                    print(f"Error computing band power: {bp_error}")
-                    self.band_power_widget.clear()
+                ax2.tick_params(axis='both', labelsize=7)
 
             else:
-                # Only original signal if there is an error
+                # Only original signal
                 ax = self.figure.add_subplot(111)
-                channel_idx = self.selected_channel_idx
-                channel_name = (
-                    self.channel_names[channel_idx]
-                    if channel_idx < len(self.channel_names)
-                    else f"Channel {channel_idx}"
-                )
                 ax.plot(
                     time_points,
                     original_data[channel_idx, :],
                     color=self.theme.get("primary", "#007AFF"),
-                    linewidth=1,
+                    linewidth=0.8,
                 )
                 ax.set_title(
                     f"Original Signal - {channel_name}",
-                    fontsize=12,
+                    fontsize=10,
                     color=self.theme["text"],
                 )
-                ax.set_xlabel("Time (s)", fontsize=10)
-                ax.set_ylabel("Amplitude (μV)", fontsize=10)
+                ax.set_xlabel("Time (s)", fontsize=9)
+                ax.set_ylabel("Amplitude (μV)", fontsize=9)
                 ax.grid(True, alpha=0.3)
 
-                # Clear band power display when no cleaned data
-                self.band_power_widget.clear()
-
-            self.figure.tight_layout(pad=1.0)
+            self.figure.tight_layout(pad=0.5)
             self.canvas.draw()
 
         except Exception as e:
-            print(f"Error updating preview: {str(e)}")
+            print(f"Error updating signal plot: {str(e)}")
             self.show_error_plot(str(e))
+
+    def _update_band_power_displays(self):
+        """Update the band power comparison displays for Eyes Open and Eyes Closed"""
+        if self._original_raw is None:
+            self.band_power_widget_eyes_open.clear()
+            self.band_power_widget_eyes_closed.clear()
+            return
+
+        channel_idx = self.selected_channel_idx
+
+        # Compute and display band power comparison for Eyes Open
+        try:
+            if self.eyes_open_range is not None:
+                tmin_eo, tmax_eo = self.eyes_open_range
+                original_powers_eo = (
+                    self.band_power_analyzer.compute_band_power_for_raw(
+                        self._original_raw,
+                        channel_idx=channel_idx,
+                        tmin=tmin_eo,
+                        tmax=tmax_eo,
+                    )
+                )
+                if self._cleaned_raw is not None:
+                    cleaned_powers_eo = (
+                        self.band_power_analyzer.compute_band_power_for_raw(
+                            self._cleaned_raw,
+                            channel_idx=channel_idx,
+                            tmin=tmin_eo,
+                            tmax=tmax_eo,
+                        )
+                    )
+                else:
+                    cleaned_powers_eo = original_powers_eo
+                self.band_power_widget_eyes_open.update_comparison(
+                    original_powers_eo, cleaned_powers_eo, title="👁️ Eyes Open"
+                )
+            else:
+                self.band_power_widget_eyes_open.clear()
+        except Exception as bp_error:
+            print(f"Error computing Eyes Open band power: {bp_error}")
+            self.band_power_widget_eyes_open.clear()
+
+        # Compute and display band power comparison for Eyes Closed
+        try:
+            if self.eyes_closed_range is not None:
+                tmin_ec, tmax_ec = self.eyes_closed_range
+                original_powers_ec = (
+                    self.band_power_analyzer.compute_band_power_for_raw(
+                        self._original_raw,
+                        channel_idx=channel_idx,
+                        tmin=tmin_ec,
+                        tmax=tmax_ec,
+                    )
+                )
+                if self._cleaned_raw is not None:
+                    cleaned_powers_ec = (
+                        self.band_power_analyzer.compute_band_power_for_raw(
+                            self._cleaned_raw,
+                            channel_idx=channel_idx,
+                            tmin=tmin_ec,
+                            tmax=tmax_ec,
+                        )
+                    )
+                else:
+                    cleaned_powers_ec = original_powers_ec
+                self.band_power_widget_eyes_closed.update_comparison(
+                    original_powers_ec, cleaned_powers_ec, title="😌 Eyes Closed"
+                )
+            else:
+                self.band_power_widget_eyes_closed.clear()
+        except Exception as bp_error:
+            print(f"Error computing Eyes Closed band power: {bp_error}")
+            self.band_power_widget_eyes_closed.clear()
 
     def show_error_plot(self, error_msg: str):
         """Display error message"""
@@ -628,6 +783,7 @@ class ICAComponentSelector(QWidget):
     """Component selector widget that works for both ICA and PCA analysis"""
 
     components_selected = pyqtSignal(list)
+    back_requested = pyqtSignal()  # Signal emitted when user wants to go back
 
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
@@ -658,6 +814,31 @@ class ICAComponentSelector(QWidget):
         main_layout.setSpacing(15)
 
         header_layout = QHBoxLayout()
+
+        # Back button
+        self.back_btn = QPushButton("⬅️ Back to Preview")
+        self.back_btn.setMinimumHeight(40)
+        self.back_btn.clicked.connect(self._on_back_clicked)
+        self.back_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {self.theme.get('secondary', '#6c757d')};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {self.theme.get('text_light', '#5a6268')};
+            }}
+        """
+        )
+        header_layout.addWidget(self.back_btn)
+
+        header_layout.addStretch()
+
         self.title_label = QLabel("🔍 Select Components for Removal")
         self.title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         header_layout.addWidget(self.title_label)
@@ -703,6 +884,10 @@ class ICAComponentSelector(QWidget):
         main_layout.addWidget(self.apply_btn)
 
         self.apply_styling()
+
+    def _on_back_clicked(self):
+        """Handle back button click"""
+        self.back_requested.emit()
 
         self.select_all_btn.clicked.connect(lambda: self.set_all_checkboxes(True))
         self.select_none_btn.clicked.connect(lambda: self.set_all_checkboxes(False))
