@@ -3,7 +3,7 @@
 Channel Selector Component - Interactive channel selection interface
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
