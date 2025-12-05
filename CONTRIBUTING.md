@@ -136,17 +136,17 @@ def _internal_method():
 def process_signal(data: np.ndarray, sampling_rate: float) -> np.ndarray:
     """
     Process EEG signal with filtering.
-    
+
     Args:
         data (np.ndarray): The raw EEG data
         sampling_rate (float): The sampling rate in Hz
-        
+
     Returns:
         np.ndarray: The filtered data
-        
+
     Raises:
         ValueError: If data is empty
-        
+
     Example:
         >>> filtered = process_signal(raw_data, 256.0)
     """
@@ -174,23 +174,23 @@ from backend.eeg_backend import EEGBackendCore
 
 class TestEEGBackend:
     """Tests for EEG Backend functionality."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.backend = EEGBackendCore()
-    
+
     def test_load_valid_file(self):
         """Test loading of valid EDF file."""
         # Arrange
         file_path = "tests/fixtures/sample.edf"
-        
+
         # Act
         result = self.backend.load_file(file_path)
-        
+
         # Assert
         assert result['success'] is True
         assert 'channels' in result
-    
+
     def test_load_invalid_file(self):
         """Test handling of invalid file."""
         with pytest.raises(FileNotFoundError):
@@ -253,28 +253,28 @@ When adding new API:
 def new_api_function(param1: str, param2: int = 10) -> Dict[str, Any]:
     """
     Brief description of the function.
-    
+
     Detailed description of what the function does and how.
     Can contain multiple lines.
-    
+
     Args:
         param1 (str): Description of the first parameter
         param2 (int, optional): Description of the second parameter.
                                Default is 10.
-    
+
     Returns:
         Dict[str, Any]: Description of the returned dictionary
                        with keys and value types
-    
+
     Raises:
         ValueError: When param1 is an empty string
         TypeError: When param2 is not an integer
-    
+
     Example:
         >>> result = new_api_function("test", 20)
         >>> print(result['status'])
         'success'
-    
+
     Note:
         This function changes the internal state of the object.
     """
@@ -347,7 +347,7 @@ Add screenshots for GUI changes.
 2. **Use in code**
    ```python
    from locales import get_translation
-   
+
    label.setText(get_translation("welcome_message"))
    ```
 

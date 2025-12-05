@@ -82,14 +82,14 @@ def _internal_method():
 def process_signal(data: np.ndarray, sampling_rate: float) -> np.ndarray:
     """
     Process EEG signal with filtering.
-    
+
     Args:
         data (np.ndarray): Raw EEG data
         sampling_rate (float): Sampling rate in Hz
-        
+
     Returns:
         np.ndarray: Filtered data
-        
+
     Raises:
         ValueError: If data is empty
     """
@@ -211,6 +211,62 @@ service = EEGArtifactCleaningService(analysis_method="ICA")  # or "PCA"
 - Test both success and error cases
 - Backend tests should not require a GUI display
 - Include tests for both ICA and PCA processing pipelines
+
+#### Mocking Best Practices
+
+When mocking MNE-Python objects (like `mne.io.Raw`), ensure that mock objects properly support all operations used in the code:
+
+```python
+from unittest.mock import Mock
+import numpy as np
+
+# Mocking MNE Raw objects
+mock_raw = Mock()
+mock_raw.info = {"sfreq": 128.0}
+mock_raw.times = np.linspace(0, 10, 1280)
+mock_raw.ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+# Always mock annotations with a list (supports len() and iteration)
+mock_raw.annotations = []  # Empty list, or use MagicMock for more complex scenarios
+
+# If annotations need to be iterable with content:
+mock_raw.annotations = [
+    {"onset": 0.0, "duration": 5.0, "description": "eyes closed"},
+    {"onset": 5.0, "duration": 5.0, "description": "eyes open"},
+]
+```
+
+Key points for mocking:
+- Use empty lists `[]` instead of `Mock()` for attributes that need `len()` or iteration
+- Use `MagicMock` when you need more complex behavior like `__len__`, `__iter__`
+- Always check what operations the code performs on mocked objects
+- Mock data arrays should have the correct shape for EEG data: `(n_channels, n_samples)`
+
+### Code Formatting Requirements
+
+Before committing, always run the following formatters:
+
+```bash
+# Format code with Black
+black .
+
+# Sort imports with isort
+isort .
+
+# Verify formatting
+black --check .
+isort --check-only .
+```
+
+The CI pipeline will fail if code is not properly formatted.
+
+### Pre-commit Hooks (Recommended)
+
+Install pre-commit hooks to automatically format code before commits:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
 
 ### Commit Messages
 

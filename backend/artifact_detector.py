@@ -332,7 +332,9 @@ class ArtifactDetector:
 
     def detect_artifacts_multi_method(
         self,
-        processor: Union[ICAProcessor, PCAProcessor, WaveletProcessor, BaseComponentProcessor],
+        processor: Union[
+            ICAProcessor, PCAProcessor, WaveletProcessor, BaseComponentProcessor
+        ],
         raw: mne.io.Raw,
         max_components: int = 3,
     ) -> Tuple[List[int], Dict[str, List[int]]]:
@@ -367,7 +369,7 @@ class ArtifactDetector:
             return [], methods_results
 
         if is_ica:
-            ica = processor.get_ica_object()
+            ica = processor.get_ica_object()  # type: ignore[union-attr]
             if ica is None:
                 return [], {}
 
@@ -376,9 +378,9 @@ class ArtifactDetector:
 
         if is_pca:
             # PCA-specific methods
-            methods_results["variance"] = self.detect_pca_variance_artifacts(processor)
+            methods_results["variance"] = self.detect_pca_variance_artifacts(processor)  # type: ignore[arg-type]
             methods_results["spatial"] = self.detect_pca_spatial_artifacts(
-                processor, raw
+                processor, raw  # type: ignore[arg-type]
             )
 
         # Common methods for both ICA and PCA

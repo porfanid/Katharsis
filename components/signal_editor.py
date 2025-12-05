@@ -561,7 +561,9 @@ class SignalCutterTimeline(QWidget):
         self._right_marker = 10.0
         self._cut_regions: List[Tuple[float, float]] = []  # List of (start, end) tuples
         self._annotations: List[Dict] = []  # List of annotation dicts
-        self._freq_ranges: List[Tuple[float, float, str]] = []  # List of (start, end, label) tuples
+        self._freq_ranges: List[Tuple[float, float, str]] = (
+            []
+        )  # List of (start, end, label) tuples
         self._dragging = None  # None, 'left', 'right', or 'region'
         self._drag_offset = 0
         self._show_markers = show_markers  # Whether to show draggable markers
@@ -604,9 +606,13 @@ class SignalCutterTimeline(QWidget):
         """
         self._freq_ranges = []
         if range1 is not None:
-            self._freq_ranges.append((range1[0], range1[1], range1[2], self.FREQ_RANGE1_COLOR))
+            self._freq_ranges.append(
+                (range1[0], range1[1], range1[2], self.FREQ_RANGE1_COLOR)
+            )
         if range2 is not None:
-            self._freq_ranges.append((range2[0], range2[1], range2[2], self.FREQ_RANGE2_COLOR))
+            self._freq_ranges.append(
+                (range2[0], range2[1], range2[2], self.FREQ_RANGE2_COLOR)
+            )
         self.update()
 
     def set_cut_regions(self, regions: List[Tuple[float, float]]):
@@ -744,7 +750,9 @@ class SignalCutterTimeline(QWidget):
             fill_color = QColor(base_color)
             fill_color.setAlpha(150)  # More opaque for better visibility
             painter.setBrush(QBrush(fill_color))
-            painter.setPen(QPen(base_color.darker(110), 2))  # Solid border like cut regions
+            painter.setPen(
+                QPen(base_color.darker(110), 2)
+            )  # Solid border like cut regions
             painter.drawRect(annot_rect)
 
             # Always draw label text - truncate based on available width
@@ -757,9 +765,7 @@ class SignalCutterTimeline(QWidget):
             # Draw label with contrasting color (white text like cut region numbers)
             painter.setPen(QPen(QColor("white")))
             painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-            painter.drawText(
-                annot_rect, Qt.AlignmentFlag.AlignCenter, label
-            )
+            painter.drawText(annot_rect, Qt.AlignmentFlag.AlignCenter, label)
 
         # Draw frequency analysis ranges (before cut regions so they appear behind)
         for freq_range in self._freq_ranges:
@@ -771,7 +777,10 @@ class SignalCutterTimeline(QWidget):
             freq_right_x = self._time_to_x(min(self._max_time, end))
 
             freq_rect = QRect(
-                freq_left_x, timeline_top + 2, freq_right_x - freq_left_x, timeline_height - 4
+                freq_left_x,
+                timeline_top + 2,
+                freq_right_x - freq_left_x,
+                timeline_height - 4,
             )
 
             # Semi-transparent fill
@@ -833,7 +842,9 @@ class SignalCutterTimeline(QWidget):
                 QPoint(left_x + 10, timeline_top - 18),
             ]
             painter.drawPolygon(left_points)
-            painter.drawLine(left_x, timeline_top, left_x, timeline_top + timeline_height)
+            painter.drawLine(
+                left_x, timeline_top, left_x, timeline_top + timeline_height
+            )
 
             # Right triangle marker
             right_points = [
@@ -842,7 +853,9 @@ class SignalCutterTimeline(QWidget):
                 QPoint(right_x + 10, timeline_top - 18),
             ]
             painter.drawPolygon(right_points)
-            painter.drawLine(right_x, timeline_top, right_x, timeline_top + timeline_height)
+            painter.drawLine(
+                right_x, timeline_top, right_x, timeline_top + timeline_height
+            )
 
         # Time labels at bottom
         painter.setPen(QPen(text_color))

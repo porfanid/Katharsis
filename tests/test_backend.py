@@ -736,7 +736,9 @@ class TestWaveletProcessor(unittest.TestCase):
         success = self.wavelet_processor.fit(self.test_raw)
 
         self.assertTrue(success)
-        self.assertEqual(self.wavelet_processor.n_components, len(self.test_raw.ch_names))
+        self.assertEqual(
+            self.wavelet_processor.n_components, len(self.test_raw.ch_names)
+        )
         self.assertEqual(len(self.wavelet_processor.components_info), 5)
 
     def test_get_sources_data(self):
@@ -1681,7 +1683,11 @@ class TestSignalEditor(unittest.TestCase):
         raw_with_annot = self.test_raw.copy()
         annotations = mne.Annotations(
             onset=[5.0, 12.0, 45.0],
-            duration=[5.0, 3.0, 5.0],  # First: 5-10s, Second: 12-15s (will be cut), Third: 45-50s
+            duration=[
+                5.0,
+                3.0,
+                5.0,
+            ],  # First: 5-10s, Second: 12-15s (will be cut), Third: 45-50s
             description=["Keep", "Remove", "Keep"],
         )
         raw_with_annot.set_annotations(annotations)
