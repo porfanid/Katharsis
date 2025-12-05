@@ -115,7 +115,12 @@ class PreviewWidget(QWidget):
         self._view_start = 0.0  # Current view start position
         self._original_raw = None
         self._cleaned_raw = None
+        self._analysis_method = "ICA"  # Track analysis method for FFT display
         self.setup_ui()
+
+    def set_analysis_method(self, method: str):
+        """Set the analysis method (ICA, PCA, or WAVELETS)"""
+        self._analysis_method = method
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -452,9 +457,16 @@ class PreviewWidget(QWidget):
                 cleaned_data = cleaned_data[:, :min_samples]
                 time_points = time_points[:min_samples]
 
-                # Two subplots - original and cleaned
-                ax1 = self.figure.add_subplot(2, 1, 1)
-                ax2 = self.figure.add_subplot(2, 1, 2)
+                # For Wavelet mode, show 3 plots: original, cleaned, and FFT comparison
+                if self._analysis_method == "WAVELETS":
+                    ax1 = self.figure.add_subplot(3, 1, 1)
+                    ax2 = self.figure.add_subplot(3, 1, 2)
+                    ax3 = self.figure.add_subplot(3, 1, 3)
+                else:
+                    # Two subplots - original and cleaned
+                    ax1 = self.figure.add_subplot(2, 1, 1)
+                    ax2 = self.figure.add_subplot(2, 1, 2)
+                    ax3 = None
 
                 # Original signal
                 ax1.plot(
@@ -486,10 +498,21 @@ class PreviewWidget(QWidget):
                     fontsize=9,
                     color=self.theme["text"],
                 )
-                ax2.set_xlabel("Time (s)", fontsize=8)
+                if ax3 is None:
+                    ax2.set_xlabel("Time (s)", fontsize=8)
                 ax2.set_ylabel("Amp (μV)", fontsize=8)
                 ax2.grid(True, alpha=0.3)
                 ax2.tick_params(axis='both', labelsize=7)
+
+                # FFT comparison for Wavelet mode
+                if ax3 is not None:
+                    self._plot_fft_comparison_preview(
+                        ax3,
+                        original_data[channel_idx, :],
+                        cleaned_data[channel_idx, :],
+                        sfreq,
+                        channel_name
+                    )
 
             else:
                 # Only original signal
@@ -515,6 +538,54 @@ class PreviewWidget(QWidget):
         except Exception as e:
             print(f"Error updating signal plot: {str(e)}")
             self.show_error_plot(str(e))
+
+    def _plot_fft_comparison_preview(self, ax, original_data, cleaned_data, sfreq, channel_name):
+        """
+        Plot FFT comparison of original vs cleaned signal for Wavelet preview.
+
+        Args:
+            ax: Matplotlib axis to plot on
+            original_data: Original signal data (1D array)
+            cleaned_data: Cleaned signal data (1D array)
+            sfreq: Sampling frequency
+            channel_name: Name of the channel
+        """
+        from scipy import signal as scipy_signal
+
+        # Use Welch's method for smoother PSD estimate
+        n = len(original_data)
+        nperseg = min(1024, n // 4) if n > 4 else n
+        
+        if nperseg < 4:
+            ax.text(0.5, 0.5, "Not enough data for FFT", ha="center", va="center")
+            return
+
+        freq_orig, psd_orig = scipy_signal.welch(original_data, fs=sfreq, nperseg=nperseg)
+        freq_clean, psd_clean = scipy_signal.welch(cleaned_data, fs=sfreq, nperseg=nperseg)
+
+        # Limit frequency range to 0-50 Hz (typical EEG range)
+        max_freq = min(50, sfreq / 2)
+        freq_mask = freq_orig <= max_freq
+
+        # Plot both spectra
+        ax.semilogy(
+            freq_orig[freq_mask], psd_orig[freq_mask],
+            color=self.theme.get("danger", "#e74c3c"),
+            linewidth=1, alpha=0.8, label="Original"
+        )
+        ax.semilogy(
+            freq_clean[freq_mask], psd_clean[freq_mask],
+            color=self.theme.get("success", "#27ae60"),
+            linewidth=1, alpha=0.8, label="Cleaned"
+        )
+
+        ax.set_xlabel("Frequency (Hz)", fontsize=8)
+        ax.set_ylabel("PSD", fontsize=8)
+        ax.set_title(f"FFT Comparison - {channel_name}", fontsize=9, color=self.theme["text"])
+        ax.legend(loc="upper right", fontsize=7)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='both', labelsize=7)
+        ax.set_xlim(0, max_freq)
 
     def _update_band_power_displays(self):
         """Update the band power comparison displays for Range 1 and Range 2.
@@ -1300,8 +1371,9 @@ class ICAComponentSelector(QWidget):
             self.create_single_component_widget(i)
         self.components_layout.addStretch(1)
 
-        # Update preview widget with channel data and callback
+        # Update preview widget with channel data, method, and callback
         self.preview_widget.set_channel_data(raw)
+        self.preview_widget.set_analysis_method(analysis_method)
         self.preview_widget.set_update_callback(self._start_preview_update)
 
         # Update initial preview with suggested components
