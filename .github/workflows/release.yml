@@ -26,18 +26,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller==6.8.0
-          
+
       - name: Build executable
         shell: bash
         run: |
@@ -76,7 +76,7 @@ jobs:
             $PYINSTALLER_CMD --name "EEGCleanerApp-ARM64"
             cd dist && zip -r EEGCleanerApp-ARM64.zip EEGCleanerApp-ARM64.app
           fi
-          
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -88,27 +88,27 @@ jobs:
     needs: build-executables
     permissions:
       contents: write
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Fetch full history for changelog generation
-        
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.9'
-        
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        
+
     - name: Run tests
       run: |
         python -m pytest tests/ -v || echo "Tests completed (some may be skipped in CI)"
-        
+
     - name: Extract version from tag
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
@@ -117,7 +117,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: executables
-      
+
     - name: Generate changelog
       id: changelog
       run: |
@@ -128,7 +128,7 @@ jobs:
         else
           CHANGELOG=$(git log --pretty=format:"- %s" HEAD)
         fi
-        
+
         # Αποθήκευση changelog σε αρχείο
         echo "## Αλλαγές σε αυτή την έκδοση" > CHANGELOG.md
         echo "" >> CHANGELOG.md
@@ -152,31 +152,31 @@ jobs:
         echo "" >> CHANGELOG.md
         echo "- Python 3.8+" >> CHANGELOG.md
         echo "- Δείτε το \`requirements.txt\` για λεπτομερείς εξαρτήσεις" >> CHANGELOG.md
-        
+
 
 
     - name: Prepare executable files
       run: |
         echo "Downloaded artifacts:"
         find executables -type f -ls
-        
+
         # Create executables directory for release
         mkdir -p release-executables
-        
+
         # Copy executable files to release directory
         find executables -type f -name 'eeg-cleaner-windows.exe' -exec cp {} release-executables/eeg-cleaner-windows.exe \;
         find executables -type f -name 'eeg-cleaner-linux' -exec cp {} release-executables/eeg-cleaner-linux \;
         find executables -type f -name 'EEGCleanerApp-Intel.zip' -exec cp {} release-executables/eeg-cleaner-macos-intel.zip \;
         find executables -type f -name 'EEGCleanerApp-ARM64.zip' -exec cp {} release-executables/eeg-cleaner-macos-arm64.zip \;
-        
+
         # Make Linux executable executable
         if [ -f "release-executables/eeg-cleaner-linux" ]; then
           chmod +x "release-executables/eeg-cleaner-linux"
         fi
-        
+
         echo "Executables prepared for release:"
         ls -la release-executables/
-        
+
     - name: Create Release
       uses: softprops/action-gh-release@v2
       env:
@@ -200,19 +200,19 @@ jobs:
       contents: read
       pages: write
       id-token: write
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup Pages
       uses: actions/configure-pages@v5
-      
+
     - name: Upload pages artifact
       uses: actions/upload-pages-artifact@v3
       with:
         path: './docs'
-        
+
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4

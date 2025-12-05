@@ -288,7 +288,7 @@ class PCAProcessor:
 
 2. **Statistical Analysis** (Common for ICA/PCA)
    - **Variance**: High variance = artifacts
-   - **Kurtosis**: Non-Gaussian distribution = artifacts  
+   - **Kurtosis**: Non-Gaussian distribution = artifacts
    - **Range**: Large range = artifacts
 
 3. **PCA-Specific Methods**

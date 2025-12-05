@@ -82,14 +82,14 @@ def _internal_method():
 def process_signal(data: np.ndarray, sampling_rate: float) -> np.ndarray:
     """
     Process EEG signal with filtering.
-    
+
     Args:
         data (np.ndarray): Raw EEG data
         sampling_rate (float): Sampling rate in Hz
-        
+
     Returns:
         np.ndarray: Filtered data
-        
+
     Raises:
         ValueError: If data is empty
     """

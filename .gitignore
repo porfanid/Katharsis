@@ -279,4 +279,3 @@ safety_results.txt
 # Performance benchmarks
 benchmark_*.json
 performance_*.log
-

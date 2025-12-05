@@ -1,7 +1,7 @@
 # Pre-commit hooks for Katharsis
 # Install with: pip install pre-commit && pre-commit install
 # Run manually: pre-commit run --all-files
-
+exclude: '\.edf$'
 repos:
   # Black - code formatting
   - repo: https://github.com/psf/black

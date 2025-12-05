@@ -17,11 +17,7 @@ from .results_display import (
     ResultsDisplayWidget,
     StatisticsTableWidget,
 )
-from .signal_editor import (
-    RestingPhaseDisplay,
-    SignalCutter,
-    TimeRangeSelector,
-)
+from .signal_editor import RestingPhaseDisplay, SignalCutter, TimeRangeSelector
 from .signal_preview_screen import SignalPreviewScreen
 
 __all__ = [
