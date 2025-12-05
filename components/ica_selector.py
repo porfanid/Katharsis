@@ -789,39 +789,20 @@ class ComponentDisplayWidget(QWidget):
                     color=self.theme["text"],
                 )
             else:
-                # No spatial data (Wavelet case) - show info text
+                # No spatial data - show FFT comparison for Wavelet, text for others
                 if method == "WAVELETS":
-                    ch_name = (
-                        raw.ch_names[self.component_idx]
-                        if self.component_idx < len(raw.ch_names)
-                        else f"Channel {self.component_idx}"
-                    )
-                    ax_topo.text(
-                        0.5,
-                        0.6,
-                        f"🌊 Wavelet Denoising",
-                        ha="center",
-                        va="center",
-                        fontsize=11,
-                        fontweight="bold",
-                    )
-                    ax_topo.text(
-                        0.5,
-                        0.4,
-                        f"Channel: {ch_name}",
-                        ha="center",
-                        va="center",
-                        fontsize=10,
-                    )
-                    ax_topo.text(
-                        0.5,
-                        0.25,
-                        "(Auto-denoised)",
-                        ha="center",
-                        va="center",
-                        fontsize=8,
-                        color="gray",
-                    )
+                    # Show FFT/Frequency spectrum comparison for Wavelet mode
+                    # Get denoised data from processor
+                    denoised_data = processor.get_denoised_data()
+                    if denoised_data is not None:
+                        denoised_comp = denoised_data[self.component_idx]
+                        self._plot_fft_comparison(
+                            ax_topo, comp_data, denoised_comp,
+                            raw.info["sfreq"], comp_label
+                        )
+                    else:
+                        # Fallback to single FFT if no denoised data
+                        self._plot_fft_single(ax_topo, comp_data, raw.info["sfreq"], comp_label)
                 else:
                     ax_topo.text(
                         0.5,
@@ -831,13 +812,13 @@ class ComponentDisplayWidget(QWidget):
                         va="center",
                         fontsize=10,
                     )
-                ax_topo.set_title(
-                    f"{comp_label}",
-                    fontsize=9,
-                    color=self.theme["text"],
-                )
-                ax_topo.set_xticks([])
-                ax_topo.set_yticks([])
+                    ax_topo.set_title(
+                        f"{comp_label}",
+                        fontsize=9,
+                        color=self.theme["text"],
+                    )
+                    ax_topo.set_xticks([])
+                    ax_topo.set_yticks([])
 
             self.topomap_figure.tight_layout(pad=0.3)
 
@@ -870,6 +851,85 @@ class ComponentDisplayWidget(QWidget):
         # Refresh canvases
         self.timeseries_canvas.draw()
         self.topomap_canvas.draw()
+
+    def _plot_fft_comparison(self, ax, original_data, denoised_data, sfreq, label):
+        """
+        Plot FFT comparison of original vs denoised signal.
+
+        Args:
+            ax: Matplotlib axis to plot on
+            original_data: Original signal data (1D array)
+            denoised_data: Denoised signal data (1D array)
+            sfreq: Sampling frequency
+            label: Channel/component label
+        """
+        from scipy import signal as scipy_signal
+
+        # Compute FFT for both signals
+        n = len(original_data)
+        freq = np.fft.rfftfreq(n, 1/sfreq)
+
+        # Use Welch's method for smoother PSD estimate
+        nperseg = min(1024, n // 4)
+        freq_orig, psd_orig = scipy_signal.welch(original_data, fs=sfreq, nperseg=nperseg)
+        freq_clean, psd_clean = scipy_signal.welch(denoised_data, fs=sfreq, nperseg=nperseg)
+
+        # Limit frequency range to 0-50 Hz (typical EEG range)
+        max_freq = min(50, sfreq / 2)
+        freq_mask = freq_orig <= max_freq
+
+        # Plot both spectra
+        ax.semilogy(
+            freq_orig[freq_mask], psd_orig[freq_mask],
+            color=self.theme.get("danger", "#e74c3c"),
+            linewidth=1, alpha=0.8, label="Original"
+        )
+        ax.semilogy(
+            freq_clean[freq_mask], psd_clean[freq_mask],
+            color=self.theme.get("success", "#27ae60"),
+            linewidth=1, alpha=0.8, label="Cleaned"
+        )
+
+        ax.set_xlabel("Frequency (Hz)", fontsize=7)
+        ax.set_ylabel("PSD", fontsize=7)
+        ax.set_title(f"{label} - FFT", fontsize=9, color=self.theme["text"])
+        ax.legend(loc="upper right", fontsize=6)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='both', labelsize=6)
+        ax.set_xlim(0, max_freq)
+
+    def _plot_fft_single(self, ax, data, sfreq, label):
+        """
+        Plot single FFT spectrum (fallback when no denoised data).
+
+        Args:
+            ax: Matplotlib axis to plot on
+            data: Signal data (1D array)
+            sfreq: Sampling frequency
+            label: Channel/component label
+        """
+        from scipy import signal as scipy_signal
+
+        n = len(data)
+        nperseg = min(1024, n // 4)
+        freq, psd = scipy_signal.welch(data, fs=sfreq, nperseg=nperseg)
+
+        # Limit frequency range to 0-50 Hz
+        max_freq = min(50, sfreq / 2)
+        freq_mask = freq <= max_freq
+
+        ax.semilogy(
+            freq[freq_mask], psd[freq_mask],
+            color=self.theme.get("primary", "#007AFF"),
+            linewidth=1
+        )
+
+        ax.set_xlabel("Frequency (Hz)", fontsize=7)
+        ax.set_ylabel("PSD", fontsize=7)
+        ax.set_title(f"{label} - FFT", fontsize=9, color=self.theme["text"])
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='both', labelsize=6)
+        ax.set_xlim(0, max_freq)
 
 
 class ICAComponentSelector(QWidget):

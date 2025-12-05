@@ -216,6 +216,20 @@ class WaveletProcessor(BaseComponentProcessor):
             return None
         return self._original_data
 
+    def get_denoised_data(self) -> Optional[np.ndarray]:
+        """
+        Get the denoised (cleaned) channel signals.
+
+        Returns the pre-computed denoised data for all channels.
+        This is useful for comparing original vs cleaned in the GUI.
+
+        Returns:
+            Optional[np.ndarray]: Array of shape (n_channels, n_timepoints) or None
+        """
+        if self._denoised_data is None:
+            return None
+        return self._denoised_data
+
     def get_components(self) -> Optional[np.ndarray]:
         """
         Get the spatial patterns (mixing weights) for each component.
