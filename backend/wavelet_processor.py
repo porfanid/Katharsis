@@ -17,7 +17,7 @@ Version: 1.0
 """
 
 import warnings
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import mne
 import numpy as np
@@ -26,6 +26,15 @@ import pywt
 from .base_processor import BaseComponentProcessor
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+# Constants for DWT processing
+# MAD (Median Absolute Deviation) normalization factor: 1/Φ^(-1)(3/4) ≈ 0.6745
+# Used to estimate standard deviation from MAD for Gaussian noise
+MAD_NORMALIZATION_FACTOR = 0.6745
+
+# Default maximum decomposition level when auto-calculating
+# Higher values may over-smooth the signal
+DEFAULT_MAX_DECOMPOSITION_LEVEL = 5
 
 
 class WaveletProcessor(BaseComponentProcessor):
@@ -112,7 +121,7 @@ class WaveletProcessor(BaseComponentProcessor):
                 # Calculate maximum level based on signal length and wavelet
                 max_level = pywt.dwt_max_level(data.shape[1], self.wavelet)
                 # Use a reasonable level (not too high to avoid over-smoothing)
-                self.level = min(max_level, 5)
+                self.level = min(max_level, DEFAULT_MAX_DECOMPOSITION_LEVEL)
 
             # Pre-compute denoised data for all channels
             self._denoised_data = self._denoise_all_channels(data)
@@ -163,7 +172,7 @@ class WaveletProcessor(BaseComponentProcessor):
         # Based on MAD (Median Absolute Deviation) of finest detail coefficients
         # σ = MAD(d1) / 0.6745, where d1 is the first level detail coefficients
         detail_coeffs = coeffs[-1]  # Finest level detail coefficients
-        sigma = np.median(np.abs(detail_coeffs)) / 0.6745
+        sigma = np.median(np.abs(detail_coeffs)) / MAD_NORMALIZATION_FACTOR
 
         # Universal threshold: sqrt(2 * log(n)) * σ
         n = len(signal)
@@ -259,7 +268,7 @@ class WaveletProcessor(BaseComponentProcessor):
         """
         return "WAVELETS"
 
-    def get_wavelet_info(self) -> Dict[str, any]:
+    def get_wavelet_info(self) -> Dict[str, Any]:
         """
         Get information about the current wavelet configuration.
 
