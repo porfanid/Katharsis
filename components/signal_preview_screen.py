@@ -28,11 +28,11 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
+    QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QDoubleSpinBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -1225,7 +1225,9 @@ class SignalPreviewScreen(QWidget):
         return_to_channels: Emitted when user wants to go back to channel selection
     """
 
-    proceed_to_processing = pyqtSignal(object, dict)  # Emits (raw data, frequency_ranges)
+    proceed_to_processing = pyqtSignal(
+        object, dict
+    )  # Emits (raw data, frequency_ranges)
     signal_modified = pyqtSignal(object)  # Emits modified raw data
     return_to_channels = pyqtSignal()
 
@@ -1593,7 +1595,15 @@ class SignalPreviewScreen(QWidget):
         self._apply_filter_and_update(raw)
 
     def _apply_filter_and_update(self, raw: mne.io.Raw):
-        """Apply filter and update the display."""
+        """
+        Apply band-pass filter to the EEG data and update the display.
+
+        Filters the raw data using the current low/high frequency settings
+        and updates all electrode tabs with the filtered data.
+
+        Args:
+            raw: MNE Raw object to filter and display.
+        """
         try:
             filtered_raw = EEGPreprocessor.apply_bandpass_filter(
                 raw, low_freq=self._low_freq, high_freq=self._high_freq

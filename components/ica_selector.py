@@ -37,7 +37,24 @@ class CustomCanvas(FigureCanvas):
 
 # --- 2. BACKGROUND THREAD FOR PREVIEW UPDATE ---
 class PreviewUpdateThread(QThread):
-    """Thread for calculating the cleaned signal in the background"""
+    """
+    Background thread for calculating the cleaned signal preview.
+
+    This thread handles the computationally intensive task of applying
+    artifact removal to generate a preview of the cleaned EEG signal,
+    keeping the GUI responsive during processing.
+
+    Attributes:
+        preview_ready: Signal emitted when preview calculation is complete.
+            Emits (original_raw, cleaned_raw) tuple.
+
+    Args:
+        ica: ICA object for backward compatibility with MNE ICA.
+        raw: The raw EEG data (mne.io.Raw object).
+        components_to_remove: List of component indices to exclude.
+        processor: Component processor (ICA, PCA, or Wavelet).
+        analysis_method: Analysis method string ("ICA", "PCA", or "WAVELETS").
+    """
 
     preview_ready = pyqtSignal(object, object)  # (original_raw, cleaned_raw)
 
@@ -49,6 +66,7 @@ class PreviewUpdateThread(QThread):
         processor=None,
         analysis_method="ICA",
     ):
+        """Initialize the preview update thread with processing parameters."""
         super().__init__()
         self.ica = ica
         self.raw = raw
@@ -57,6 +75,12 @@ class PreviewUpdateThread(QThread):
         self.analysis_method = analysis_method
 
     def run(self):
+        """
+        Execute the preview calculation in the background.
+
+        Applies artifact removal using the configured processor or ICA object
+        and emits the preview_ready signal with the results.
+        """
         try:
             # If no components to remove, return original signal as both
             if not self.components_to_remove:
@@ -96,9 +120,27 @@ class PreviewUpdateThread(QThread):
 
 # --- 3. PREVIEW WIDGET ---
 class PreviewWidget(QWidget):
-    """Widget for displaying preview of the cleaned signal with full timeline"""
+    """
+    Widget for displaying real-time preview of the cleaned EEG signal.
+
+    Shows original and cleaned signal comparison with navigation controls,
+    band power analysis displays, and timeline visualization. Supports
+    ICA, PCA, and Wavelet analysis methods with FFT comparison for Wavelets.
+
+    Attributes:
+        theme: Dictionary containing UI theme colors.
+        selected_channel_idx: Index of currently displayed channel.
+        channel_names: List of available channel names.
+        range1: Time range tuple (start, end) for Eyes Closed analysis.
+        range2: Time range tuple (start, end) for Eyes Open analysis.
+
+    Args:
+        theme: Dictionary containing UI color scheme.
+        parent: Optional parent widget.
+    """
 
     def __init__(self, theme: Dict[str, str], parent=None):
+        """Initialize the preview widget with theme and layout."""
         super().__init__(parent)
         self.theme = theme
         self.selected_channel_idx = 0
@@ -119,10 +161,16 @@ class PreviewWidget(QWidget):
         self.setup_ui()
 
     def set_analysis_method(self, method: str):
-        """Set the analysis method (ICA, PCA, or WAVELETS)"""
+        """
+        Set the analysis method for FFT display selection.
+
+        Args:
+            method: Analysis method ("ICA", "PCA", or "WAVELETS").
+        """
         self._analysis_method = method
 
     def setup_ui(self):
+        """Set up the user interface components and layout."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
@@ -232,7 +280,9 @@ class PreviewWidget(QWidget):
         nav_layout.addWidget(self.nav_slider)
 
         self.duration_label = QLabel("/ 0.0s")
-        self.duration_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        self.duration_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')};"
+        )
         nav_layout.addWidget(self.duration_label)
 
         signal_layout.addLayout(nav_layout)
@@ -319,11 +369,13 @@ class PreviewWidget(QWidget):
                     end_time = onset + duration
 
                     # Add to annotations list for timeline display
-                    annotations_list.append({
-                        "onset": onset,
-                        "duration": duration,
-                        "description": annot["description"],
-                    })
+                    annotations_list.append(
+                        {
+                            "onset": onset,
+                            "duration": duration,
+                            "description": annot["description"],
+                        }
+                    )
 
                     # Eyes Closed goes to Range 1 (displayed first)
                     if "eyes closed" in desc_lower or "closed" in desc_lower:
@@ -341,11 +393,13 @@ class PreviewWidget(QWidget):
             annotations_list = []
             if raw.annotations and len(raw.annotations) > 0:
                 for annot in raw.annotations:
-                    annotations_list.append({
-                        "onset": float(annot["onset"]),
-                        "duration": float(annot["duration"]),
-                        "description": annot["description"],
-                    })
+                    annotations_list.append(
+                        {
+                            "onset": float(annot["onset"]),
+                            "duration": float(annot["duration"]),
+                            "description": annot["description"],
+                        }
+                    )
             self.timeline.set_annotations(annotations_list)
 
         # Update view window if needed
@@ -414,6 +468,7 @@ class PreviewWidget(QWidget):
         # Initialize band power analyzer if needed
         if self.band_power_analyzer is None:
             from backend.band_power_analyzer import BandPowerAnalyzer
+
             self.band_power_analyzer = BandPowerAnalyzer()
 
         # Update signal plot
@@ -483,7 +538,7 @@ class PreviewWidget(QWidget):
                 )
                 ax1.set_ylabel("Amp (μV)", fontsize=8)
                 ax1.grid(True, alpha=0.3)
-                ax1.tick_params(axis='both', labelsize=7)
+                ax1.tick_params(axis="both", labelsize=7)
 
                 # Cleaned signal
                 ax2.plot(
@@ -502,7 +557,7 @@ class PreviewWidget(QWidget):
                     ax2.set_xlabel("Time (s)", fontsize=8)
                 ax2.set_ylabel("Amp (μV)", fontsize=8)
                 ax2.grid(True, alpha=0.3)
-                ax2.tick_params(axis='both', labelsize=7)
+                ax2.tick_params(axis="both", labelsize=7)
 
                 # FFT comparison for Wavelet mode
                 if ax3 is not None:
@@ -511,7 +566,7 @@ class PreviewWidget(QWidget):
                         original_data[channel_idx, :],
                         cleaned_data[channel_idx, :],
                         sfreq,
-                        channel_name
+                        channel_name,
                     )
 
             else:
@@ -539,7 +594,9 @@ class PreviewWidget(QWidget):
             print(f"Error updating signal plot: {str(e)}")
             self.show_error_plot(str(e))
 
-    def _plot_fft_comparison_preview(self, ax, original_data, cleaned_data, sfreq, channel_name):
+    def _plot_fft_comparison_preview(
+        self, ax, original_data, cleaned_data, sfreq, channel_name
+    ):
         """
         Plot FFT comparison of original vs cleaned signal for Wavelet preview.
 
@@ -555,13 +612,17 @@ class PreviewWidget(QWidget):
         # Use Welch's method for smoother PSD estimate
         n = len(original_data)
         nperseg = min(1024, n // 4) if n > 4 else n
-        
+
         if nperseg < 4:
             ax.text(0.5, 0.5, "Not enough data for FFT", ha="center", va="center")
             return
 
-        freq_orig, psd_orig = scipy_signal.welch(original_data, fs=sfreq, nperseg=nperseg)
-        freq_clean, psd_clean = scipy_signal.welch(cleaned_data, fs=sfreq, nperseg=nperseg)
+        freq_orig, psd_orig = scipy_signal.welch(
+            original_data, fs=sfreq, nperseg=nperseg
+        )
+        freq_clean, psd_clean = scipy_signal.welch(
+            cleaned_data, fs=sfreq, nperseg=nperseg
+        )
 
         # Limit frequency range to 0-50 Hz (typical EEG range)
         max_freq = min(50, sfreq / 2)
@@ -569,22 +630,30 @@ class PreviewWidget(QWidget):
 
         # Plot both spectra
         ax.semilogy(
-            freq_orig[freq_mask], psd_orig[freq_mask],
+            freq_orig[freq_mask],
+            psd_orig[freq_mask],
             color=self.theme.get("danger", "#e74c3c"),
-            linewidth=1, alpha=0.8, label="Original"
+            linewidth=1,
+            alpha=0.8,
+            label="Original",
         )
         ax.semilogy(
-            freq_clean[freq_mask], psd_clean[freq_mask],
+            freq_clean[freq_mask],
+            psd_clean[freq_mask],
             color=self.theme.get("success", "#27ae60"),
-            linewidth=1, alpha=0.8, label="Cleaned"
+            linewidth=1,
+            alpha=0.8,
+            label="Cleaned",
         )
 
         ax.set_xlabel("Frequency (Hz)", fontsize=8)
         ax.set_ylabel("PSD", fontsize=8)
-        ax.set_title(f"FFT Comparison - {channel_name}", fontsize=9, color=self.theme["text"])
+        ax.set_title(
+            f"FFT Comparison - {channel_name}", fontsize=9, color=self.theme["text"]
+        )
         ax.legend(loc="upper right", fontsize=7)
         ax.grid(True, alpha=0.3)
-        ax.tick_params(axis='both', labelsize=7)
+        ax.tick_params(axis="both", labelsize=7)
         ax.set_xlim(0, max_freq)
 
     def _update_band_power_displays(self):
@@ -868,12 +937,17 @@ class ComponentDisplayWidget(QWidget):
                     if denoised_data is not None:
                         denoised_comp = denoised_data[self.component_idx]
                         self._plot_fft_comparison(
-                            ax_topo, comp_data, denoised_comp,
-                            raw.info["sfreq"], comp_label
+                            ax_topo,
+                            comp_data,
+                            denoised_comp,
+                            raw.info["sfreq"],
+                            comp_label,
                         )
                     else:
                         # Fallback to single FFT if no denoised data
-                        self._plot_fft_single(ax_topo, comp_data, raw.info["sfreq"], comp_label)
+                        self._plot_fft_single(
+                            ax_topo, comp_data, raw.info["sfreq"], comp_label
+                        )
                 else:
                     ax_topo.text(
                         0.5,
@@ -938,12 +1012,16 @@ class ComponentDisplayWidget(QWidget):
 
         # Compute FFT for both signals
         n = len(original_data)
-        freq = np.fft.rfftfreq(n, 1/sfreq)
+        freq = np.fft.rfftfreq(n, 1 / sfreq)
 
         # Use Welch's method for smoother PSD estimate
         nperseg = min(1024, n // 4)
-        freq_orig, psd_orig = scipy_signal.welch(original_data, fs=sfreq, nperseg=nperseg)
-        freq_clean, psd_clean = scipy_signal.welch(denoised_data, fs=sfreq, nperseg=nperseg)
+        freq_orig, psd_orig = scipy_signal.welch(
+            original_data, fs=sfreq, nperseg=nperseg
+        )
+        freq_clean, psd_clean = scipy_signal.welch(
+            denoised_data, fs=sfreq, nperseg=nperseg
+        )
 
         # Limit frequency range to 0-50 Hz (typical EEG range)
         max_freq = min(50, sfreq / 2)
@@ -951,14 +1029,20 @@ class ComponentDisplayWidget(QWidget):
 
         # Plot both spectra
         ax.semilogy(
-            freq_orig[freq_mask], psd_orig[freq_mask],
+            freq_orig[freq_mask],
+            psd_orig[freq_mask],
             color=self.theme.get("danger", "#e74c3c"),
-            linewidth=1, alpha=0.8, label="Original"
+            linewidth=1,
+            alpha=0.8,
+            label="Original",
         )
         ax.semilogy(
-            freq_clean[freq_mask], psd_clean[freq_mask],
+            freq_clean[freq_mask],
+            psd_clean[freq_mask],
             color=self.theme.get("success", "#27ae60"),
-            linewidth=1, alpha=0.8, label="Cleaned"
+            linewidth=1,
+            alpha=0.8,
+            label="Cleaned",
         )
 
         ax.set_xlabel("Frequency (Hz)", fontsize=7)
@@ -966,7 +1050,7 @@ class ComponentDisplayWidget(QWidget):
         ax.set_title(f"{label} - FFT", fontsize=9, color=self.theme["text"])
         ax.legend(loc="upper right", fontsize=6)
         ax.grid(True, alpha=0.3)
-        ax.tick_params(axis='both', labelsize=6)
+        ax.tick_params(axis="both", labelsize=6)
         ax.set_xlim(0, max_freq)
 
     def _plot_fft_single(self, ax, data, sfreq, label):
@@ -990,26 +1074,48 @@ class ComponentDisplayWidget(QWidget):
         freq_mask = freq <= max_freq
 
         ax.semilogy(
-            freq[freq_mask], psd[freq_mask],
+            freq[freq_mask],
+            psd[freq_mask],
             color=self.theme.get("primary", "#007AFF"),
-            linewidth=1
+            linewidth=1,
         )
 
         ax.set_xlabel("Frequency (Hz)", fontsize=7)
         ax.set_ylabel("PSD", fontsize=7)
         ax.set_title(f"{label} - FFT", fontsize=9, color=self.theme["text"])
         ax.grid(True, alpha=0.3)
-        ax.tick_params(axis='both', labelsize=6)
+        ax.tick_params(axis="both", labelsize=6)
         ax.set_xlim(0, max_freq)
 
 
 class ICAComponentSelector(QWidget):
-    """Component selector widget that works for both ICA and PCA analysis"""
+    """
+    Component selector widget for ICA, PCA, and Wavelet analysis.
+
+    Provides an interactive UI for selecting components to remove during
+    artifact cleaning. Supports multiple analysis methods and displays
+    real-time preview of cleaning results.
+
+    Attributes:
+        components_selected: Signal emitted when component selection is confirmed.
+            Emits list of selected component indices.
+        back_requested: Signal emitted when user wants to return to previous screen.
+
+    Args:
+        theme: Dictionary containing UI color scheme.
+        parent: Optional parent widget.
+
+    Example:
+        >>> selector = ICAComponentSelector(theme)
+        >>> selector.set_ica_data(ica, raw, suggested, info, explanations)
+        >>> selector.components_selected.connect(on_components_selected)
+    """
 
     components_selected = pyqtSignal(list)
     back_requested = pyqtSignal()  # Signal emitted when user wants to go back
 
     def __init__(self, theme: Dict[str, str], parent=None):
+        """Initialize the component selector with theme and default state."""
         super().__init__(parent)
         self.theme = theme
         self.ica = None  # Can be ICA object or None for PCA
@@ -1033,6 +1139,7 @@ class ICAComponentSelector(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
+        """Set up the user interface components and layout."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
@@ -1356,7 +1463,9 @@ class ICAComponentSelector(QWidget):
         if analysis_method == "WAVELETS":
             self.title_label.setText("🌊 Wavelet Denoising - All Channels (Automatic)")
         else:
-            self.title_label.setText(f"🔍 Select {analysis_method} Components for Removal")
+            self.title_label.setText(
+                f"🔍 Select {analysis_method} Components for Removal"
+            )
 
         # Clear existing components
         while self.components_layout.count():
@@ -1545,9 +1654,7 @@ class ICAComponentSelector(QWidget):
 
         # Create new dialog window (pop-up)
         dialog = QDialog(self)
-        dialog.setWindowTitle(
-            f"Detailed Analysis of {comp_label}"
-        )
+        dialog.setWindowTitle(f"Detailed Analysis of {comp_label}")
         dialog.setMinimumSize(1000, 800)  # Larger window for extra plot
         dialog_layout = QVBoxLayout(dialog)
 
@@ -1628,18 +1735,53 @@ class ICAComponentSelector(QWidget):
                 # For Wavelet - show info panel instead
                 if self.analysis_method == "WAVELETS":
                     # Get wavelet info if available
-                    wavelet_info = getattr(self.processor, "get_wavelet_info", lambda: {})()
-                    ax2.text(0.5, 0.7, f"🌊 Wavelet Denoising", ha="center", va="center",
-                            fontsize=14, fontweight="bold")
-                    ax2.text(0.5, 0.5, f"Channel: {ch_name}", ha="center", va="center", fontsize=12)
+                    wavelet_info = getattr(
+                        self.processor, "get_wavelet_info", lambda: {}
+                    )()
+                    ax2.text(
+                        0.5,
+                        0.7,
+                        f"🌊 Wavelet Denoising",
+                        ha="center",
+                        va="center",
+                        fontsize=14,
+                        fontweight="bold",
+                    )
+                    ax2.text(
+                        0.5,
+                        0.5,
+                        f"Channel: {ch_name}",
+                        ha="center",
+                        va="center",
+                        fontsize=12,
+                    )
                     if wavelet_info:
-                        ax2.text(0.5, 0.35, f"Wavelet: {wavelet_info.get('wavelet', 'N/A')}",
-                                ha="center", va="center", fontsize=10)
-                        ax2.text(0.5, 0.22, f"Level: {wavelet_info.get('level', 'N/A')}",
-                                ha="center", va="center", fontsize=10)
+                        ax2.text(
+                            0.5,
+                            0.35,
+                            f"Wavelet: {wavelet_info.get('wavelet', 'N/A')}",
+                            ha="center",
+                            va="center",
+                            fontsize=10,
+                        )
+                        ax2.text(
+                            0.5,
+                            0.22,
+                            f"Level: {wavelet_info.get('level', 'N/A')}",
+                            ha="center",
+                            va="center",
+                            fontsize=10,
+                        )
                     ax2.set_title(f"{comp_label} {component_idx} - Info")
                 else:
-                    ax2.text(0.5, 0.5, "No spatial data", ha="center", va="center", fontsize=10)
+                    ax2.text(
+                        0.5,
+                        0.5,
+                        "No spatial data",
+                        ha="center",
+                        va="center",
+                        fontsize=10,
+                    )
                     ax2.set_title(f"{comp_label} {component_idx}")
                 ax2.set_xticks([])
                 ax2.set_yticks([])

@@ -801,7 +801,9 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 f"Unable to load file for channel selection:\n{str(e)}",
             )
 
-    def on_channels_selected(self, selected_channels, analysis_method="ICA", wavelet_params=None):
+    def on_channels_selected(
+        self, selected_channels, analysis_method="ICA", wavelet_params=None
+    ):
         """
         Handle channel selection and show signal preview screen
 
@@ -816,13 +818,13 @@ class EEGArtifactCleanerGUI(QMainWindow):
         """
         if wavelet_params is None:
             wavelet_params = {"level": 5, "wavelet": "db4", "threshold_mode": "soft"}
-        
+
         self.selected_channels = selected_channels
         self.analysis_method = analysis_method
         self.wavelet_params = wavelet_params  # Store wavelet params
         # Set the analysis method in the service
         self.service.set_analysis_method(analysis_method)
-        
+
         # If using wavelets, set the wavelet parameters
         if analysis_method == "WAVELETS":
             self.service.set_wavelet_params(

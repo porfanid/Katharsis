@@ -37,7 +37,9 @@ class AnalysisMethodSelector(QWidget):
     method_changed = pyqtSignal(str)  # Emits "ICA", "PCA", or "WAVELETS"
     wavelet_level_changed = pyqtSignal(int)  # Emits wavelet level (1-10)
     wavelet_family_changed = pyqtSignal(str)  # Emits wavelet family (e.g., 'db4')
-    wavelet_threshold_mode_changed = pyqtSignal(str)  # Emits threshold mode ('soft' or 'hard')
+    wavelet_threshold_mode_changed = pyqtSignal(
+        str
+    )  # Emits threshold mode ('soft' or 'hard')
 
     # Method definitions with icons, names, and descriptions
     METHODS = {
@@ -100,7 +102,9 @@ class AnalysisMethodSelector(QWidget):
             btn.setFixedHeight(44)
             btn.setMinimumWidth(100)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.clicked.connect(lambda checked, m=method_key: self._on_method_clicked(m))
+            btn.clicked.connect(
+                lambda checked, m=method_key: self._on_method_clicked(m)
+            )
             self._buttons[method_key] = btn
             buttons_layout.addWidget(btn)
 
@@ -145,7 +149,9 @@ class AnalysisMethodSelector(QWidget):
 
         level_hint = QLabel("(1-10)")
         level_hint.setFont(QFont("Arial", 9))
-        level_hint.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;")
+        level_hint.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;"
+        )
         row1_layout.addWidget(level_hint)
 
         row1_layout.addSpacing(20)
@@ -222,7 +228,9 @@ class AnalysisMethodSelector(QWidget):
 
         threshold_hint = QLabel("(soft=smoother denoising, hard=sharper cutoff)")
         threshold_hint.setFont(QFont("Arial", 9))
-        threshold_hint.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;")
+        threshold_hint.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;"
+        )
         row2_layout.addWidget(threshold_hint)
 
         row2_layout.addStretch()
@@ -521,15 +529,19 @@ class ChannelSelectorWidget(QWidget):
         # Method selector buttons (ICA, PCA, Wavelet)
         self.method_selector = AnalysisMethodSelector(self.theme)
         self.method_selector.method_changed.connect(self._on_method_changed)
-        self.method_selector.wavelet_level_changed.connect(self._on_wavelet_level_changed)
-        self.method_selector.wavelet_family_changed.connect(self._on_wavelet_family_changed)
-        self.method_selector.wavelet_threshold_mode_changed.connect(self._on_threshold_mode_changed)
+        self.method_selector.wavelet_level_changed.connect(
+            self._on_wavelet_level_changed
+        )
+        self.method_selector.wavelet_family_changed.connect(
+            self._on_wavelet_family_changed
+        )
+        self.method_selector.wavelet_threshold_mode_changed.connect(
+            self._on_threshold_mode_changed
+        )
         method_layout.addWidget(self.method_selector)
 
         # Method description label
-        self.method_info_label = QLabel(
-            self.method_selector.get_method_description()
-        )
+        self.method_info_label = QLabel(self.method_selector.get_method_description())
         self.method_info_label.setFont(QFont("Arial", 10))
         self.method_info_label.setStyleSheet(
             f"color: {self.theme['text_light']}; font-style: italic;"
@@ -921,7 +933,9 @@ class ChannelSelectorWidget(QWidget):
                 "wavelet": self.wavelet_family,
                 "threshold_mode": self.threshold_mode,
             }
-            self.channels_selected.emit(selected_channels, self.analysis_method, wavelet_params)
+            self.channels_selected.emit(
+                selected_channels, self.analysis_method, wavelet_params
+            )
 
     def _on_method_changed(self, method: str):
         """Handle analysis method change"""

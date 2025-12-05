@@ -332,7 +332,9 @@ class ArtifactDetector:
 
     def detect_artifacts_multi_method(
         self,
-        processor: Union[ICAProcessor, PCAProcessor, WaveletProcessor, BaseComponentProcessor],
+        processor: Union[
+            ICAProcessor, PCAProcessor, WaveletProcessor, BaseComponentProcessor
+        ],
         raw: mne.io.Raw,
         max_components: int = 3,
     ) -> Tuple[List[int], Dict[str, List[int]]]:

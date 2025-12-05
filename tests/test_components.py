@@ -61,6 +61,8 @@ class TestICAComponentSelector:
         self.mock_raw.info = {"sfreq": 128.0}
         self.mock_raw.times = np.linspace(0, 10, 1280)
         self.mock_raw.ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+        # Mock annotations with empty list (supports len() and iteration)
+        self.mock_raw.annotations = []
 
         # Mock ICA sources
         mock_sources = Mock()
@@ -361,6 +363,8 @@ class TestComponentIntegration:
         mock_raw.info = {"sfreq": 128.0}
         mock_raw.times = np.linspace(0, 10, 1280)
         mock_raw.ch_names = ["AF3", "AF4", "T7", "T8", "Pz"]
+        # Mock annotations with empty list (supports len() and iteration)
+        mock_raw.annotations = []
 
         mock_sources = Mock()
         mock_sources.get_data.return_value = np.random.randn(2, 1280)
