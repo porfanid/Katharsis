@@ -718,13 +718,13 @@ class ComponentDisplayWidget(QWidget):
 
     def plot_component_generic(self, processor, raw, is_artifact, method="PCA"):
         """
-        Plot component using generic processor (works for PCA)
+        Plot component using generic processor (works for PCA and Wavelets)
 
         Args:
-            processor: Component processor (PCAProcessor or similar)
+            processor: Component processor (PCAProcessor, WaveletProcessor, or similar)
             raw: Raw EEG data
             is_artifact: Whether this component is suggested as artifact
-            method: Analysis method name ("ICA" or "PCA")
+            method: Analysis method name ("ICA", "PCA", or "WAVELETS")
         """
         try:
             # 1. Time-series plot (left)
@@ -740,7 +740,13 @@ class ComponentDisplayWidget(QWidget):
                 else self.theme.get("success", "#27ae60")
             )
 
-            comp_label = "IC" if method == "ICA" else "PC"
+            # Determine label based on method
+            if method == "ICA":
+                comp_label = "IC"
+            elif method == "WAVELETS":
+                comp_label = "CH"  # Channel for Wavelet (not a component)
+            else:
+                comp_label = "PC"
 
             ax_time.plot(times, comp_data, color=color, linewidth=1)
             ax_time.set_title(
@@ -753,7 +759,7 @@ class ComponentDisplayWidget(QWidget):
             ax_time.set_ylabel("Amplitude", fontsize=8)
             self.timeseries_figure.tight_layout(pad=0.3)
 
-            # 2. Topographic map (right)
+            # 2. Topographic map (right) or info panel for Wavelet
             self.topomap_figure.clear()
             ax_topo = self.topomap_figure.add_subplot(111)
 
@@ -779,19 +785,55 @@ class ComponentDisplayWidget(QWidget):
                     color=self.theme["text"],
                 )
             else:
-                ax_topo.text(
-                    0.5,
-                    0.5,
-                    "No spatial data",
-                    ha="center",
-                    va="center",
-                    fontsize=10,
-                )
+                # No spatial data (Wavelet case) - show info text
+                if method == "WAVELETS":
+                    ch_name = (
+                        raw.ch_names[self.component_idx]
+                        if self.component_idx < len(raw.ch_names)
+                        else f"Channel {self.component_idx}"
+                    )
+                    ax_topo.text(
+                        0.5,
+                        0.6,
+                        f"🌊 Wavelet Denoising",
+                        ha="center",
+                        va="center",
+                        fontsize=11,
+                        fontweight="bold",
+                    )
+                    ax_topo.text(
+                        0.5,
+                        0.4,
+                        f"Channel: {ch_name}",
+                        ha="center",
+                        va="center",
+                        fontsize=10,
+                    )
+                    ax_topo.text(
+                        0.5,
+                        0.25,
+                        "(No spatial components)",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        color="gray",
+                    )
+                else:
+                    ax_topo.text(
+                        0.5,
+                        0.5,
+                        "No spatial data",
+                        ha="center",
+                        va="center",
+                        fontsize=10,
+                    )
                 ax_topo.set_title(
                     f"{comp_label} {self.component_idx}",
                     fontsize=9,
                     color=self.theme["text"],
                 )
+                ax_topo.set_xticks([])
+                ax_topo.set_yticks([])
 
             self.topomap_figure.tight_layout(pad=0.3)
 
@@ -976,7 +1018,12 @@ class ICAComponentSelector(QWidget):
         controls_layout = QVBoxLayout()
 
         # Use appropriate label based on analysis method
-        comp_label = "IC" if self.analysis_method == "ICA" else "PC"
+        if self.analysis_method == "ICA":
+            comp_label = "IC"
+        elif self.analysis_method == "WAVELETS":
+            comp_label = "CH"  # Channel for Wavelet
+        else:
+            comp_label = "PC"
         checkbox = QCheckBox(f" {comp_label} {i}")
         checkbox.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         checkbox.setChecked(is_artifact)
@@ -1212,7 +1259,7 @@ class ICAComponentSelector(QWidget):
         Creates a spectrogram plot for the specific component.
         The spectrogram is ideal for detecting muscle artifacts that
         appear as short bursts of energy across a wide frequency range.
-        Works for both ICA and PCA.
+        Works for ICA, PCA, and Wavelets.
         """
         try:
             from scipy import signal
@@ -1226,7 +1273,12 @@ class ICAComponentSelector(QWidget):
                 return None
 
             component_data = sources[component_idx]
-            comp_label = "IC" if self.analysis_method == "ICA" else "PC"
+            if self.analysis_method == "ICA":
+                comp_label = "IC"
+            elif self.analysis_method == "WAVELETS":
+                comp_label = "CH"
+            else:
+                comp_label = "PC"
 
             # Parameters for spectrogram
             fs = self.raw.info["sfreq"]  # Sampling frequency
@@ -1309,7 +1361,7 @@ class ICAComponentSelector(QWidget):
         """
         Creates and displays a new window with the component properties.
         Includes topography, PSD and Spectrogram for full analysis.
-        Works for both ICA and PCA analysis.
+        Works for ICA, PCA, and Wavelets analysis.
         """
         # Check we have data to work with
         if not self.raw:
@@ -1317,10 +1369,15 @@ class ICAComponentSelector(QWidget):
         if not self.ica and not self.processor:
             return
 
-        comp_label = "IC" if self.analysis_method == "ICA" else "PC"
+        if self.analysis_method == "ICA":
+            comp_label = "IC"
+        elif self.analysis_method == "WAVELETS":
+            comp_label = "CH"
+        else:
+            comp_label = "PC"
 
         # For ICA, use MNE's built-in plot_properties
-        # For PCA, create custom plots
+        # For PCA and Wavelets, create custom plots
         if self.ica is not None:
             # MNE creates the plots. show=False is critical
             # to get the figures instead of displaying them directly.
@@ -1329,8 +1386,8 @@ class ICAComponentSelector(QWidget):
             )
 
         else:
-            # For PCA, create custom property plots
-            figures = self._create_pca_property_plots(component_idx)
+            # For PCA and Wavelets, create custom property plots
+            figures = self._create_generic_property_plots(component_idx)
 
         # Create spectrogram plot
         spectrogram_fig = self._create_spectrogram_plot(component_idx)
@@ -1338,13 +1395,13 @@ class ICAComponentSelector(QWidget):
         # Create new dialog window (pop-up)
         dialog = QDialog(self)
         dialog.setWindowTitle(
-            f"Detailed Analysis of Component {comp_label} {component_idx}"
+            f"Detailed Analysis of {comp_label} {component_idx}"
         )
         dialog.setMinimumSize(1000, 800)  # Larger window for extra plot
         dialog_layout = QVBoxLayout(dialog)
 
         # Add title
-        title_label = QLabel(f"🔬 Component {comp_label} {component_idx} Analysis")
+        title_label = QLabel(f"🔬 {comp_label} {component_idx} Analysis")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setStyleSheet(
             f"color: {self.theme['text']}; margin: 10px; text-align: center;"
@@ -1364,9 +1421,9 @@ class ICAComponentSelector(QWidget):
         # Show the window
         dialog.exec()
 
-    def _create_pca_property_plots(self, component_idx):
+    def _create_generic_property_plots(self, component_idx):
         """
-        Create property plots for PCA components (similar to ICA's plot_properties)
+        Create property plots for PCA and Wavelet components.
         """
         figures = []
 
@@ -1378,7 +1435,19 @@ class ICAComponentSelector(QWidget):
             comp_data = sources[component_idx]
             sfreq = self.raw.info["sfreq"]
 
-            # Figure 1: Time series and topomap
+            # Determine label based on method
+            if self.analysis_method == "WAVELETS":
+                comp_label = "CH"
+                ch_name = (
+                    self.raw.ch_names[component_idx]
+                    if component_idx < len(self.raw.ch_names)
+                    else f"Channel {component_idx}"
+                )
+            else:
+                comp_label = "PC"
+                ch_name = None
+
+            # Figure 1: Time series and topomap (or info for Wavelet)
             fig1 = Figure(figsize=(10, 4), dpi=100)
 
             # Time series
@@ -1387,10 +1456,10 @@ class ICAComponentSelector(QWidget):
             ax1.plot(times, comp_data, linewidth=0.5)
             ax1.set_xlabel("Time (s)")
             ax1.set_ylabel("Amplitude")
-            ax1.set_title(f"PC {component_idx} - Time Series")
+            ax1.set_title(f"{comp_label} {component_idx} - Time Series")
             ax1.grid(True, alpha=0.3)
 
-            # Topomap
+            # Topomap (or info panel for Wavelet)
             ax2 = fig1.add_subplot(122)
             components = self.processor.get_components()
             if components is not None:
@@ -1403,7 +1472,26 @@ class ICAComponentSelector(QWidget):
                     show=False,
                     cmap="RdBu_r",
                 )
-                ax2.set_title(f"PC {component_idx} - Topomap")
+                ax2.set_title(f"{comp_label} {component_idx} - Topomap")
+            else:
+                # For Wavelet - show info panel instead
+                if self.analysis_method == "WAVELETS":
+                    # Get wavelet info if available
+                    wavelet_info = getattr(self.processor, "get_wavelet_info", lambda: {})()
+                    ax2.text(0.5, 0.7, f"🌊 Wavelet Denoising", ha="center", va="center",
+                            fontsize=14, fontweight="bold")
+                    ax2.text(0.5, 0.5, f"Channel: {ch_name}", ha="center", va="center", fontsize=12)
+                    if wavelet_info:
+                        ax2.text(0.5, 0.35, f"Wavelet: {wavelet_info.get('wavelet', 'N/A')}",
+                                ha="center", va="center", fontsize=10)
+                        ax2.text(0.5, 0.22, f"Level: {wavelet_info.get('level', 'N/A')}",
+                                ha="center", va="center", fontsize=10)
+                    ax2.set_title(f"{comp_label} {component_idx} - Info")
+                else:
+                    ax2.text(0.5, 0.5, "No spatial data", ha="center", va="center", fontsize=10)
+                    ax2.set_title(f"{comp_label} {component_idx}")
+                ax2.set_xticks([])
+                ax2.set_yticks([])
 
             fig1.tight_layout()
             figures.append(fig1)
@@ -1418,7 +1506,7 @@ class ICAComponentSelector(QWidget):
             ax3.semilogy(freqs, psd)
             ax3.set_xlabel("Frequency (Hz)")
             ax3.set_ylabel("Power Spectral Density")
-            ax3.set_title(f"PC {component_idx} - Power Spectrum")
+            ax3.set_title(f"{comp_label} {component_idx} - Power Spectrum")
             ax3.set_xlim(0, min(50, sfreq / 2))
             ax3.grid(True, alpha=0.3)
 

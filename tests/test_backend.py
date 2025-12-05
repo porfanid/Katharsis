@@ -24,6 +24,7 @@ from backend import (
     EEGPreprocessor,
     ICAProcessor,
     PCAProcessor,
+    WaveletProcessor,
 )
 
 
@@ -698,6 +699,302 @@ class TestEEGArtifactCleaningServicePCA(unittest.TestCase):
         summary = self.service.get_processing_summary()
         self.assertIn("analysis_method", summary)
         self.assertEqual(summary["analysis_method"], "PCA")
+
+
+class TestWaveletProcessor(unittest.TestCase):
+    """Tests for WaveletProcessor"""
+
+    def setUp(self):
+        """Prepare test data"""
+        self.wavelet_processor = WaveletProcessor(wavelet="db4", level=4)
+
+        # Create test raw data with noise
+        sfreq = 128.0
+        duration = 10.0
+        n_samples = int(sfreq * duration)
+        ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        # Create signal with known noise
+        time = np.linspace(0, duration, n_samples)
+
+        # Clean signal: alpha rhythm (10 Hz)
+        clean_signal = np.sin(2 * np.pi * 10 * time)
+
+        # Add noise
+        noise = 0.5 * np.random.randn(n_samples)
+
+        # Create mixed signals for each channel
+        data = np.zeros((len(ch_names), n_samples))
+        for i in range(len(ch_names)):
+            data[i] = (clean_signal + noise) * 1e-5
+
+        info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(data, info)
+
+    def test_fit_wavelet_success(self):
+        """Test successful Wavelet fitting"""
+        success = self.wavelet_processor.fit(self.test_raw)
+
+        self.assertTrue(success)
+        self.assertEqual(self.wavelet_processor.n_components, len(self.test_raw.ch_names))
+        self.assertEqual(len(self.wavelet_processor.components_info), 5)
+
+    def test_get_sources_data(self):
+        """Test Wavelet source data retrieval (returns channel data)"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        sources = self.wavelet_processor.get_sources_data()
+        self.assertIsInstance(sources, np.ndarray)
+        self.assertEqual(sources.shape[0], len(self.test_raw.ch_names))
+        self.assertEqual(sources.shape[1], len(self.test_raw.times))
+
+    def test_get_components_returns_none(self):
+        """Test that get_components returns None for Wavelet"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        components = self.wavelet_processor.get_components()
+        self.assertIsNone(components)
+
+    def test_apply_artifact_removal(self):
+        """Test Wavelet denoising application"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        # Apply denoising (components_to_remove is ignored for Wavelet)
+        cleaned_raw = self.wavelet_processor.apply_artifact_removal([])
+
+        self.assertIsInstance(cleaned_raw, mne.io.BaseRaw)
+        self.assertEqual(len(cleaned_raw.ch_names), len(self.test_raw.ch_names))
+
+        # Data should be different after denoising
+        orig_data = self.test_raw.get_data()
+        clean_data = cleaned_raw.get_data()
+        self.assertFalse(np.array_equal(orig_data, clean_data))
+
+    def test_denoising_reduces_noise(self):
+        """Test that Wavelet denoising reduces noise (lower RMS)"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        cleaned_raw = self.wavelet_processor.apply_artifact_removal([])
+
+        # Calculate RMS of original and cleaned signals
+        orig_rms = np.sqrt(np.mean(self.test_raw.get_data() ** 2))
+        clean_rms = np.sqrt(np.mean(cleaned_raw.get_data() ** 2))
+
+        # Denoised signal should have lower or similar RMS (noise removed)
+        # Allow some tolerance since we're removing noise
+        self.assertLessEqual(clean_rms, orig_rms * 1.1)
+
+    def test_get_method_name(self):
+        """Test method name"""
+        self.assertEqual(self.wavelet_processor.get_method_name(), "WAVELETS")
+
+    def test_get_wavelet_info(self):
+        """Test wavelet info retrieval"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        info = self.wavelet_processor.get_wavelet_info()
+        self.assertIn("wavelet", info)
+        self.assertIn("level", info)
+        self.assertIn("threshold_mode", info)
+        self.assertEqual(info["wavelet"], "db4")
+        self.assertEqual(info["threshold_mode"], "soft")
+
+    def test_set_wavelet_params(self):
+        """Test wavelet parameter update"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        # Change wavelet parameters
+        self.wavelet_processor.set_wavelet_params(
+            wavelet="sym8", level=3, threshold_mode="hard"
+        )
+
+        info = self.wavelet_processor.get_wavelet_info()
+        self.assertEqual(info["wavelet"], "sym8")
+        self.assertEqual(info["level"], 3)
+        self.assertEqual(info["threshold_mode"], "hard")
+
+    def test_get_noise_reduction_stats(self):
+        """Test noise reduction statistics"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        stats = self.wavelet_processor.get_noise_reduction_stats()
+        self.assertIsInstance(stats, dict)
+        self.assertIn("original_rms", stats)
+        self.assertIn("denoised_rms", stats)
+        self.assertIn("noise_rms", stats)
+        self.assertIn("rms_reduction_percent", stats)
+        self.assertIn("estimated_snr_improvement_db", stats)
+
+    def test_get_available_wavelets(self):
+        """Test available wavelets list"""
+        wavelets = WaveletProcessor.get_available_wavelets()
+        self.assertIsInstance(wavelets, list)
+        self.assertIn("db4", wavelets)
+        self.assertIn("sym8", wavelets)
+
+    def test_component_info(self):
+        """Test component info retrieval"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        info = self.wavelet_processor.get_component_info(0)
+        self.assertIsInstance(info, dict)
+
+        expected_keys = [
+            "variance",
+            "kurtosis",
+            "range",
+            "std",
+            "mean",
+            "rms",
+            "skewness",
+        ]
+        for key in expected_keys:
+            self.assertIn(key, info)
+
+    def test_channels_timepoints_preserved(self):
+        """Test that channel count and timepoints are preserved"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        cleaned_raw = self.wavelet_processor.apply_artifact_removal([])
+
+        # Channel count should be the same
+        self.assertEqual(len(cleaned_raw.ch_names), len(self.test_raw.ch_names))
+
+        # Timepoints should be the same
+        self.assertEqual(cleaned_raw.n_times, self.test_raw.n_times)
+
+
+class TestWaveletArtifactDetection(unittest.TestCase):
+    """Tests for Wavelet artifact detection (should be automatic)"""
+
+    def setUp(self):
+        """Prepare test data"""
+        self.detector = ArtifactDetector()
+        self.wavelet_processor = WaveletProcessor()
+
+        # Create test data
+        sfreq = 128.0
+        duration = 10.0
+        n_samples = int(sfreq * duration)
+        ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        data = np.random.randn(len(ch_names), n_samples) * 1e-5
+
+        info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types="eeg")
+        self.test_raw = mne.io.RawArray(data, info)
+
+        # Fit Wavelet
+        self.wavelet_processor.fit(self.test_raw)
+
+    def test_detect_artifacts_returns_empty(self):
+        """Test that artifact detection returns empty for Wavelet"""
+        artifacts, methods_results = self.detector.detect_artifacts_multi_method(
+            self.wavelet_processor, self.test_raw
+        )
+
+        # Should return empty artifacts list (Wavelet denoising is automatic)
+        self.assertEqual(len(artifacts), 0)
+        self.assertIn("wavelet_auto", methods_results)
+
+    def test_artifact_explanation_for_wavelet(self):
+        """Test artifact explanation for Wavelet"""
+        _, methods_results = self.detector.detect_artifacts_multi_method(
+            self.wavelet_processor, self.test_raw
+        )
+
+        explanation = self.detector.get_artifact_explanation(0, methods_results)
+        self.assertIn("Wavelet", explanation)
+
+
+class TestEEGArtifactCleaningServiceWavelet(unittest.TestCase):
+    """Tests for EEGArtifactCleaningService with Wavelet"""
+
+    def setUp(self):
+        """Prepare test data"""
+        self.service = EEGArtifactCleaningService(analysis_method="WAVELETS")
+
+        # Create test EDF file
+        sfreq = 128.0
+        duration = 10.0
+        n_samples = int(sfreq * duration)
+        ch_names = ["AF3", "T7", "Pz", "T8", "AF4"]
+
+        data = np.random.randn(len(ch_names), n_samples) * 1e-5
+        info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types="eeg")
+        test_raw = mne.io.RawArray(data, info)
+
+        # Create temporary EDF file
+        self.temp_edf = tempfile.NamedTemporaryFile(suffix=".edf", delete=False)
+        self.temp_edf_path = self.temp_edf.name
+        self.temp_edf.close()
+
+        test_raw.export(self.temp_edf_path, fmt="edf", overwrite=True, verbose=False)
+
+    def tearDown(self):
+        """Cleanup after tests"""
+        if os.path.exists(self.temp_edf_path):
+            os.unlink(self.temp_edf_path)
+
+    def test_wavelet_processing_pipeline(self):
+        """Test full pipeline processing with Wavelet"""
+        # Load file
+        load_result = self.service.load_and_prepare_file(self.temp_edf_path)
+        self.assertTrue(load_result["success"])
+
+        # Fit Wavelet
+        wavelet_result = self.service.fit_wavelet_analysis()
+        self.assertTrue(wavelet_result["success"])
+        self.assertEqual(wavelet_result.get("method"), "WAVELETS")
+
+        # Detect artifacts (should be empty for Wavelet)
+        detect_result = self.service.detect_artifacts()
+        self.assertTrue(detect_result["success"])
+
+        # Apply cleaning (empty list is fine for Wavelet)
+        clean_result = self.service.apply_artifact_removal([])
+        self.assertTrue(clean_result["success"])
+
+        # Check visualization data
+        viz_data = self.service.get_component_visualization_data()
+        self.assertIsNotNone(viz_data)
+        self.assertEqual(viz_data.get("analysis_method"), "WAVELETS")
+        self.assertIn("wavelet_info", viz_data)
+        self.assertIn("noise_reduction_stats", viz_data)
+
+    def test_service_with_wavelets_method(self):
+        """Test service can be created with WAVELETS method"""
+        service = EEGArtifactCleaningService(analysis_method="WAVELETS")
+        self.assertEqual(service.analysis_method, "WAVELETS")
+        self.assertIsInstance(service.component_processor, WaveletProcessor)
+
+    def test_switch_to_wavelets(self):
+        """Test switching analysis method to WAVELETS"""
+        # Start with ICA
+        service = EEGArtifactCleaningService(analysis_method="ICA")
+        self.assertEqual(service.analysis_method, "ICA")
+
+        # Switch to WAVELETS
+        service.set_analysis_method("WAVELETS")
+        self.assertEqual(service.analysis_method, "WAVELETS")
+        self.assertIsInstance(service.component_processor, WaveletProcessor)
+
+    def test_set_wavelet_params_on_service(self):
+        """Test setting wavelet parameters on the service"""
+        self.service.set_wavelet_params(wavelet="sym8", level=3, threshold_mode="hard")
+
+        # Verify params are set
+        processor = self.service.component_processor
+        if isinstance(processor, WaveletProcessor):
+            info = processor.get_wavelet_info()
+            self.assertEqual(info["wavelet"], "sym8")
+            self.assertEqual(info["level"], 3)
+            self.assertEqual(info["threshold_mode"], "hard")
+
+    def test_processing_summary_includes_wavelets_method(self):
+        """Test that processing summary includes WAVELETS method"""
+        summary = self.service.get_processing_summary()
+        self.assertIn("analysis_method", summary)
+        self.assertEqual(summary["analysis_method"], "WAVELETS")
 
 
 class TestMultiFormatImportExport(unittest.TestCase):
