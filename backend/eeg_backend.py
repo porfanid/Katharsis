@@ -824,7 +824,7 @@ class SignalEditor:
         """
         import numpy as np
 
-        phases = []
+        phases: List[Dict[str, Any]] = []
 
         # Check for marker channels
         marker_channels = ["MarkerValueInt", "MarkerIndex", "Marker", "MARKER"]
@@ -1131,7 +1131,7 @@ class SignalEditor:
         Returns:
             List of annotation dictionaries within the time range
         """
-        annotations = []
+        annotations: List[Dict[str, Any]] = []
 
         if not raw.annotations or len(raw.annotations) == 0:
             return annotations

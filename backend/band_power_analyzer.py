@@ -247,9 +247,9 @@ class BandPowerAnalyzer:
             all_powers.append(powers)
 
         # Average across channels
-        avg_powers = {}
+        avg_powers: Dict[str, float] = {}
         for band in self.bands:
-            avg_powers[band] = np.mean([p[band] for p in all_powers])
+            avg_powers[band] = float(np.mean([p[band] for p in all_powers]))
 
         return avg_powers
 
