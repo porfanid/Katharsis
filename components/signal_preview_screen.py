@@ -471,7 +471,7 @@ class ElectrodeSignalWidget(QWidget):
         comparison_layout.setSpacing(5)
 
         # Range 1 (Eyes Closed/Blue) - compact
-        range1_group = QGroupBox("😌 Eyes Closed (Blue)")
+        range1_group = QGroupBox("Eyes Closed (Blue)")
         range1_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -537,7 +537,7 @@ class ElectrodeSignalWidget(QWidget):
         comparison_layout.addWidget(range1_group)
 
         # Range 2 (Eyes Open/Orange) - compact
-        range2_group = QGroupBox("👁️ Eyes Open (Orange)")
+        range2_group = QGroupBox("Eyes Open (Orange)")
         range2_group.setStyleSheet(
             f"""
             QGroupBox {{
