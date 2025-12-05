@@ -801,7 +801,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 f"Unable to load file for channel selection:\n{str(e)}",
             )
 
-    def on_channels_selected(self, selected_channels, analysis_method="ICA", wavelet_level=5):
+    def on_channels_selected(self, selected_channels, analysis_method="ICA", wavelet_params=None):
         """
         Handle channel selection and show signal preview screen
 
@@ -812,17 +812,24 @@ class EEGArtifactCleanerGUI(QMainWindow):
         Args:
             selected_channels (List[str]): List of selected channels
             analysis_method (str): Analysis method ("ICA", "PCA", or "WAVELETS")
-            wavelet_level (int): Wavelet decomposition level (1-10)
+            wavelet_params (dict): Wavelet parameters (level, wavelet, threshold_mode)
         """
+        if wavelet_params is None:
+            wavelet_params = {"level": 5, "wavelet": "db4", "threshold_mode": "soft"}
+        
         self.selected_channels = selected_channels
         self.analysis_method = analysis_method
-        self.wavelet_level = wavelet_level  # Store wavelet level
+        self.wavelet_params = wavelet_params  # Store wavelet params
         # Set the analysis method in the service
         self.service.set_analysis_method(analysis_method)
         
-        # If using wavelets, set the wavelet level
+        # If using wavelets, set the wavelet parameters
         if analysis_method == "WAVELETS":
-            self.service.set_wavelet_params(level=wavelet_level)
+            self.service.set_wavelet_params(
+                level=wavelet_params.get("level", 5),
+                wavelet=wavelet_params.get("wavelet", "db4"),
+                threshold_mode=wavelet_params.get("threshold_mode", "soft"),
+            )
 
         # Load the raw data with selected channels for preview
         try:

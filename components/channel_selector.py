@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -30,11 +31,13 @@ class AnalysisMethodSelector(QWidget):
     """
     Analysis method selector widget for ICA/PCA/Wavelet selection.
     Displays three buttons for method selection with descriptions.
-    Includes wavelet-specific settings (level) when Wavelet is selected.
+    Includes wavelet-specific settings (level, family, threshold mode) when Wavelet is selected.
     """
 
     method_changed = pyqtSignal(str)  # Emits "ICA", "PCA", or "WAVELETS"
     wavelet_level_changed = pyqtSignal(int)  # Emits wavelet level (1-10)
+    wavelet_family_changed = pyqtSignal(str)  # Emits wavelet family (e.g., 'db4')
+    wavelet_threshold_mode_changed = pyqtSignal(str)  # Emits threshold mode ('soft' or 'hard')
 
     # Method definitions with icons, names, and descriptions
     METHODS = {
@@ -55,12 +58,30 @@ class AnalysisMethodSelector(QWidget):
         },
     }
 
+    # Available wavelet families with display names
+    WAVELET_FAMILIES = {
+        "db4": "Daubechies 4 (db4)",
+        "db8": "Daubechies 8 (db8)",
+        "sym4": "Symlet 4 (sym4)",
+        "sym8": "Symlet 8 (sym8)",
+        "coif3": "Coiflet 3 (coif3)",
+        "bior3.5": "Biorthogonal 3.5 (bior3.5)",
+    }
+
+    # Threshold modes
+    THRESHOLD_MODES = {
+        "soft": "Soft (smoother)",
+        "hard": "Hard (sharper)",
+    }
+
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
         self.theme = theme
         self._selected_method = "ICA"  # Default method
         self._buttons: Dict[str, QPushButton] = {}
         self._wavelet_level = 5  # Default wavelet level
+        self._wavelet_family = "db4"  # Default wavelet family
+        self._threshold_mode = "soft"  # Default threshold mode
         self._setup_ui()
 
     def _setup_ui(self):
@@ -87,14 +108,19 @@ class AnalysisMethodSelector(QWidget):
 
         # Wavelet settings (visible only when Wavelet is selected)
         self._wavelet_settings = QWidget()
-        wavelet_layout = QHBoxLayout(self._wavelet_settings)
-        wavelet_layout.setContentsMargins(0, 5, 0, 0)
-        wavelet_layout.setSpacing(10)
+        wavelet_main_layout = QVBoxLayout(self._wavelet_settings)
+        wavelet_main_layout.setContentsMargins(0, 5, 0, 0)
+        wavelet_main_layout.setSpacing(8)
 
-        level_label = QLabel("🔧 Decomposition Level:")
+        # First row: Level and Wavelet Family
+        row1_layout = QHBoxLayout()
+        row1_layout.setSpacing(15)
+
+        # Level control
+        level_label = QLabel("🔧 Level:")
         level_label.setFont(QFont("Arial", 10))
         level_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
-        wavelet_layout.addWidget(level_label)
+        row1_layout.addWidget(level_label)
 
         self._level_spinbox = QSpinBox()
         self._level_spinbox.setRange(1, 10)
@@ -115,14 +141,93 @@ class AnalysisMethodSelector(QWidget):
             """
         )
         self._level_spinbox.valueChanged.connect(self._on_level_changed)
-        wavelet_layout.addWidget(self._level_spinbox)
+        row1_layout.addWidget(self._level_spinbox)
 
-        level_hint = QLabel("(1=subtle, 10=aggressive)")
+        level_hint = QLabel("(1-10)")
         level_hint.setFont(QFont("Arial", 9))
         level_hint.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;")
-        wavelet_layout.addWidget(level_hint)
+        row1_layout.addWidget(level_hint)
 
-        wavelet_layout.addStretch()
+        row1_layout.addSpacing(20)
+
+        # Wavelet Family selector
+        family_label = QLabel("🌊 Wavelet:")
+        family_label.setFont(QFont("Arial", 10))
+        family_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        row1_layout.addWidget(family_label)
+
+        self._family_combo = QComboBox()
+        self._family_combo.setFont(QFont("Arial", 10))
+        self._family_combo.setMinimumWidth(150)
+        for key, display_name in self.WAVELET_FAMILIES.items():
+            self._family_combo.addItem(display_name, key)
+        self._family_combo.setCurrentIndex(0)  # Default to db4
+        self._family_combo.setStyleSheet(
+            f"""
+            QComboBox {{
+                padding: 5px 10px;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                background-color: white;
+            }}
+            QComboBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                padding-right: 10px;
+            }}
+            """
+        )
+        self._family_combo.currentIndexChanged.connect(self._on_family_changed)
+        row1_layout.addWidget(self._family_combo)
+
+        row1_layout.addStretch()
+        wavelet_main_layout.addLayout(row1_layout)
+
+        # Second row: Threshold Mode
+        row2_layout = QHBoxLayout()
+        row2_layout.setSpacing(15)
+
+        threshold_label = QLabel("⚙️ Threshold:")
+        threshold_label.setFont(QFont("Arial", 10))
+        threshold_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        row2_layout.addWidget(threshold_label)
+
+        self._threshold_combo = QComboBox()
+        self._threshold_combo.setFont(QFont("Arial", 10))
+        self._threshold_combo.setMinimumWidth(130)
+        for key, display_name in self.THRESHOLD_MODES.items():
+            self._threshold_combo.addItem(display_name, key)
+        self._threshold_combo.setCurrentIndex(0)  # Default to soft
+        self._threshold_combo.setStyleSheet(
+            f"""
+            QComboBox {{
+                padding: 5px 10px;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                background-color: white;
+            }}
+            QComboBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                padding-right: 10px;
+            }}
+            """
+        )
+        self._threshold_combo.currentIndexChanged.connect(self._on_threshold_changed)
+        row2_layout.addWidget(self._threshold_combo)
+
+        threshold_hint = QLabel("(soft=smoother denoising, hard=sharper cutoff)")
+        threshold_hint.setFont(QFont("Arial", 9))
+        threshold_hint.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;")
+        row2_layout.addWidget(threshold_hint)
+
+        row2_layout.addStretch()
+        wavelet_main_layout.addLayout(row2_layout)
+
         main_layout.addWidget(self._wavelet_settings)
 
         # Initially hide wavelet settings
@@ -186,6 +291,16 @@ class AnalysisMethodSelector(QWidget):
         self._wavelet_level = value
         self.wavelet_level_changed.emit(value)
 
+    def _on_family_changed(self, index: int):
+        """Handle wavelet family change."""
+        self._wavelet_family = self._family_combo.currentData()
+        self.wavelet_family_changed.emit(self._wavelet_family)
+
+    def _on_threshold_changed(self, index: int):
+        """Handle threshold mode change."""
+        self._threshold_mode = self._threshold_combo.currentData()
+        self.wavelet_threshold_mode_changed.emit(self._threshold_mode)
+
     def get_selected_method(self) -> str:
         """Get the currently selected method."""
         return self._selected_method
@@ -193,6 +308,14 @@ class AnalysisMethodSelector(QWidget):
     def get_wavelet_level(self) -> int:
         """Get the current wavelet decomposition level."""
         return self._wavelet_level
+
+    def get_wavelet_family(self) -> str:
+        """Get the current wavelet family."""
+        return self._wavelet_family
+
+    def get_threshold_mode(self) -> str:
+        """Get the current threshold mode."""
+        return self._threshold_mode
 
     def set_selected_method(self, method: str):
         """Set the selected method programmatically."""
@@ -328,8 +451,8 @@ All available channels:
 class ChannelSelectorWidget(QWidget):
     """Main channel selection widget with analysis method selection"""
 
-    # Emits tuple of (selected channel names, analysis method, wavelet_level)
-    channels_selected = pyqtSignal(list, str, int)
+    # Emits tuple of (selected channel names, analysis method, wavelet_params dict)
+    channels_selected = pyqtSignal(list, str, dict)
 
     def __init__(self, theme: Dict[str, str]):
         super().__init__()
@@ -341,6 +464,8 @@ class ChannelSelectorWidget(QWidget):
         self.raw_data = None
         self.analysis_method = "ICA"  # Default to ICA
         self.wavelet_level = 5  # Default wavelet level
+        self.wavelet_family = "db4"  # Default wavelet family
+        self.threshold_mode = "soft"  # Default threshold mode
 
         self.setup_ui()
 
@@ -397,6 +522,8 @@ class ChannelSelectorWidget(QWidget):
         self.method_selector = AnalysisMethodSelector(self.theme)
         self.method_selector.method_changed.connect(self._on_method_changed)
         self.method_selector.wavelet_level_changed.connect(self._on_wavelet_level_changed)
+        self.method_selector.wavelet_family_changed.connect(self._on_wavelet_family_changed)
+        self.method_selector.wavelet_threshold_mode_changed.connect(self._on_threshold_mode_changed)
         method_layout.addWidget(self.method_selector)
 
         # Method description label
@@ -789,7 +916,12 @@ class ChannelSelectorWidget(QWidget):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.channels_selected.emit(selected_channels, self.analysis_method, self.wavelet_level)
+            wavelet_params = {
+                "level": self.wavelet_level,
+                "wavelet": self.wavelet_family,
+                "threshold_mode": self.threshold_mode,
+            }
+            self.channels_selected.emit(selected_channels, self.analysis_method, wavelet_params)
 
     def _on_method_changed(self, method: str):
         """Handle analysis method change"""
@@ -802,6 +934,14 @@ class ChannelSelectorWidget(QWidget):
         """Handle wavelet level change"""
         self.wavelet_level = level
 
+    def _on_wavelet_family_changed(self, family: str):
+        """Handle wavelet family change"""
+        self.wavelet_family = family
+
+    def _on_threshold_mode_changed(self, mode: str):
+        """Handle threshold mode change"""
+        self.threshold_mode = mode
+
     def get_analysis_method(self) -> str:
         """Get the selected analysis method"""
         return self.analysis_method
@@ -809,3 +949,11 @@ class ChannelSelectorWidget(QWidget):
     def get_wavelet_level(self) -> int:
         """Get the selected wavelet decomposition level"""
         return self.wavelet_level
+
+    def get_wavelet_family(self) -> str:
+        """Get the selected wavelet family"""
+        return self.wavelet_family
+
+    def get_threshold_mode(self) -> str:
+        """Get the selected threshold mode"""
+        return self.threshold_mode
