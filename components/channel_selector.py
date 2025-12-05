@@ -5,8 +5,8 @@ Channel Selector Component - Interactive channel selection interface
 
 from typing import Any, Dict, List
 
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -25,140 +25,122 @@ from PyQt6.QtWidgets import (
 )
 
 
-class ToggleSwitch(QWidget):
+class AnalysisMethodSelector(QWidget):
     """
-    Custom toggle switch widget for ICA/PCA selection
-    A modern-looking animated toggle switch
+    Analysis method selector widget for ICA/PCA/Wavelet selection.
+    Displays three buttons for method selection with descriptions.
     """
 
-    toggled = pyqtSignal(bool)  # True = PCA, False = ICA
+    method_changed = pyqtSignal(str)  # Emits "ICA", "PCA", or "WAVELETS"
+
+    # Method definitions with icons, names, and descriptions
+    METHODS = {
+        "ICA": {
+            "icon": "🧠",
+            "name": "ICA",
+            "description": "Best for detecting eye blinks and muscle artifacts",
+        },
+        "PCA": {
+            "icon": "📊",
+            "name": "PCA",
+            "description": "Faster, ideal for quick preliminary analysis",
+        },
+        "WAVELETS": {
+            "icon": "🌊",
+            "name": "Wavelet",
+            "description": "Best for low-channel systems (≤8 channels)",
+        },
+    }
 
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
         self.theme = theme
-        self._is_checked = False  # False = ICA (left), True = PCA (right)
-        self._handle_position = 3  # Starting position
+        self._selected_method = "ICA"  # Default method
+        self._buttons: Dict[str, QPushButton] = {}
+        self._setup_ui()
 
-        # Size settings
-        self.setFixedSize(180, 44)
+    def _setup_ui(self):
+        """Create the method selector UI."""
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-        # Animation for smooth toggle
-        self._animation = QPropertyAnimation(self, b"handle_position")
-        self._animation.setDuration(200)
-        self._animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        for method_key, method_info in self.METHODS.items():
+            btn = QPushButton(f"{method_info['icon']} {method_info['name']}")
+            btn.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+            btn.setFixedHeight(44)
+            btn.setMinimumWidth(100)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda checked, m=method_key: self._on_method_clicked(m))
+            self._buttons[method_key] = btn
+            layout.addWidget(btn)
 
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Update button styles for initial selection
+        self._update_button_styles()
 
-    @property
-    def handle_position(self):
-        return self._handle_position
+    def _update_button_styles(self):
+        """Update button styles based on current selection."""
+        primary_color = self.theme.get("primary", "#007AFF")
 
-    @handle_position.setter
-    def handle_position(self, pos):
-        self._handle_position = pos
-        self.update()
+        for method_key, btn in self._buttons.items():
+            if method_key == self._selected_method:
+                # Selected style
+                btn.setStyleSheet(
+                    f"""
+                    QPushButton {{
+                        background-color: {primary_color};
+                        color: white;
+                        border: 2px solid {primary_color};
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {primary_color};
+                    }}
+                    """
+                )
+            else:
+                # Unselected style
+                btn.setStyleSheet(
+                    f"""
+                    QPushButton {{
+                        background-color: #e9ecef;
+                        color: #6c757d;
+                        border: 2px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: #d4e6f1;
+                        border-color: {primary_color};
+                        color: {self.theme.get('text', '#212529')};
+                    }}
+                    """
+                )
 
-    def isChecked(self):
-        return self._is_checked
+    def _on_method_clicked(self, method: str):
+        """Handle method button click."""
+        if method != self._selected_method:
+            self._selected_method = method
+            self._update_button_styles()
+            self.method_changed.emit(method)
 
-    def setChecked(self, checked: bool):
-        if self._is_checked != checked:
-            self._is_checked = checked
-            self._animate_toggle()
-            self.toggled.emit(checked)
+    def get_selected_method(self) -> str:
+        """Get the currently selected method."""
+        return self._selected_method
 
-    def _animate_toggle(self):
-        self._animation.stop()
-        if self._is_checked:
-            # Move to PCA (right)
-            self._animation.setStartValue(self._handle_position)
-            self._animation.setEndValue(self.width() // 2 + 3)
-        else:
-            # Move to ICA (left)
-            self._animation.setStartValue(self._handle_position)
-            self._animation.setEndValue(3)
-        self._animation.start()
+    def set_selected_method(self, method: str):
+        """Set the selected method programmatically."""
+        if method in self.METHODS and method != self._selected_method:
+            self._selected_method = method
+            self._update_button_styles()
+            self.method_changed.emit(method)
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.setChecked(not self._is_checked)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Colors
-        primary_color = QColor(self.theme.get("primary", "#007AFF"))
-        secondary_color = QColor("#6c757d")
-        bg_color = QColor("#e9ecef")
-        handle_color = QColor("white")
-
-        # Draw background track
-        track_rect = QRect(0, 0, self.width(), self.height())
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(bg_color))
-        painter.drawRoundedRect(track_rect, 22, 22)
-
-        # Draw left side (ICA) background
-        left_rect = QRect(0, 0, self.width() // 2, self.height())
-        if not self._is_checked:
-            painter.setBrush(QBrush(primary_color))
-        else:
-            painter.setBrush(QBrush(secondary_color.lighter(130)))
-        painter.drawRoundedRect(left_rect, 22, 22)
-        # Fix the right edge of left side
-        painter.drawRect(QRect(self.width() // 2 - 22, 0, 22, self.height()))
-
-        # Draw right side (PCA) background
-        right_rect = QRect(self.width() // 2, 0, self.width() // 2, self.height())
-        if self._is_checked:
-            painter.setBrush(QBrush(primary_color))
-        else:
-            painter.setBrush(QBrush(secondary_color.lighter(130)))
-        painter.drawRoundedRect(right_rect, 22, 22)
-        # Fix the left edge of right side
-        painter.drawRect(QRect(self.width() // 2, 0, 22, self.height()))
-
-        # Draw labels
-        painter.setPen(
-            QPen(QColor("white") if not self._is_checked else QColor("#6c757d"))
-        )
-        painter.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        painter.drawText(
-            QRect(5, 0, self.width() // 2 - 5, self.height()),
-            Qt.AlignmentFlag.AlignCenter,
-            "ICA",
-        )
-
-        painter.setPen(QPen(QColor("white") if self._is_checked else QColor("#6c757d")))
-        painter.drawText(
-            QRect(self.width() // 2, 0, self.width() // 2 - 5, self.height()),
-            Qt.AlignmentFlag.AlignCenter,
-            "PCA",
-        )
-
-        # Draw handle (sliding circle)
-        handle_width = self.width() // 2 - 6
-        handle_height = self.height() - 6
-        handle_rect = QRect(int(self._handle_position), 3, handle_width, handle_height)
-
-        # Handle shadow
-        shadow_rect = QRect(
-            int(self._handle_position) + 2, 5, handle_width, handle_height
-        )
-        painter.setBrush(QBrush(QColor(0, 0, 0, 30)))
-        painter.drawRoundedRect(shadow_rect, 19, 19)
-
-        # Handle
-        painter.setBrush(QBrush(handle_color))
-        painter.setPen(QPen(QColor("#dee2e6"), 1))
-        painter.drawRoundedRect(handle_rect, 19, 19)
-
-        # Handle label
-        handle_text = "🧠 ICA" if not self._is_checked else "📊 PCA"
-        painter.setPen(QPen(primary_color))
-        painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        painter.drawText(handle_rect, Qt.AlignmentFlag.AlignCenter, handle_text)
+    def get_method_description(self, method: str = None) -> str:
+        """Get the description for a method."""
+        if method is None:
+            method = self._selected_method
+        return self.METHODS.get(method, {}).get("description", "")
 
 
 class ChannelCheckBox(QCheckBox):
@@ -320,7 +302,7 @@ class ChannelSelectorWidget(QWidget):
         )
         main_layout.addWidget(self.description)
 
-        # Analysis Method Selector (ICA/PCA toggle)
+        # Analysis Method Selector (ICA/PCA/Wavelet)
         method_group = QGroupBox("🔬 Analysis Method")
         method_group.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         method_group.setStyleSheet(
@@ -342,31 +324,17 @@ class ChannelSelectorWidget(QWidget):
             }}
         """
         )
-        method_layout = QHBoxLayout(method_group)
-        method_layout.setSpacing(20)
+        method_layout = QVBoxLayout(method_group)
+        method_layout.setSpacing(10)
 
-        # ICA label
-        ica_label = QLabel("🧠 ICA")
-        ica_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        ica_label.setStyleSheet(f"color: {self.theme['text']};")
-        method_layout.addWidget(ica_label)
-
-        # Custom toggle switch for ICA/PCA selection
-        self.method_toggle = ToggleSwitch(self.theme)
-        self.method_toggle.toggled.connect(self._on_toggle_changed)
-        method_layout.addWidget(self.method_toggle)
-
-        # PCA label
-        pca_label = QLabel("📊 PCA")
-        pca_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        pca_label.setStyleSheet(f"color: {self.theme['text']};")
-        method_layout.addWidget(pca_label)
-
-        method_layout.addStretch()
+        # Method selector buttons (ICA, PCA, Wavelet)
+        self.method_selector = AnalysisMethodSelector(self.theme)
+        self.method_selector.method_changed.connect(self._on_method_changed)
+        method_layout.addWidget(self.method_selector)
 
         # Method description label
         self.method_info_label = QLabel(
-            "ICA: Best for detecting eye blinks and muscle artifacts"
+            self.method_selector.get_method_description()
         )
         self.method_info_label.setFont(QFont("Arial", 10))
         self.method_info_label.setStyleSheet(
@@ -756,18 +724,12 @@ class ChannelSelectorWidget(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             self.channels_selected.emit(selected_channels, self.analysis_method)
 
-    def _on_toggle_changed(self, is_pca: bool):
-        """Handle analysis method toggle change"""
-        if is_pca:
-            self.analysis_method = "PCA"
-            self.method_info_label.setText(
-                "PCA: Faster, ideal for quick preliminary analysis"
-            )
-        else:
-            self.analysis_method = "ICA"
-            self.method_info_label.setText(
-                "ICA: Best for detecting eye blinks and muscle artifacts"
-            )
+    def _on_method_changed(self, method: str):
+        """Handle analysis method change"""
+        self.analysis_method = method
+        self.method_info_label.setText(
+            self.method_selector.get_method_description(method)
+        )
 
     def get_analysis_method(self) -> str:
         """Get the selected analysis method"""
