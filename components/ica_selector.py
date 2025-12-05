@@ -2,7 +2,7 @@
 """
 ICA Component Selector Widget - v4.0 - Correct Event Bubbling for Scrolling
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -105,8 +105,11 @@ class PreviewWidget(QWidget):
         self.channel_names = []
         self.update_callback = None  # Callback for preview update
         self.band_power_analyzer = None  # Will be set on first use
-        self.eyes_open_range = None  # (start, end) tuple for Eyes Open annotation
-        self.eyes_closed_range = None  # (start, end) tuple for Eyes Closed annotation
+        # Range 1 is Eyes Closed (displayed first)
+        # Range 2 is Eyes Open (displayed second)
+        self.range1 = None  # (start, end) tuple for Range 1 (Eyes Closed)
+        self.range2 = None  # (start, end) tuple for Range 2 (Eyes Open)
+        self._custom_ranges_set = False  # Track if custom ranges were set
         self._max_time = 100.0
         self._view_window = 10.0  # View window in seconds
         self._view_start = 0.0  # Current view start position
@@ -245,17 +248,17 @@ class PreviewWidget(QWidget):
         band_power_layout = QVBoxLayout()
         band_power_layout.setSpacing(5)
 
-        # Eyes Open band power widget
-        self.band_power_widget_eyes_open = BandPowerComparisonWidget(self.theme)
-        self.band_power_widget_eyes_open.setMinimumWidth(250)
-        self.band_power_widget_eyes_open.setMaximumWidth(320)
-        band_power_layout.addWidget(self.band_power_widget_eyes_open)
+        # Range 1 band power widget (typically Eyes Closed - displayed first)
+        self.band_power_widget_range1 = BandPowerComparisonWidget(self.theme)
+        self.band_power_widget_range1.setMinimumWidth(250)
+        self.band_power_widget_range1.setMaximumWidth(320)
+        band_power_layout.addWidget(self.band_power_widget_range1)
 
-        # Eyes Closed band power widget
-        self.band_power_widget_eyes_closed = BandPowerComparisonWidget(self.theme)
-        self.band_power_widget_eyes_closed.setMinimumWidth(250)
-        self.band_power_widget_eyes_closed.setMaximumWidth(320)
-        band_power_layout.addWidget(self.band_power_widget_eyes_closed)
+        # Range 2 band power widget (typically Eyes Open - displayed second)
+        self.band_power_widget_range2 = BandPowerComparisonWidget(self.theme)
+        self.band_power_widget_range2.setMinimumWidth(250)
+        self.band_power_widget_range2.setMaximumWidth(320)
+        band_power_layout.addWidget(self.band_power_widget_range2)
 
         content_layout.addLayout(band_power_layout, stretch=1)
 
@@ -295,38 +298,78 @@ class PreviewWidget(QWidget):
         self.duration_label.setText(f"/ {self._max_time:.1f}s")
         self.timeline.set_max_time(self._max_time)
 
-        # Extract Eyes Open and Eyes Closed annotation time ranges
-        self.eyes_open_range = None
-        self.eyes_closed_range = None
-        annotations_list = []
+        # Only extract from annotations if custom ranges weren't set
+        if not self._custom_ranges_set:
+            # Extract Eyes Closed and Eyes Open annotation time ranges
+            # Range 1 = Eyes Closed (first), Range 2 = Eyes Open (second)
+            self.range1 = None  # Eyes Closed
+            self.range2 = None  # Eyes Open
+            annotations_list = []
 
-        if raw.annotations and len(raw.annotations) > 0:
-            for annot in raw.annotations:
-                desc_lower = annot["description"].lower()
-                onset = float(annot["onset"])
-                duration = float(annot["duration"])
-                end_time = onset + duration
+            if raw.annotations and len(raw.annotations) > 0:
+                for annot in raw.annotations:
+                    desc_lower = annot["description"].lower()
+                    onset = float(annot["onset"])
+                    duration = float(annot["duration"])
+                    end_time = onset + duration
 
-                # Add to annotations list for timeline display
-                annotations_list.append({
-                    "onset": onset,
-                    "duration": duration,
-                    "description": annot["description"],
-                })
+                    # Add to annotations list for timeline display
+                    annotations_list.append({
+                        "onset": onset,
+                        "duration": duration,
+                        "description": annot["description"],
+                    })
 
-                if "eyes open" in desc_lower or "open" in desc_lower:
-                    if self.eyes_open_range is None:
-                        self.eyes_open_range = (onset, end_time)
-                elif "eyes closed" in desc_lower or "closed" in desc_lower:
-                    if self.eyes_closed_range is None:
-                        self.eyes_closed_range = (onset, end_time)
+                    # Eyes Closed goes to Range 1 (displayed first)
+                    if "eyes closed" in desc_lower or "closed" in desc_lower:
+                        if self.range1 is None:
+                            self.range1 = (onset, end_time)
+                    # Eyes Open goes to Range 2 (displayed second)
+                    elif "eyes open" in desc_lower or "open" in desc_lower:
+                        if self.range2 is None:
+                            self.range2 = (onset, end_time)
 
-        # Set annotations on timeline
-        self.timeline.set_annotations(annotations_list)
+            # Set annotations on timeline
+            self.timeline.set_annotations(annotations_list)
+        else:
+            # Custom ranges are set, just update timeline with annotations
+            annotations_list = []
+            if raw.annotations and len(raw.annotations) > 0:
+                for annot in raw.annotations:
+                    annotations_list.append({
+                        "onset": float(annot["onset"]),
+                        "duration": float(annot["duration"]),
+                        "description": annot["description"],
+                    })
+            self.timeline.set_annotations(annotations_list)
 
         # Update view window if needed
         if self.view_combo.currentText() == "Full":
             self._view_window = self._max_time
+
+    def set_frequency_ranges(self, frequency_ranges: Dict[str, Tuple[float, float]]):
+        """
+        Set custom frequency analysis ranges from the preview screen.
+
+        Args:
+            frequency_ranges: Dictionary with 'range1' and 'range2' keys,
+                             each containing (start, end) tuples.
+                             Range 1 = Eyes Closed (displayed first)
+                             Range 2 = Eyes Open (displayed second)
+        """
+        if not frequency_ranges:
+            return
+
+        if "range1" in frequency_ranges:
+            self.range1 = frequency_ranges["range1"]
+        if "range2" in frequency_ranges:
+            self.range2 = frequency_ranges["range2"]
+
+        self._custom_ranges_set = True
+
+        # If we have data, update the displays
+        if self._original_raw is not None:
+            self._update_band_power_displays()
 
     def _on_channel_changed(self, index):
         """Called when channel selection changes"""
@@ -474,77 +517,81 @@ class PreviewWidget(QWidget):
             self.show_error_plot(str(e))
 
     def _update_band_power_displays(self):
-        """Update the band power comparison displays for Eyes Open and Eyes Closed"""
+        """Update the band power comparison displays for Range 1 and Range 2.
+
+        Range 1 = Eyes Closed (displayed first)
+        Range 2 = Eyes Open (displayed second)
+        """
         if self._original_raw is None:
-            self.band_power_widget_eyes_open.clear()
-            self.band_power_widget_eyes_closed.clear()
+            self.band_power_widget_range1.clear()
+            self.band_power_widget_range2.clear()
             return
 
         channel_idx = self.selected_channel_idx
 
-        # Compute and display band power comparison for Eyes Open
+        # Compute and display band power comparison for Range 1 (Eyes Closed)
         try:
-            if self.eyes_open_range is not None:
-                tmin_eo, tmax_eo = self.eyes_open_range
-                original_powers_eo = (
+            if self.range1 is not None:
+                tmin_r1, tmax_r1 = self.range1
+                original_powers_r1 = (
                     self.band_power_analyzer.compute_band_power_for_raw(
                         self._original_raw,
                         channel_idx=channel_idx,
-                        tmin=tmin_eo,
-                        tmax=tmax_eo,
+                        tmin=tmin_r1,
+                        tmax=tmax_r1,
                     )
                 )
                 if self._cleaned_raw is not None:
-                    cleaned_powers_eo = (
+                    cleaned_powers_r1 = (
                         self.band_power_analyzer.compute_band_power_for_raw(
                             self._cleaned_raw,
                             channel_idx=channel_idx,
-                            tmin=tmin_eo,
-                            tmax=tmax_eo,
+                            tmin=tmin_r1,
+                            tmax=tmax_r1,
                         )
                     )
                 else:
-                    cleaned_powers_eo = original_powers_eo
-                self.band_power_widget_eyes_open.update_comparison(
-                    original_powers_eo, cleaned_powers_eo, title="👁️ Eyes Open"
+                    cleaned_powers_r1 = original_powers_r1
+                self.band_power_widget_range1.update_comparison(
+                    original_powers_r1, cleaned_powers_r1, title="😌 Eyes Closed"
                 )
             else:
-                self.band_power_widget_eyes_open.clear()
+                self.band_power_widget_range1.clear()
         except Exception as bp_error:
-            print(f"Error computing Eyes Open band power: {bp_error}")
-            self.band_power_widget_eyes_open.clear()
+            print(f"Error computing Range 1 (Eyes Closed) band power: {bp_error}")
+            self.band_power_widget_range1.clear()
 
-        # Compute and display band power comparison for Eyes Closed
+        # Compute and display band power comparison for Range 2 (Eyes Open)
         try:
-            if self.eyes_closed_range is not None:
-                tmin_ec, tmax_ec = self.eyes_closed_range
-                original_powers_ec = (
+            if self.range2 is not None:
+                tmin_r2, tmax_r2 = self.range2
+                original_powers_r2 = (
                     self.band_power_analyzer.compute_band_power_for_raw(
                         self._original_raw,
                         channel_idx=channel_idx,
-                        tmin=tmin_ec,
-                        tmax=tmax_ec,
+                        tmin=tmin_r2,
+                        tmax=tmax_r2,
                     )
                 )
                 if self._cleaned_raw is not None:
-                    cleaned_powers_ec = (
+                    cleaned_powers_r2 = (
                         self.band_power_analyzer.compute_band_power_for_raw(
                             self._cleaned_raw,
                             channel_idx=channel_idx,
-                            tmin=tmin_ec,
-                            tmax=tmax_ec,
+                            tmin=tmin_r2,
+                            tmax=tmax_r2,
                         )
                     )
                 else:
-                    cleaned_powers_ec = original_powers_ec
-                self.band_power_widget_eyes_closed.update_comparison(
-                    original_powers_ec, cleaned_powers_ec, title="😌 Eyes Closed"
+                    cleaned_powers_r2 = original_powers_r2
+                self.band_power_widget_range2.update_comparison(
+                    original_powers_r2, cleaned_powers_r2, title="👁️ Eyes Open"
                 )
             else:
-                self.band_power_widget_eyes_closed.clear()
+                self.band_power_widget_range2.clear()
         except Exception as bp_error:
-            print(f"Error computing Eyes Closed band power: {bp_error}")
-            self.band_power_widget_eyes_closed.clear()
+            print(f"Error computing Range 2 (Eyes Open) band power: {bp_error}")
+            self.band_power_widget_range2.clear()
 
     def show_error_plot(self, error_msg: str):
         """Display error message"""
@@ -1142,6 +1189,23 @@ class ICAComponentSelector(QWidget):
         # Update initial preview with suggested components
         if self.suggested_artifacts:
             self._start_preview_update()
+
+    def set_frequency_ranges(self, frequency_ranges: Dict[str, Tuple[float, float]]):
+        """
+        Set custom frequency analysis ranges from the preview screen.
+
+        This method delegates to the preview widget to preserve user's
+        custom frequency band analysis ranges when transitioning from
+        the signal preview screen to the ICA/PCA component selector.
+
+        Args:
+            frequency_ranges: Dictionary with 'range1' and 'range2' keys,
+                             each containing (start, end) tuples.
+                             Range 1 = Eyes Closed (displayed first)
+                             Range 2 = Eyes Open (displayed second)
+        """
+        if frequency_ranges and self.preview_widget:
+            self.preview_widget.set_frequency_ranges(frequency_ranges)
 
     def _create_spectrogram_plot(self, component_idx):
         """

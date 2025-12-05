@@ -470,8 +470,8 @@ class ElectrodeSignalWidget(QWidget):
         comparison_layout = QHBoxLayout()
         comparison_layout.setSpacing(5)
 
-        # Range 1 (Original/Left) - compact
-        range1_group = QGroupBox("Range 1 (Blue)")
+        # Range 1 (Eyes Closed/Blue) - compact
+        range1_group = QGroupBox("Eyes Closed (Blue)")
         range1_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -536,8 +536,8 @@ class ElectrodeSignalWidget(QWidget):
 
         comparison_layout.addWidget(range1_group)
 
-        # Range 2 (Comparison/Right) - compact
-        range2_group = QGroupBox("Range 2 (Orange)")
+        # Range 2 (Eyes Open/Orange) - compact
+        range2_group = QGroupBox("Eyes Open (Orange)")
         range2_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -714,7 +714,9 @@ class ElectrodeSignalWidget(QWidget):
                 ]
                 self.cut_timeline.set_annotations(annotations_list)
 
-                # Set default frequency ranges to "Eyes Open" and "Eyes Closed" annotations
+                # Set default frequency ranges to "Eyes Closed" and "Eyes Open" annotations
+                # Range 1 (Blue) = Eyes Closed (displayed first in ICA selector)
+                # Range 2 (Orange) = Eyes Open (displayed second in ICA selector)
                 eyes_open_annot = None
                 eyes_closed_annot = None
                 for annot in annotations_list:
@@ -727,15 +729,16 @@ class ElectrodeSignalWidget(QWidget):
                             eyes_closed_annot = annot
 
                 # Update frequency analysis ranges based on annotations
-                if eyes_open_annot is not None:
-                    self.freq_start1_spin.setValue(int(eyes_open_annot["onset"]))
-                    self.freq_end1_spin.setValue(
-                        int(eyes_open_annot["onset"] + eyes_open_annot["duration"])
-                    )
+                # Range 1 = Eyes Closed (first), Range 2 = Eyes Open (second)
                 if eyes_closed_annot is not None:
-                    self.freq_start2_spin.setValue(int(eyes_closed_annot["onset"]))
-                    self.freq_end2_spin.setValue(
+                    self.freq_start1_spin.setValue(int(eyes_closed_annot["onset"]))
+                    self.freq_end1_spin.setValue(
                         int(eyes_closed_annot["onset"] + eyes_closed_annot["duration"])
+                    )
+                if eyes_open_annot is not None:
+                    self.freq_start2_spin.setValue(int(eyes_open_annot["onset"]))
+                    self.freq_end2_spin.setValue(
+                        int(eyes_open_annot["onset"] + eyes_open_annot["duration"])
                     )
             else:
                 self.cut_timeline.set_annotations([])
@@ -1222,7 +1225,7 @@ class SignalPreviewScreen(QWidget):
         return_to_channels: Emitted when user wants to go back to channel selection
     """
 
-    proceed_to_processing = pyqtSignal(object)  # Emits modified raw data
+    proceed_to_processing = pyqtSignal(object, dict)  # Emits (raw data, frequency_ranges)
     signal_modified = pyqtSignal(object)  # Emits modified raw data
     return_to_channels = pyqtSignal()
 
@@ -1790,7 +1793,33 @@ class SignalPreviewScreen(QWidget):
     def _on_continue(self):
         """Continue to processing with current signal."""
         if self._raw_data is not None:
-            self.proceed_to_processing.emit(self._raw_data)
+            # Get frequency ranges from the first electrode widget
+            frequency_ranges = self.get_frequency_ranges()
+            self.proceed_to_processing.emit(self._raw_data, frequency_ranges)
+
+    def get_frequency_ranges(self) -> Dict[str, Tuple[float, float]]:
+        """
+        Get the current frequency analysis ranges from the first electrode widget.
+
+        Returns:
+            Dictionary with 'range1' and 'range2' keys containing (start, end) tuples.
+            Returns empty dict if no electrode widgets exist.
+        """
+        if not self._electrode_widgets:
+            return {}
+
+        # Get the first electrode widget (all electrodes share same time ranges)
+        first_widget = next(iter(self._electrode_widgets.values()))
+
+        range1_start = first_widget.freq_start1_spin.value()
+        range1_end = first_widget.freq_end1_spin.value()
+        range2_start = first_widget.freq_start2_spin.value()
+        range2_end = first_widget.freq_end2_spin.value()
+
+        return {
+            "range1": (float(range1_start), float(range1_end)),
+            "range2": (float(range2_start), float(range2_end)),
+        }
 
     def get_current_raw(self) -> Optional[mne.io.Raw]:
         """Get the current (possibly modified) raw data."""
