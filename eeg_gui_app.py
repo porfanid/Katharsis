@@ -801,7 +801,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 f"Unable to load file for channel selection:\n{str(e)}",
             )
 
-    def on_channels_selected(self, selected_channels, analysis_method="ICA"):
+    def on_channels_selected(self, selected_channels, analysis_method="ICA", wavelet_level=5):
         """
         Handle channel selection and show signal preview screen
 
@@ -811,12 +811,18 @@ class EEGArtifactCleanerGUI(QMainWindow):
 
         Args:
             selected_channels (List[str]): List of selected channels
-            analysis_method (str): Analysis method ("ICA" or "PCA")
+            analysis_method (str): Analysis method ("ICA", "PCA", or "WAVELETS")
+            wavelet_level (int): Wavelet decomposition level (1-10)
         """
         self.selected_channels = selected_channels
         self.analysis_method = analysis_method
+        self.wavelet_level = wavelet_level  # Store wavelet level
         # Set the analysis method in the service
         self.service.set_analysis_method(analysis_method)
+        
+        # If using wavelets, set the wavelet level
+        if analysis_method == "WAVELETS":
+            self.service.set_wavelet_params(level=wavelet_level)
 
         # Load the raw data with selected channels for preview
         try:

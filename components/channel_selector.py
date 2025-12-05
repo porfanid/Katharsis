@@ -3,7 +3,7 @@
 Channel Selector Component - Interactive channel selection interface
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QSplitter,
     QTextEdit,
     QVBoxLayout,
@@ -29,9 +30,11 @@ class AnalysisMethodSelector(QWidget):
     """
     Analysis method selector widget for ICA/PCA/Wavelet selection.
     Displays three buttons for method selection with descriptions.
+    Includes wavelet-specific settings (level) when Wavelet is selected.
     """
 
     method_changed = pyqtSignal(str)  # Emits "ICA", "PCA", or "WAVELETS"
+    wavelet_level_changed = pyqtSignal(int)  # Emits wavelet level (1-10)
 
     # Method definitions with icons, names, and descriptions
     METHODS = {
@@ -48,7 +51,7 @@ class AnalysisMethodSelector(QWidget):
         "WAVELETS": {
             "icon": "🌊",
             "name": "Wavelet",
-            "description": "Best for low-channel systems (≤8 channels)",
+            "description": "Best for low-channel systems (≤8 channels). Denoises all channels automatically.",
         },
     }
 
@@ -57,13 +60,18 @@ class AnalysisMethodSelector(QWidget):
         self.theme = theme
         self._selected_method = "ICA"  # Default method
         self._buttons: Dict[str, QPushButton] = {}
+        self._wavelet_level = 5  # Default wavelet level
         self._setup_ui()
 
     def _setup_ui(self):
         """Create the method selector UI."""
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(10)
+
+        # Buttons layout
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(10)
 
         for method_key, method_info in self.METHODS.items():
             btn = QPushButton(f"{method_info['icon']} {method_info['name']}")
@@ -73,7 +81,52 @@ class AnalysisMethodSelector(QWidget):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda checked, m=method_key: self._on_method_clicked(m))
             self._buttons[method_key] = btn
-            layout.addWidget(btn)
+            buttons_layout.addWidget(btn)
+
+        main_layout.addLayout(buttons_layout)
+
+        # Wavelet settings (visible only when Wavelet is selected)
+        self._wavelet_settings = QWidget()
+        wavelet_layout = QHBoxLayout(self._wavelet_settings)
+        wavelet_layout.setContentsMargins(0, 5, 0, 0)
+        wavelet_layout.setSpacing(10)
+
+        level_label = QLabel("🔧 Decomposition Level:")
+        level_label.setFont(QFont("Arial", 10))
+        level_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        wavelet_layout.addWidget(level_label)
+
+        self._level_spinbox = QSpinBox()
+        self._level_spinbox.setRange(1, 10)
+        self._level_spinbox.setValue(self._wavelet_level)
+        self._level_spinbox.setFont(QFont("Arial", 10))
+        self._level_spinbox.setFixedWidth(60)
+        self._level_spinbox.setStyleSheet(
+            f"""
+            QSpinBox {{
+                padding: 5px;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                background-color: white;
+            }}
+            QSpinBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            """
+        )
+        self._level_spinbox.valueChanged.connect(self._on_level_changed)
+        wavelet_layout.addWidget(self._level_spinbox)
+
+        level_hint = QLabel("(1=subtle, 10=aggressive)")
+        level_hint.setFont(QFont("Arial", 9))
+        level_hint.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;")
+        wavelet_layout.addWidget(level_hint)
+
+        wavelet_layout.addStretch()
+        main_layout.addWidget(self._wavelet_settings)
+
+        # Initially hide wavelet settings
+        self._wavelet_settings.setVisible(False)
 
         # Update button styles for initial selection
         self._update_button_styles()
@@ -118,6 +171,9 @@ class AnalysisMethodSelector(QWidget):
                     """
                 )
 
+        # Show/hide wavelet settings
+        self._wavelet_settings.setVisible(self._selected_method == "WAVELETS")
+
     def _on_method_clicked(self, method: str):
         """Handle method button click."""
         if method != self._selected_method:
@@ -125,9 +181,18 @@ class AnalysisMethodSelector(QWidget):
             self._update_button_styles()
             self.method_changed.emit(method)
 
+    def _on_level_changed(self, value: int):
+        """Handle wavelet level change."""
+        self._wavelet_level = value
+        self.wavelet_level_changed.emit(value)
+
     def get_selected_method(self) -> str:
         """Get the currently selected method."""
         return self._selected_method
+
+    def get_wavelet_level(self) -> int:
+        """Get the current wavelet decomposition level."""
+        return self._wavelet_level
 
     def set_selected_method(self, method: str):
         """Set the selected method programmatically."""
@@ -263,8 +328,8 @@ All available channels:
 class ChannelSelectorWidget(QWidget):
     """Main channel selection widget with analysis method selection"""
 
-    # Emits tuple of (selected channel names, analysis method)
-    channels_selected = pyqtSignal(list, str)
+    # Emits tuple of (selected channel names, analysis method, wavelet_level)
+    channels_selected = pyqtSignal(list, str, int)
 
     def __init__(self, theme: Dict[str, str]):
         super().__init__()
@@ -275,6 +340,7 @@ class ChannelSelectorWidget(QWidget):
         self.current_file = ""
         self.raw_data = None
         self.analysis_method = "ICA"  # Default to ICA
+        self.wavelet_level = 5  # Default wavelet level
 
         self.setup_ui()
 
@@ -330,6 +396,7 @@ class ChannelSelectorWidget(QWidget):
         # Method selector buttons (ICA, PCA, Wavelet)
         self.method_selector = AnalysisMethodSelector(self.theme)
         self.method_selector.method_changed.connect(self._on_method_changed)
+        self.method_selector.wavelet_level_changed.connect(self._on_wavelet_level_changed)
         method_layout.addWidget(self.method_selector)
 
         # Method description label
@@ -722,7 +789,7 @@ class ChannelSelectorWidget(QWidget):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.channels_selected.emit(selected_channels, self.analysis_method)
+            self.channels_selected.emit(selected_channels, self.analysis_method, self.wavelet_level)
 
     def _on_method_changed(self, method: str):
         """Handle analysis method change"""
@@ -731,6 +798,14 @@ class ChannelSelectorWidget(QWidget):
             self.method_selector.get_method_description(method)
         )
 
+    def _on_wavelet_level_changed(self, level: int):
+        """Handle wavelet level change"""
+        self.wavelet_level = level
+
     def get_analysis_method(self) -> str:
         """Get the selected analysis method"""
         return self.analysis_method
+
+    def get_wavelet_level(self) -> int:
+        """Get the selected wavelet decomposition level"""
+        return self.wavelet_level

@@ -742,15 +742,19 @@ class ComponentDisplayWidget(QWidget):
 
             # Determine label based on method
             if method == "ICA":
-                comp_label = "IC"
+                comp_label = f"IC {self.component_idx}"
             elif method == "WAVELETS":
-                comp_label = "CH"  # Channel for Wavelet (not a component)
+                # Use actual channel name for Wavelet
+                if raw is not None and self.component_idx < len(raw.ch_names):
+                    comp_label = raw.ch_names[self.component_idx]
+                else:
+                    comp_label = f"CH {self.component_idx}"
             else:
-                comp_label = "PC"
+                comp_label = f"PC {self.component_idx}"
 
             ax_time.plot(times, comp_data, color=color, linewidth=1)
             ax_time.set_title(
-                f"{comp_label} {self.component_idx} - Time Series",
+                f"{comp_label} - Time Series",
                 fontsize=9,
                 color=self.theme["text"],
             )
@@ -780,7 +784,7 @@ class ComponentDisplayWidget(QWidget):
                     sensors=True,
                 )
                 ax_topo.set_title(
-                    f"{comp_label} {self.component_idx} - Topomap",
+                    f"{comp_label} - Topomap",
                     fontsize=9,
                     color=self.theme["text"],
                 )
@@ -812,7 +816,7 @@ class ComponentDisplayWidget(QWidget):
                     ax_topo.text(
                         0.5,
                         0.25,
-                        "(No spatial components)",
+                        "(Auto-denoised)",
                         ha="center",
                         va="center",
                         fontsize=8,
@@ -828,7 +832,7 @@ class ComponentDisplayWidget(QWidget):
                         fontsize=10,
                     )
                 ax_topo.set_title(
-                    f"{comp_label} {self.component_idx}",
+                    f"{comp_label}",
                     fontsize=9,
                     color=self.theme["text"],
                 )
@@ -1019,12 +1023,16 @@ class ICAComponentSelector(QWidget):
 
         # Use appropriate label based on analysis method
         if self.analysis_method == "ICA":
-            comp_label = "IC"
+            comp_label = f"IC {i}"
         elif self.analysis_method == "WAVELETS":
-            comp_label = "CH"  # Channel for Wavelet
+            # For Wavelet, use actual channel names
+            if self.raw is not None and i < len(self.raw.ch_names):
+                comp_label = f"🌊 {self.raw.ch_names[i]}"
+            else:
+                comp_label = f"CH {i}"
         else:
-            comp_label = "PC"
-        checkbox = QCheckBox(f" {comp_label} {i}")
+            comp_label = f"PC {i}"
+        checkbox = QCheckBox(f" {comp_label}")
         checkbox.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         checkbox.setChecked(is_artifact)
         checkbox.setStyleSheet(f"color: {self.theme['text_light']}; border: none;")
@@ -1214,7 +1222,10 @@ class ICAComponentSelector(QWidget):
             self.n_components = 0
 
         # Update title based on method
-        self.title_label.setText(f"🔍 Select {analysis_method} Components for Removal")
+        if analysis_method == "WAVELETS":
+            self.title_label.setText("🌊 Wavelet Denoising - All Channels (Automatic)")
+        else:
+            self.title_label.setText(f"🔍 Select {analysis_method} Components for Removal")
 
         # Clear existing components
         while self.components_layout.count():
@@ -1274,11 +1285,15 @@ class ICAComponentSelector(QWidget):
 
             component_data = sources[component_idx]
             if self.analysis_method == "ICA":
-                comp_label = "IC"
+                comp_label = f"IC {component_idx}"
             elif self.analysis_method == "WAVELETS":
-                comp_label = "CH"
+                # Use actual channel name for Wavelet
+                if self.raw is not None and component_idx < len(self.raw.ch_names):
+                    comp_label = self.raw.ch_names[component_idx]
+                else:
+                    comp_label = f"CH {component_idx}"
             else:
-                comp_label = "PC"
+                comp_label = f"PC {component_idx}"
 
             # Parameters for spectrogram
             fs = self.raw.info["sfreq"]  # Sampling frequency
@@ -1312,7 +1327,7 @@ class ICAComponentSelector(QWidget):
             ax.set_ylabel("Frequency (Hz)", fontsize=10)
             ax.set_xlabel("Time (s)", fontsize=10)
             ax.set_title(
-                f"Spectrogram - {comp_label} {component_idx}\n(Time-Frequency Analysis for Muscle Artifact Detection)",
+                f"Spectrogram - {comp_label}\n(Time-Frequency Analysis for Muscle Artifact Detection)",
                 fontsize=11,
                 color=self.theme.get("text", "#000000"),
             )
@@ -1370,11 +1385,15 @@ class ICAComponentSelector(QWidget):
             return
 
         if self.analysis_method == "ICA":
-            comp_label = "IC"
+            comp_label = f"IC {component_idx}"
         elif self.analysis_method == "WAVELETS":
-            comp_label = "CH"
+            # Use actual channel name for Wavelet
+            if self.raw is not None and component_idx < len(self.raw.ch_names):
+                comp_label = self.raw.ch_names[component_idx]
+            else:
+                comp_label = f"CH {component_idx}"
         else:
-            comp_label = "PC"
+            comp_label = f"PC {component_idx}"
 
         # For ICA, use MNE's built-in plot_properties
         # For PCA and Wavelets, create custom plots
@@ -1395,13 +1414,13 @@ class ICAComponentSelector(QWidget):
         # Create new dialog window (pop-up)
         dialog = QDialog(self)
         dialog.setWindowTitle(
-            f"Detailed Analysis of {comp_label} {component_idx}"
+            f"Detailed Analysis of {comp_label}"
         )
         dialog.setMinimumSize(1000, 800)  # Larger window for extra plot
         dialog_layout = QVBoxLayout(dialog)
 
         # Add title
-        title_label = QLabel(f"🔬 {comp_label} {component_idx} Analysis")
+        title_label = QLabel(f"🔬 {comp_label} Analysis")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setStyleSheet(
             f"color: {self.theme['text']}; margin: 10px; text-align: center;"
