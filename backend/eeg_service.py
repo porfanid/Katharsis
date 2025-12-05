@@ -5,13 +5,13 @@ EEG Artifact Cleaning Service - Central backend service
 
 The central service that unifies all EEG cleaning functions:
 - File loading and processing management
-- ICA or PCA analysis execution
+- ICA, PCA, or Wavelet analysis execution
 - Automatic artifact detection
 - Data cleaning and saving
 - Progress tracking and status updates
 
 Author: porfanid
-Version: 1.1
+Version: 1.2
 """
 
 from typing import Any, Callable, Dict, List, Optional
@@ -23,6 +23,7 @@ from .base_processor import BaseComponentProcessor
 from .eeg_backend import EEGBackendCore
 from .ica_processor import ICAProcessor
 from .pca_processor import PCAProcessor
+from .wavelet_processor import WaveletProcessor
 
 
 class EEGArtifactCleaningService:
@@ -31,19 +32,19 @@ class EEGArtifactCleaningService:
 
     Combines all EEG cleaning functions into a unified service:
     - Data loading and preprocessing
-    - ICA or PCA analysis and model training
+    - ICA, PCA, or Wavelet analysis and model training
     - Automatic artifact detection
     - Cleaning and saving results
     - Progress tracking and callback system
 
     Attributes:
         backend_core (EEGBackendCore): Central backend for I/O and preprocessing
-        component_processor (BaseComponentProcessor): ICA or PCA processor
+        component_processor (BaseComponentProcessor): ICA, PCA, or Wavelet processor
         artifact_detector (ArtifactDetector): Artifact detector
         current_file (str): Current file being processed
         is_processing (bool): Processing state
         analysis_fitted (bool): Whether the model has been trained
-        analysis_method (str): Analysis method ("ICA" or "PCA")
+        analysis_method (str): Analysis method ("ICA", "PCA", or "WAVELETS")
     """
 
     def __init__(
@@ -53,6 +54,9 @@ class EEGArtifactCleaningService:
         kurtosis_threshold: float = 2.0,
         range_threshold: float = 3.0,
         analysis_method: str = "ICA",
+        wavelet: str = "db4",
+        wavelet_level: int = None,
+        wavelet_threshold_mode: str = "soft",
     ):
         """
         Initialize the EEG cleaning service.
@@ -63,11 +67,19 @@ class EEGArtifactCleaningService:
             variance_threshold (float): Variance threshold for artifact detection
             kurtosis_threshold (float): Kurtosis threshold for artifact detection
             range_threshold (float): Range threshold for artifact detection
-            analysis_method (str): Analysis method ("ICA" or "PCA"), default "ICA"
+            analysis_method (str): Analysis method ("ICA", "PCA", or "WAVELETS"), default "ICA"
+            wavelet (str): Wavelet family for Wavelet denoising (default 'db4')
+            wavelet_level (int): Decomposition level for Wavelet (None for auto)
+            wavelet_threshold_mode (str): Threshold mode for Wavelet ('soft' or 'hard')
         """
         self.backend_core = EEGBackendCore()
         self._n_components = n_components
         self._analysis_method = analysis_method.upper()
+
+        # Wavelet-specific parameters
+        self._wavelet = wavelet
+        self._wavelet_level = wavelet_level
+        self._wavelet_threshold_mode = wavelet_threshold_mode
 
         # Create the appropriate processor based on method
         self._create_processor()
@@ -95,6 +107,13 @@ class EEGArtifactCleaningService:
             self.component_processor: BaseComponentProcessor = PCAProcessor(
                 n_components=self._n_components
             )
+        elif self._analysis_method == "WAVELETS":
+            self.component_processor = WaveletProcessor(
+                n_components=self._n_components,
+                wavelet=self._wavelet,
+                level=self._wavelet_level,
+                threshold_mode=self._wavelet_threshold_mode,
+            )
         else:
             self.component_processor = ICAProcessor(n_components=self._n_components)
 
@@ -107,8 +126,8 @@ class EEGArtifactCleaningService:
     def analysis_method(self, value: str):
         """Set the analysis method and recreate processor if needed"""
         new_method = value.upper()
-        if new_method not in ["ICA", "PCA"]:
-            raise ValueError("Analysis method must be 'ICA' or 'PCA'")
+        if new_method not in ["ICA", "PCA", "WAVELETS"]:
+            raise ValueError("Analysis method must be 'ICA', 'PCA', or 'WAVELETS'")
         if new_method != self._analysis_method:
             self._analysis_method = new_method
             self._create_processor()
@@ -119,9 +138,36 @@ class EEGArtifactCleaningService:
         Set the analysis method
 
         Args:
-            method (str): "ICA" or "PCA"
+            method (str): "ICA", "PCA", or "WAVELETS"
         """
         self.analysis_method = method
+
+    def set_wavelet_params(
+        self,
+        wavelet: Optional[str] = None,
+        level: Optional[int] = None,
+        threshold_mode: Optional[str] = None,
+    ):
+        """
+        Set wavelet parameters for Wavelet denoising.
+
+        Args:
+            wavelet: Wavelet family (e.g., 'db4', 'sym8')
+            level: Decomposition level
+            threshold_mode: Thresholding mode ('soft' or 'hard')
+        """
+        if wavelet is not None:
+            self._wavelet = wavelet
+        if level is not None:
+            self._wavelet_level = level
+        if threshold_mode is not None:
+            self._wavelet_threshold_mode = threshold_mode
+
+        # Update processor if it's a WaveletProcessor
+        if isinstance(self.component_processor, WaveletProcessor):
+            self.component_processor.set_wavelet_params(
+                wavelet=wavelet, level=level, threshold_mode=threshold_mode
+            )
 
     # Backward compatibility property
     @property
@@ -352,6 +398,18 @@ class EEGArtifactCleaningService:
             self.set_analysis_method("PCA")
         return self.fit_analysis()
 
+    def fit_wavelet_analysis(self) -> Dict[str, Any]:
+        """
+        Execute Wavelet denoising analysis.
+
+        Returns:
+            Dictionary with Wavelet results
+        """
+        # Ensure we're using Wavelets
+        if self._analysis_method != "WAVELETS":
+            self.set_analysis_method("WAVELETS")
+        return self.fit_analysis()
+
     def detect_artifacts(self, max_components: int = 3) -> Dict[str, Any]:
         """
         Detect artifacts using multiple methods.
@@ -492,6 +550,12 @@ class EEGArtifactCleaningService:
             result["processor"] = self.component_processor
         elif isinstance(self.component_processor, PCAProcessor):
             result["pca"] = self.component_processor.get_pca_object()
+            result["processor"] = self.component_processor
+        elif isinstance(self.component_processor, WaveletProcessor):
+            result["wavelet_info"] = self.component_processor.get_wavelet_info()
+            result["noise_reduction_stats"] = (
+                self.component_processor.get_noise_reduction_stats()
+            )
             result["processor"] = self.component_processor
 
         return result

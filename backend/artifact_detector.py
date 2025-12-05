@@ -9,9 +9,10 @@ Implements algorithms for automatic artifact detection in EEG data:
 - Explained variance analysis - for PCA
 - Multiple detection methods
 - Generic detection with fallback methods
+- Wavelet processor handling (automatic denoising, no component selection)
 
 Author: porfanid
-Version: 1.1
+Version: 1.2
 """
 
 from typing import Dict, List, Tuple, Union
@@ -23,6 +24,7 @@ from scipy import stats
 from .base_processor import BaseComponentProcessor
 from .ica_processor import ICAProcessor
 from .pca_processor import PCAProcessor
+from .wavelet_processor import WaveletProcessor
 
 
 class ArtifactDetector:
@@ -330,17 +332,18 @@ class ArtifactDetector:
 
     def detect_artifacts_multi_method(
         self,
-        processor: Union[ICAProcessor, PCAProcessor, BaseComponentProcessor],
+        processor: Union[ICAProcessor, PCAProcessor, WaveletProcessor, BaseComponentProcessor],
         raw: mne.io.Raw,
         max_components: int = 3,
     ) -> Tuple[List[int], Dict[str, List[int]]]:
         """
         Multiple artifact detection with method combination.
 
-        Supports both ICA and PCA processors with appropriate methods.
+        Supports ICA, PCA, and Wavelet processors with appropriate methods.
+        For Wavelet processors, returns empty results as denoising is automatic.
 
         Args:
-            processor: Component processor (ICA or PCA)
+            processor: Component processor (ICA, PCA, or Wavelet)
             raw: Raw EEG data
             max_components: Maximum number of components to remove
 
@@ -354,6 +357,14 @@ class ArtifactDetector:
         # Determine processor type and apply appropriate methods
         is_ica = isinstance(processor, ICAProcessor)
         is_pca = isinstance(processor, PCAProcessor)
+        is_wavelet = isinstance(processor, WaveletProcessor)
+
+        # Wavelet denoising is automatic - no artifact detection needed
+        if is_wavelet:
+            # Return empty results - Wavelet denoising handles all channels automatically
+            # All channels will be denoised, no component selection needed
+            methods_results["wavelet_auto"] = []
+            return [], methods_results
 
         if is_ica:
             ica = processor.get_ica_object()
@@ -434,6 +445,10 @@ class ArtifactDetector:
         Returns:
             Explanation text
         """
+        # Wavelet-specific - automatic denoising, no component artifacts
+        if "wavelet_auto" in methods_results:
+            return "Wavelet denoising applied to all channels"
+
         reasons = []
 
         # ICA-specific

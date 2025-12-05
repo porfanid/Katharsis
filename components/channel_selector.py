@@ -5,10 +5,11 @@ Channel Selector Component - Interactive channel selection interface
 
 from typing import Any, Dict, List
 
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -18,6 +19,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QSplitter,
     QTextEdit,
     QVBoxLayout,
@@ -25,140 +27,308 @@ from PyQt6.QtWidgets import (
 )
 
 
-class ToggleSwitch(QWidget):
+class AnalysisMethodSelector(QWidget):
     """
-    Custom toggle switch widget for ICA/PCA selection
-    A modern-looking animated toggle switch
+    Analysis method selector widget for ICA/PCA/Wavelet selection.
+    Displays three buttons for method selection with descriptions.
+    Includes wavelet-specific settings (level, family, threshold mode) when Wavelet is selected.
     """
 
-    toggled = pyqtSignal(bool)  # True = PCA, False = ICA
+    method_changed = pyqtSignal(str)  # Emits "ICA", "PCA", or "WAVELETS"
+    wavelet_level_changed = pyqtSignal(int)  # Emits wavelet level (1-10)
+    wavelet_family_changed = pyqtSignal(str)  # Emits wavelet family (e.g., 'db4')
+    wavelet_threshold_mode_changed = pyqtSignal(str)  # Emits threshold mode ('soft' or 'hard')
+
+    # Method definitions with icons, names, and descriptions
+    METHODS = {
+        "ICA": {
+            "icon": "🧠",
+            "name": "ICA",
+            "description": "Best for detecting eye blinks and muscle artifacts",
+        },
+        "PCA": {
+            "icon": "📊",
+            "name": "PCA",
+            "description": "Faster, ideal for quick preliminary analysis",
+        },
+        "WAVELETS": {
+            "icon": "🌊",
+            "name": "Wavelet",
+            "description": "Best for low-channel systems (≤8 channels). Denoises all channels automatically.",
+        },
+    }
+
+    # Available wavelet families with display names
+    WAVELET_FAMILIES = {
+        "db4": "Daubechies 4 (db4)",
+        "db8": "Daubechies 8 (db8)",
+        "sym4": "Symlet 4 (sym4)",
+        "sym8": "Symlet 8 (sym8)",
+        "coif3": "Coiflet 3 (coif3)",
+        "bior3.5": "Biorthogonal 3.5 (bior3.5)",
+    }
+
+    # Threshold modes
+    THRESHOLD_MODES = {
+        "soft": "Soft (smoother)",
+        "hard": "Hard (sharper)",
+    }
 
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
         self.theme = theme
-        self._is_checked = False  # False = ICA (left), True = PCA (right)
-        self._handle_position = 3  # Starting position
+        self._selected_method = "ICA"  # Default method
+        self._buttons: Dict[str, QPushButton] = {}
+        self._wavelet_level = 5  # Default wavelet level
+        self._wavelet_family = "db4"  # Default wavelet family
+        self._threshold_mode = "soft"  # Default threshold mode
+        self._setup_ui()
 
-        # Size settings
-        self.setFixedSize(180, 44)
+    def _setup_ui(self):
+        """Create the method selector UI."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(10)
 
-        # Animation for smooth toggle
-        self._animation = QPropertyAnimation(self, b"handle_position")
-        self._animation.setDuration(200)
-        self._animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        # Buttons layout
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(10)
 
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        for method_key, method_info in self.METHODS.items():
+            btn = QPushButton(f"{method_info['icon']} {method_info['name']}")
+            btn.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+            btn.setFixedHeight(44)
+            btn.setMinimumWidth(100)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda checked, m=method_key: self._on_method_clicked(m))
+            self._buttons[method_key] = btn
+            buttons_layout.addWidget(btn)
 
-    @property
-    def handle_position(self):
-        return self._handle_position
+        main_layout.addLayout(buttons_layout)
 
-    @handle_position.setter
-    def handle_position(self, pos):
-        self._handle_position = pos
-        self.update()
+        # Wavelet settings (visible only when Wavelet is selected)
+        self._wavelet_settings = QWidget()
+        wavelet_main_layout = QVBoxLayout(self._wavelet_settings)
+        wavelet_main_layout.setContentsMargins(0, 5, 0, 0)
+        wavelet_main_layout.setSpacing(8)
 
-    def isChecked(self):
-        return self._is_checked
+        # First row: Level and Wavelet Family
+        row1_layout = QHBoxLayout()
+        row1_layout.setSpacing(15)
 
-    def setChecked(self, checked: bool):
-        if self._is_checked != checked:
-            self._is_checked = checked
-            self._animate_toggle()
-            self.toggled.emit(checked)
+        # Level control
+        level_label = QLabel("🔧 Level:")
+        level_label.setFont(QFont("Arial", 10))
+        level_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        row1_layout.addWidget(level_label)
 
-    def _animate_toggle(self):
-        self._animation.stop()
-        if self._is_checked:
-            # Move to PCA (right)
-            self._animation.setStartValue(self._handle_position)
-            self._animation.setEndValue(self.width() // 2 + 3)
-        else:
-            # Move to ICA (left)
-            self._animation.setStartValue(self._handle_position)
-            self._animation.setEndValue(3)
-        self._animation.start()
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.setChecked(not self._is_checked)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Colors
-        primary_color = QColor(self.theme.get("primary", "#007AFF"))
-        secondary_color = QColor("#6c757d")
-        bg_color = QColor("#e9ecef")
-        handle_color = QColor("white")
-
-        # Draw background track
-        track_rect = QRect(0, 0, self.width(), self.height())
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(bg_color))
-        painter.drawRoundedRect(track_rect, 22, 22)
-
-        # Draw left side (ICA) background
-        left_rect = QRect(0, 0, self.width() // 2, self.height())
-        if not self._is_checked:
-            painter.setBrush(QBrush(primary_color))
-        else:
-            painter.setBrush(QBrush(secondary_color.lighter(130)))
-        painter.drawRoundedRect(left_rect, 22, 22)
-        # Fix the right edge of left side
-        painter.drawRect(QRect(self.width() // 2 - 22, 0, 22, self.height()))
-
-        # Draw right side (PCA) background
-        right_rect = QRect(self.width() // 2, 0, self.width() // 2, self.height())
-        if self._is_checked:
-            painter.setBrush(QBrush(primary_color))
-        else:
-            painter.setBrush(QBrush(secondary_color.lighter(130)))
-        painter.drawRoundedRect(right_rect, 22, 22)
-        # Fix the left edge of right side
-        painter.drawRect(QRect(self.width() // 2, 0, 22, self.height()))
-
-        # Draw labels
-        painter.setPen(
-            QPen(QColor("white") if not self._is_checked else QColor("#6c757d"))
+        self._level_spinbox = QSpinBox()
+        self._level_spinbox.setRange(1, 10)
+        self._level_spinbox.setValue(self._wavelet_level)
+        self._level_spinbox.setFont(QFont("Arial", 10))
+        self._level_spinbox.setFixedWidth(60)
+        self._level_spinbox.setStyleSheet(
+            f"""
+            QSpinBox {{
+                padding: 5px;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                background-color: white;
+            }}
+            QSpinBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            """
         )
-        painter.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        painter.drawText(
-            QRect(5, 0, self.width() // 2 - 5, self.height()),
-            Qt.AlignmentFlag.AlignCenter,
-            "ICA",
+        self._level_spinbox.valueChanged.connect(self._on_level_changed)
+        row1_layout.addWidget(self._level_spinbox)
+
+        level_hint = QLabel("(1-10)")
+        level_hint.setFont(QFont("Arial", 9))
+        level_hint.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;")
+        row1_layout.addWidget(level_hint)
+
+        row1_layout.addSpacing(20)
+
+        # Wavelet Family selector
+        family_label = QLabel("🌊 Wavelet:")
+        family_label.setFont(QFont("Arial", 10))
+        family_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        row1_layout.addWidget(family_label)
+
+        self._family_combo = QComboBox()
+        self._family_combo.setFont(QFont("Arial", 10))
+        self._family_combo.setMinimumWidth(150)
+        for key, display_name in self.WAVELET_FAMILIES.items():
+            self._family_combo.addItem(display_name, key)
+        self._family_combo.setCurrentIndex(0)  # Default to db4
+        self._family_combo.setStyleSheet(
+            f"""
+            QComboBox {{
+                padding: 5px 10px;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                background-color: white;
+            }}
+            QComboBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                padding-right: 10px;
+            }}
+            """
         )
+        self._family_combo.currentIndexChanged.connect(self._on_family_changed)
+        row1_layout.addWidget(self._family_combo)
 
-        painter.setPen(QPen(QColor("white") if self._is_checked else QColor("#6c757d")))
-        painter.drawText(
-            QRect(self.width() // 2, 0, self.width() // 2 - 5, self.height()),
-            Qt.AlignmentFlag.AlignCenter,
-            "PCA",
+        row1_layout.addStretch()
+        wavelet_main_layout.addLayout(row1_layout)
+
+        # Second row: Threshold Mode
+        row2_layout = QHBoxLayout()
+        row2_layout.setSpacing(15)
+
+        threshold_label = QLabel("⚙️ Threshold:")
+        threshold_label.setFont(QFont("Arial", 10))
+        threshold_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        row2_layout.addWidget(threshold_label)
+
+        self._threshold_combo = QComboBox()
+        self._threshold_combo.setFont(QFont("Arial", 10))
+        self._threshold_combo.setMinimumWidth(130)
+        for key, display_name in self.THRESHOLD_MODES.items():
+            self._threshold_combo.addItem(display_name, key)
+        self._threshold_combo.setCurrentIndex(0)  # Default to soft
+        self._threshold_combo.setStyleSheet(
+            f"""
+            QComboBox {{
+                padding: 5px 10px;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                background-color: white;
+            }}
+            QComboBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                padding-right: 10px;
+            }}
+            """
         )
+        self._threshold_combo.currentIndexChanged.connect(self._on_threshold_changed)
+        row2_layout.addWidget(self._threshold_combo)
 
-        # Draw handle (sliding circle)
-        handle_width = self.width() // 2 - 6
-        handle_height = self.height() - 6
-        handle_rect = QRect(int(self._handle_position), 3, handle_width, handle_height)
+        threshold_hint = QLabel("(soft=smoother denoising, hard=sharper cutoff)")
+        threshold_hint.setFont(QFont("Arial", 9))
+        threshold_hint.setStyleSheet(f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;")
+        row2_layout.addWidget(threshold_hint)
 
-        # Handle shadow
-        shadow_rect = QRect(
-            int(self._handle_position) + 2, 5, handle_width, handle_height
-        )
-        painter.setBrush(QBrush(QColor(0, 0, 0, 30)))
-        painter.drawRoundedRect(shadow_rect, 19, 19)
+        row2_layout.addStretch()
+        wavelet_main_layout.addLayout(row2_layout)
 
-        # Handle
-        painter.setBrush(QBrush(handle_color))
-        painter.setPen(QPen(QColor("#dee2e6"), 1))
-        painter.drawRoundedRect(handle_rect, 19, 19)
+        main_layout.addWidget(self._wavelet_settings)
 
-        # Handle label
-        handle_text = "🧠 ICA" if not self._is_checked else "📊 PCA"
-        painter.setPen(QPen(primary_color))
-        painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        painter.drawText(handle_rect, Qt.AlignmentFlag.AlignCenter, handle_text)
+        # Initially hide wavelet settings
+        self._wavelet_settings.setVisible(False)
+
+        # Update button styles for initial selection
+        self._update_button_styles()
+
+    def _update_button_styles(self):
+        """Update button styles based on current selection."""
+        primary_color = self.theme.get("primary", "#007AFF")
+
+        for method_key, btn in self._buttons.items():
+            if method_key == self._selected_method:
+                # Selected style
+                btn.setStyleSheet(
+                    f"""
+                    QPushButton {{
+                        background-color: {primary_color};
+                        color: white;
+                        border: 2px solid {primary_color};
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {primary_color};
+                    }}
+                    """
+                )
+            else:
+                # Unselected style
+                btn.setStyleSheet(
+                    f"""
+                    QPushButton {{
+                        background-color: #e9ecef;
+                        color: #6c757d;
+                        border: 2px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: #d4e6f1;
+                        border-color: {primary_color};
+                        color: {self.theme.get('text', '#212529')};
+                    }}
+                    """
+                )
+
+        # Show/hide wavelet settings
+        self._wavelet_settings.setVisible(self._selected_method == "WAVELETS")
+
+    def _on_method_clicked(self, method: str):
+        """Handle method button click."""
+        if method != self._selected_method:
+            self._selected_method = method
+            self._update_button_styles()
+            self.method_changed.emit(method)
+
+    def _on_level_changed(self, value: int):
+        """Handle wavelet level change."""
+        self._wavelet_level = value
+        self.wavelet_level_changed.emit(value)
+
+    def _on_family_changed(self, index: int):
+        """Handle wavelet family change."""
+        self._wavelet_family = self._family_combo.currentData()
+        self.wavelet_family_changed.emit(self._wavelet_family)
+
+    def _on_threshold_changed(self, index: int):
+        """Handle threshold mode change."""
+        self._threshold_mode = self._threshold_combo.currentData()
+        self.wavelet_threshold_mode_changed.emit(self._threshold_mode)
+
+    def get_selected_method(self) -> str:
+        """Get the currently selected method."""
+        return self._selected_method
+
+    def get_wavelet_level(self) -> int:
+        """Get the current wavelet decomposition level."""
+        return self._wavelet_level
+
+    def get_wavelet_family(self) -> str:
+        """Get the current wavelet family."""
+        return self._wavelet_family
+
+    def get_threshold_mode(self) -> str:
+        """Get the current threshold mode."""
+        return self._threshold_mode
+
+    def set_selected_method(self, method: str):
+        """Set the selected method programmatically."""
+        if method in self.METHODS and method != self._selected_method:
+            self._selected_method = method
+            self._update_button_styles()
+            self.method_changed.emit(method)
+
+    def get_method_description(self, method: str = None) -> str:
+        """Get the description for a method."""
+        if method is None:
+            method = self._selected_method
+        return self.METHODS.get(method, {}).get("description", "")
 
 
 class ChannelCheckBox(QCheckBox):
@@ -281,8 +451,8 @@ All available channels:
 class ChannelSelectorWidget(QWidget):
     """Main channel selection widget with analysis method selection"""
 
-    # Emits tuple of (selected channel names, analysis method)
-    channels_selected = pyqtSignal(list, str)
+    # Emits tuple of (selected channel names, analysis method, wavelet_params dict)
+    channels_selected = pyqtSignal(list, str, dict)
 
     def __init__(self, theme: Dict[str, str]):
         super().__init__()
@@ -293,6 +463,9 @@ class ChannelSelectorWidget(QWidget):
         self.current_file = ""
         self.raw_data = None
         self.analysis_method = "ICA"  # Default to ICA
+        self.wavelet_level = 5  # Default wavelet level
+        self.wavelet_family = "db4"  # Default wavelet family
+        self.threshold_mode = "soft"  # Default threshold mode
 
         self.setup_ui()
 
@@ -320,7 +493,7 @@ class ChannelSelectorWidget(QWidget):
         )
         main_layout.addWidget(self.description)
 
-        # Analysis Method Selector (ICA/PCA toggle)
+        # Analysis Method Selector (ICA/PCA/Wavelet)
         method_group = QGroupBox("🔬 Analysis Method")
         method_group.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         method_group.setStyleSheet(
@@ -342,31 +515,20 @@ class ChannelSelectorWidget(QWidget):
             }}
         """
         )
-        method_layout = QHBoxLayout(method_group)
-        method_layout.setSpacing(20)
+        method_layout = QVBoxLayout(method_group)
+        method_layout.setSpacing(10)
 
-        # ICA label
-        ica_label = QLabel("🧠 ICA")
-        ica_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        ica_label.setStyleSheet(f"color: {self.theme['text']};")
-        method_layout.addWidget(ica_label)
-
-        # Custom toggle switch for ICA/PCA selection
-        self.method_toggle = ToggleSwitch(self.theme)
-        self.method_toggle.toggled.connect(self._on_toggle_changed)
-        method_layout.addWidget(self.method_toggle)
-
-        # PCA label
-        pca_label = QLabel("📊 PCA")
-        pca_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        pca_label.setStyleSheet(f"color: {self.theme['text']};")
-        method_layout.addWidget(pca_label)
-
-        method_layout.addStretch()
+        # Method selector buttons (ICA, PCA, Wavelet)
+        self.method_selector = AnalysisMethodSelector(self.theme)
+        self.method_selector.method_changed.connect(self._on_method_changed)
+        self.method_selector.wavelet_level_changed.connect(self._on_wavelet_level_changed)
+        self.method_selector.wavelet_family_changed.connect(self._on_wavelet_family_changed)
+        self.method_selector.wavelet_threshold_mode_changed.connect(self._on_threshold_mode_changed)
+        method_layout.addWidget(self.method_selector)
 
         # Method description label
         self.method_info_label = QLabel(
-            "ICA: Best for detecting eye blinks and muscle artifacts"
+            self.method_selector.get_method_description()
         )
         self.method_info_label.setFont(QFont("Arial", 10))
         self.method_info_label.setStyleSheet(
@@ -754,21 +916,44 @@ class ChannelSelectorWidget(QWidget):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.channels_selected.emit(selected_channels, self.analysis_method)
+            wavelet_params = {
+                "level": self.wavelet_level,
+                "wavelet": self.wavelet_family,
+                "threshold_mode": self.threshold_mode,
+            }
+            self.channels_selected.emit(selected_channels, self.analysis_method, wavelet_params)
 
-    def _on_toggle_changed(self, is_pca: bool):
-        """Handle analysis method toggle change"""
-        if is_pca:
-            self.analysis_method = "PCA"
-            self.method_info_label.setText(
-                "PCA: Faster, ideal for quick preliminary analysis"
-            )
-        else:
-            self.analysis_method = "ICA"
-            self.method_info_label.setText(
-                "ICA: Best for detecting eye blinks and muscle artifacts"
-            )
+    def _on_method_changed(self, method: str):
+        """Handle analysis method change"""
+        self.analysis_method = method
+        self.method_info_label.setText(
+            self.method_selector.get_method_description(method)
+        )
+
+    def _on_wavelet_level_changed(self, level: int):
+        """Handle wavelet level change"""
+        self.wavelet_level = level
+
+    def _on_wavelet_family_changed(self, family: str):
+        """Handle wavelet family change"""
+        self.wavelet_family = family
+
+    def _on_threshold_mode_changed(self, mode: str):
+        """Handle threshold mode change"""
+        self.threshold_mode = mode
 
     def get_analysis_method(self) -> str:
         """Get the selected analysis method"""
         return self.analysis_method
+
+    def get_wavelet_level(self) -> int:
+        """Get the selected wavelet decomposition level"""
+        return self.wavelet_level
+
+    def get_wavelet_family(self) -> str:
+        """Get the selected wavelet family"""
+        return self.wavelet_family
+
+    def get_threshold_mode(self) -> str:
+        """Get the selected threshold mode"""
+        return self.threshold_mode

@@ -10,6 +10,7 @@ from .eeg_backend import EEGBackendCore, EEGDataManager, EEGPreprocessor, Signal
 from .eeg_service import EEGArtifactCleaningService
 from .ica_processor import ICAProcessor
 from .pca_processor import PCAProcessor
+from .wavelet_processor import WaveletProcessor
 
 __all__ = [
     "EEGBackendCore",
@@ -19,6 +20,7 @@ __all__ = [
     "BaseComponentProcessor",
     "ICAProcessor",
     "PCAProcessor",
+    "WaveletProcessor",
     "ArtifactDetector",
     "EEGArtifactCleaningService",
     "BandPowerAnalyzer",

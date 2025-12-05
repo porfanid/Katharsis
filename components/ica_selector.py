@@ -115,7 +115,12 @@ class PreviewWidget(QWidget):
         self._view_start = 0.0  # Current view start position
         self._original_raw = None
         self._cleaned_raw = None
+        self._analysis_method = "ICA"  # Track analysis method for FFT display
         self.setup_ui()
+
+    def set_analysis_method(self, method: str):
+        """Set the analysis method (ICA, PCA, or WAVELETS)"""
+        self._analysis_method = method
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -452,9 +457,16 @@ class PreviewWidget(QWidget):
                 cleaned_data = cleaned_data[:, :min_samples]
                 time_points = time_points[:min_samples]
 
-                # Two subplots - original and cleaned
-                ax1 = self.figure.add_subplot(2, 1, 1)
-                ax2 = self.figure.add_subplot(2, 1, 2)
+                # For Wavelet mode, show 3 plots: original, cleaned, and FFT comparison
+                if self._analysis_method == "WAVELETS":
+                    ax1 = self.figure.add_subplot(3, 1, 1)
+                    ax2 = self.figure.add_subplot(3, 1, 2)
+                    ax3 = self.figure.add_subplot(3, 1, 3)
+                else:
+                    # Two subplots - original and cleaned
+                    ax1 = self.figure.add_subplot(2, 1, 1)
+                    ax2 = self.figure.add_subplot(2, 1, 2)
+                    ax3 = None
 
                 # Original signal
                 ax1.plot(
@@ -486,10 +498,21 @@ class PreviewWidget(QWidget):
                     fontsize=9,
                     color=self.theme["text"],
                 )
-                ax2.set_xlabel("Time (s)", fontsize=8)
+                if ax3 is None:
+                    ax2.set_xlabel("Time (s)", fontsize=8)
                 ax2.set_ylabel("Amp (μV)", fontsize=8)
                 ax2.grid(True, alpha=0.3)
                 ax2.tick_params(axis='both', labelsize=7)
+
+                # FFT comparison for Wavelet mode
+                if ax3 is not None:
+                    self._plot_fft_comparison_preview(
+                        ax3,
+                        original_data[channel_idx, :],
+                        cleaned_data[channel_idx, :],
+                        sfreq,
+                        channel_name
+                    )
 
             else:
                 # Only original signal
@@ -515,6 +538,54 @@ class PreviewWidget(QWidget):
         except Exception as e:
             print(f"Error updating signal plot: {str(e)}")
             self.show_error_plot(str(e))
+
+    def _plot_fft_comparison_preview(self, ax, original_data, cleaned_data, sfreq, channel_name):
+        """
+        Plot FFT comparison of original vs cleaned signal for Wavelet preview.
+
+        Args:
+            ax: Matplotlib axis to plot on
+            original_data: Original signal data (1D array)
+            cleaned_data: Cleaned signal data (1D array)
+            sfreq: Sampling frequency
+            channel_name: Name of the channel
+        """
+        from scipy import signal as scipy_signal
+
+        # Use Welch's method for smoother PSD estimate
+        n = len(original_data)
+        nperseg = min(1024, n // 4) if n > 4 else n
+        
+        if nperseg < 4:
+            ax.text(0.5, 0.5, "Not enough data for FFT", ha="center", va="center")
+            return
+
+        freq_orig, psd_orig = scipy_signal.welch(original_data, fs=sfreq, nperseg=nperseg)
+        freq_clean, psd_clean = scipy_signal.welch(cleaned_data, fs=sfreq, nperseg=nperseg)
+
+        # Limit frequency range to 0-50 Hz (typical EEG range)
+        max_freq = min(50, sfreq / 2)
+        freq_mask = freq_orig <= max_freq
+
+        # Plot both spectra
+        ax.semilogy(
+            freq_orig[freq_mask], psd_orig[freq_mask],
+            color=self.theme.get("danger", "#e74c3c"),
+            linewidth=1, alpha=0.8, label="Original"
+        )
+        ax.semilogy(
+            freq_clean[freq_mask], psd_clean[freq_mask],
+            color=self.theme.get("success", "#27ae60"),
+            linewidth=1, alpha=0.8, label="Cleaned"
+        )
+
+        ax.set_xlabel("Frequency (Hz)", fontsize=8)
+        ax.set_ylabel("PSD", fontsize=8)
+        ax.set_title(f"FFT Comparison - {channel_name}", fontsize=9, color=self.theme["text"])
+        ax.legend(loc="upper right", fontsize=7)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='both', labelsize=7)
+        ax.set_xlim(0, max_freq)
 
     def _update_band_power_displays(self):
         """Update the band power comparison displays for Range 1 and Range 2.
@@ -718,13 +789,13 @@ class ComponentDisplayWidget(QWidget):
 
     def plot_component_generic(self, processor, raw, is_artifact, method="PCA"):
         """
-        Plot component using generic processor (works for PCA)
+        Plot component using generic processor (works for PCA and Wavelets)
 
         Args:
-            processor: Component processor (PCAProcessor or similar)
+            processor: Component processor (PCAProcessor, WaveletProcessor, or similar)
             raw: Raw EEG data
             is_artifact: Whether this component is suggested as artifact
-            method: Analysis method name ("ICA" or "PCA")
+            method: Analysis method name ("ICA", "PCA", or "WAVELETS")
         """
         try:
             # 1. Time-series plot (left)
@@ -740,11 +811,21 @@ class ComponentDisplayWidget(QWidget):
                 else self.theme.get("success", "#27ae60")
             )
 
-            comp_label = "IC" if method == "ICA" else "PC"
+            # Determine label based on method
+            if method == "ICA":
+                comp_label = f"IC {self.component_idx}"
+            elif method == "WAVELETS":
+                # Use actual channel name for Wavelet
+                if raw is not None and self.component_idx < len(raw.ch_names):
+                    comp_label = raw.ch_names[self.component_idx]
+                else:
+                    comp_label = f"CH {self.component_idx}"
+            else:
+                comp_label = f"PC {self.component_idx}"
 
             ax_time.plot(times, comp_data, color=color, linewidth=1)
             ax_time.set_title(
-                f"{comp_label} {self.component_idx} - Time Series",
+                f"{comp_label} - Time Series",
                 fontsize=9,
                 color=self.theme["text"],
             )
@@ -753,7 +834,7 @@ class ComponentDisplayWidget(QWidget):
             ax_time.set_ylabel("Amplitude", fontsize=8)
             self.timeseries_figure.tight_layout(pad=0.3)
 
-            # 2. Topographic map (right)
+            # 2. Topographic map (right) or info panel for Wavelet
             self.topomap_figure.clear()
             ax_topo = self.topomap_figure.add_subplot(111)
 
@@ -774,24 +855,41 @@ class ComponentDisplayWidget(QWidget):
                     sensors=True,
                 )
                 ax_topo.set_title(
-                    f"{comp_label} {self.component_idx} - Topomap",
+                    f"{comp_label} - Topomap",
                     fontsize=9,
                     color=self.theme["text"],
                 )
             else:
-                ax_topo.text(
-                    0.5,
-                    0.5,
-                    "No spatial data",
-                    ha="center",
-                    va="center",
-                    fontsize=10,
-                )
-                ax_topo.set_title(
-                    f"{comp_label} {self.component_idx}",
-                    fontsize=9,
-                    color=self.theme["text"],
-                )
+                # No spatial data - show FFT comparison for Wavelet, text for others
+                if method == "WAVELETS":
+                    # Show FFT/Frequency spectrum comparison for Wavelet mode
+                    # Get denoised data from processor
+                    denoised_data = processor.get_denoised_data()
+                    if denoised_data is not None:
+                        denoised_comp = denoised_data[self.component_idx]
+                        self._plot_fft_comparison(
+                            ax_topo, comp_data, denoised_comp,
+                            raw.info["sfreq"], comp_label
+                        )
+                    else:
+                        # Fallback to single FFT if no denoised data
+                        self._plot_fft_single(ax_topo, comp_data, raw.info["sfreq"], comp_label)
+                else:
+                    ax_topo.text(
+                        0.5,
+                        0.5,
+                        "No spatial data",
+                        ha="center",
+                        va="center",
+                        fontsize=10,
+                    )
+                    ax_topo.set_title(
+                        f"{comp_label}",
+                        fontsize=9,
+                        color=self.theme["text"],
+                    )
+                    ax_topo.set_xticks([])
+                    ax_topo.set_yticks([])
 
             self.topomap_figure.tight_layout(pad=0.3)
 
@@ -824,6 +922,85 @@ class ComponentDisplayWidget(QWidget):
         # Refresh canvases
         self.timeseries_canvas.draw()
         self.topomap_canvas.draw()
+
+    def _plot_fft_comparison(self, ax, original_data, denoised_data, sfreq, label):
+        """
+        Plot FFT comparison of original vs denoised signal.
+
+        Args:
+            ax: Matplotlib axis to plot on
+            original_data: Original signal data (1D array)
+            denoised_data: Denoised signal data (1D array)
+            sfreq: Sampling frequency
+            label: Channel/component label
+        """
+        from scipy import signal as scipy_signal
+
+        # Compute FFT for both signals
+        n = len(original_data)
+        freq = np.fft.rfftfreq(n, 1/sfreq)
+
+        # Use Welch's method for smoother PSD estimate
+        nperseg = min(1024, n // 4)
+        freq_orig, psd_orig = scipy_signal.welch(original_data, fs=sfreq, nperseg=nperseg)
+        freq_clean, psd_clean = scipy_signal.welch(denoised_data, fs=sfreq, nperseg=nperseg)
+
+        # Limit frequency range to 0-50 Hz (typical EEG range)
+        max_freq = min(50, sfreq / 2)
+        freq_mask = freq_orig <= max_freq
+
+        # Plot both spectra
+        ax.semilogy(
+            freq_orig[freq_mask], psd_orig[freq_mask],
+            color=self.theme.get("danger", "#e74c3c"),
+            linewidth=1, alpha=0.8, label="Original"
+        )
+        ax.semilogy(
+            freq_clean[freq_mask], psd_clean[freq_mask],
+            color=self.theme.get("success", "#27ae60"),
+            linewidth=1, alpha=0.8, label="Cleaned"
+        )
+
+        ax.set_xlabel("Frequency (Hz)", fontsize=7)
+        ax.set_ylabel("PSD", fontsize=7)
+        ax.set_title(f"{label} - FFT", fontsize=9, color=self.theme["text"])
+        ax.legend(loc="upper right", fontsize=6)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='both', labelsize=6)
+        ax.set_xlim(0, max_freq)
+
+    def _plot_fft_single(self, ax, data, sfreq, label):
+        """
+        Plot single FFT spectrum (fallback when no denoised data).
+
+        Args:
+            ax: Matplotlib axis to plot on
+            data: Signal data (1D array)
+            sfreq: Sampling frequency
+            label: Channel/component label
+        """
+        from scipy import signal as scipy_signal
+
+        n = len(data)
+        nperseg = min(1024, n // 4)
+        freq, psd = scipy_signal.welch(data, fs=sfreq, nperseg=nperseg)
+
+        # Limit frequency range to 0-50 Hz
+        max_freq = min(50, sfreq / 2)
+        freq_mask = freq <= max_freq
+
+        ax.semilogy(
+            freq[freq_mask], psd[freq_mask],
+            color=self.theme.get("primary", "#007AFF"),
+            linewidth=1
+        )
+
+        ax.set_xlabel("Frequency (Hz)", fontsize=7)
+        ax.set_ylabel("PSD", fontsize=7)
+        ax.set_title(f"{label} - FFT", fontsize=9, color=self.theme["text"])
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='both', labelsize=6)
+        ax.set_xlim(0, max_freq)
 
 
 class ICAComponentSelector(QWidget):
@@ -976,8 +1153,17 @@ class ICAComponentSelector(QWidget):
         controls_layout = QVBoxLayout()
 
         # Use appropriate label based on analysis method
-        comp_label = "IC" if self.analysis_method == "ICA" else "PC"
-        checkbox = QCheckBox(f" {comp_label} {i}")
+        if self.analysis_method == "ICA":
+            comp_label = f"IC {i}"
+        elif self.analysis_method == "WAVELETS":
+            # For Wavelet, use actual channel names
+            if self.raw is not None and i < len(self.raw.ch_names):
+                comp_label = f"🌊 {self.raw.ch_names[i]}"
+            else:
+                comp_label = f"CH {i}"
+        else:
+            comp_label = f"PC {i}"
+        checkbox = QCheckBox(f" {comp_label}")
         checkbox.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         checkbox.setChecked(is_artifact)
         checkbox.setStyleSheet(f"color: {self.theme['text_light']}; border: none;")
@@ -1167,7 +1353,10 @@ class ICAComponentSelector(QWidget):
             self.n_components = 0
 
         # Update title based on method
-        self.title_label.setText(f"🔍 Select {analysis_method} Components for Removal")
+        if analysis_method == "WAVELETS":
+            self.title_label.setText("🌊 Wavelet Denoising - All Channels (Automatic)")
+        else:
+            self.title_label.setText(f"🔍 Select {analysis_method} Components for Removal")
 
         # Clear existing components
         while self.components_layout.count():
@@ -1182,8 +1371,9 @@ class ICAComponentSelector(QWidget):
             self.create_single_component_widget(i)
         self.components_layout.addStretch(1)
 
-        # Update preview widget with channel data and callback
+        # Update preview widget with channel data, method, and callback
         self.preview_widget.set_channel_data(raw)
+        self.preview_widget.set_analysis_method(analysis_method)
         self.preview_widget.set_update_callback(self._start_preview_update)
 
         # Update initial preview with suggested components
@@ -1212,7 +1402,7 @@ class ICAComponentSelector(QWidget):
         Creates a spectrogram plot for the specific component.
         The spectrogram is ideal for detecting muscle artifacts that
         appear as short bursts of energy across a wide frequency range.
-        Works for both ICA and PCA.
+        Works for ICA, PCA, and Wavelets.
         """
         try:
             from scipy import signal
@@ -1226,7 +1416,16 @@ class ICAComponentSelector(QWidget):
                 return None
 
             component_data = sources[component_idx]
-            comp_label = "IC" if self.analysis_method == "ICA" else "PC"
+            if self.analysis_method == "ICA":
+                comp_label = f"IC {component_idx}"
+            elif self.analysis_method == "WAVELETS":
+                # Use actual channel name for Wavelet
+                if self.raw is not None and component_idx < len(self.raw.ch_names):
+                    comp_label = self.raw.ch_names[component_idx]
+                else:
+                    comp_label = f"CH {component_idx}"
+            else:
+                comp_label = f"PC {component_idx}"
 
             # Parameters for spectrogram
             fs = self.raw.info["sfreq"]  # Sampling frequency
@@ -1260,7 +1459,7 @@ class ICAComponentSelector(QWidget):
             ax.set_ylabel("Frequency (Hz)", fontsize=10)
             ax.set_xlabel("Time (s)", fontsize=10)
             ax.set_title(
-                f"Spectrogram - {comp_label} {component_idx}\n(Time-Frequency Analysis for Muscle Artifact Detection)",
+                f"Spectrogram - {comp_label}\n(Time-Frequency Analysis for Muscle Artifact Detection)",
                 fontsize=11,
                 color=self.theme.get("text", "#000000"),
             )
@@ -1309,7 +1508,7 @@ class ICAComponentSelector(QWidget):
         """
         Creates and displays a new window with the component properties.
         Includes topography, PSD and Spectrogram for full analysis.
-        Works for both ICA and PCA analysis.
+        Works for ICA, PCA, and Wavelets analysis.
         """
         # Check we have data to work with
         if not self.raw:
@@ -1317,10 +1516,19 @@ class ICAComponentSelector(QWidget):
         if not self.ica and not self.processor:
             return
 
-        comp_label = "IC" if self.analysis_method == "ICA" else "PC"
+        if self.analysis_method == "ICA":
+            comp_label = f"IC {component_idx}"
+        elif self.analysis_method == "WAVELETS":
+            # Use actual channel name for Wavelet
+            if self.raw is not None and component_idx < len(self.raw.ch_names):
+                comp_label = self.raw.ch_names[component_idx]
+            else:
+                comp_label = f"CH {component_idx}"
+        else:
+            comp_label = f"PC {component_idx}"
 
         # For ICA, use MNE's built-in plot_properties
-        # For PCA, create custom plots
+        # For PCA and Wavelets, create custom plots
         if self.ica is not None:
             # MNE creates the plots. show=False is critical
             # to get the figures instead of displaying them directly.
@@ -1329,8 +1537,8 @@ class ICAComponentSelector(QWidget):
             )
 
         else:
-            # For PCA, create custom property plots
-            figures = self._create_pca_property_plots(component_idx)
+            # For PCA and Wavelets, create custom property plots
+            figures = self._create_generic_property_plots(component_idx)
 
         # Create spectrogram plot
         spectrogram_fig = self._create_spectrogram_plot(component_idx)
@@ -1338,13 +1546,13 @@ class ICAComponentSelector(QWidget):
         # Create new dialog window (pop-up)
         dialog = QDialog(self)
         dialog.setWindowTitle(
-            f"Detailed Analysis of Component {comp_label} {component_idx}"
+            f"Detailed Analysis of {comp_label}"
         )
         dialog.setMinimumSize(1000, 800)  # Larger window for extra plot
         dialog_layout = QVBoxLayout(dialog)
 
         # Add title
-        title_label = QLabel(f"🔬 Component {comp_label} {component_idx} Analysis")
+        title_label = QLabel(f"🔬 {comp_label} Analysis")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setStyleSheet(
             f"color: {self.theme['text']}; margin: 10px; text-align: center;"
@@ -1364,9 +1572,9 @@ class ICAComponentSelector(QWidget):
         # Show the window
         dialog.exec()
 
-    def _create_pca_property_plots(self, component_idx):
+    def _create_generic_property_plots(self, component_idx):
         """
-        Create property plots for PCA components (similar to ICA's plot_properties)
+        Create property plots for PCA and Wavelet components.
         """
         figures = []
 
@@ -1378,7 +1586,19 @@ class ICAComponentSelector(QWidget):
             comp_data = sources[component_idx]
             sfreq = self.raw.info["sfreq"]
 
-            # Figure 1: Time series and topomap
+            # Determine label based on method
+            if self.analysis_method == "WAVELETS":
+                comp_label = "CH"
+                ch_name = (
+                    self.raw.ch_names[component_idx]
+                    if component_idx < len(self.raw.ch_names)
+                    else f"Channel {component_idx}"
+                )
+            else:
+                comp_label = "PC"
+                ch_name = None
+
+            # Figure 1: Time series and topomap (or info for Wavelet)
             fig1 = Figure(figsize=(10, 4), dpi=100)
 
             # Time series
@@ -1387,10 +1607,10 @@ class ICAComponentSelector(QWidget):
             ax1.plot(times, comp_data, linewidth=0.5)
             ax1.set_xlabel("Time (s)")
             ax1.set_ylabel("Amplitude")
-            ax1.set_title(f"PC {component_idx} - Time Series")
+            ax1.set_title(f"{comp_label} {component_idx} - Time Series")
             ax1.grid(True, alpha=0.3)
 
-            # Topomap
+            # Topomap (or info panel for Wavelet)
             ax2 = fig1.add_subplot(122)
             components = self.processor.get_components()
             if components is not None:
@@ -1403,7 +1623,26 @@ class ICAComponentSelector(QWidget):
                     show=False,
                     cmap="RdBu_r",
                 )
-                ax2.set_title(f"PC {component_idx} - Topomap")
+                ax2.set_title(f"{comp_label} {component_idx} - Topomap")
+            else:
+                # For Wavelet - show info panel instead
+                if self.analysis_method == "WAVELETS":
+                    # Get wavelet info if available
+                    wavelet_info = getattr(self.processor, "get_wavelet_info", lambda: {})()
+                    ax2.text(0.5, 0.7, f"🌊 Wavelet Denoising", ha="center", va="center",
+                            fontsize=14, fontweight="bold")
+                    ax2.text(0.5, 0.5, f"Channel: {ch_name}", ha="center", va="center", fontsize=12)
+                    if wavelet_info:
+                        ax2.text(0.5, 0.35, f"Wavelet: {wavelet_info.get('wavelet', 'N/A')}",
+                                ha="center", va="center", fontsize=10)
+                        ax2.text(0.5, 0.22, f"Level: {wavelet_info.get('level', 'N/A')}",
+                                ha="center", va="center", fontsize=10)
+                    ax2.set_title(f"{comp_label} {component_idx} - Info")
+                else:
+                    ax2.text(0.5, 0.5, "No spatial data", ha="center", va="center", fontsize=10)
+                    ax2.set_title(f"{comp_label} {component_idx}")
+                ax2.set_xticks([])
+                ax2.set_yticks([])
 
             fig1.tight_layout()
             figures.append(fig1)
@@ -1418,7 +1657,7 @@ class ICAComponentSelector(QWidget):
             ax3.semilogy(freqs, psd)
             ax3.set_xlabel("Frequency (Hz)")
             ax3.set_ylabel("Power Spectral Density")
-            ax3.set_title(f"PC {component_idx} - Power Spectrum")
+            ax3.set_title(f"{comp_label} {component_idx} - Power Spectrum")
             ax3.set_xlim(0, min(50, sfreq / 2))
             ax3.grid(True, alpha=0.3)
 
