@@ -329,9 +329,13 @@ class WaveletProcessor(BaseComponentProcessor):
 
             # Apply threshold with selected mode
             if self.threshold_mode == "soft":
-                thresholded_coeffs.append(pywt.threshold(detail_coeffs, threshold, "soft"))
+                thresholded_coeffs.append(
+                    pywt.threshold(detail_coeffs, threshold, "soft")
+                )
             else:
-                thresholded_coeffs.append(pywt.threshold(detail_coeffs, threshold, "hard"))
+                thresholded_coeffs.append(
+                    pywt.threshold(detail_coeffs, threshold, "hard")
+                )
 
         # Reconstruct signal
         denoised_signal = pywt.waverec(thresholded_coeffs, self.wavelet)

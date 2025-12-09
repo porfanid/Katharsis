@@ -865,6 +865,134 @@ class TestWaveletProcessor(unittest.TestCase):
         # Timepoints should be the same
         self.assertEqual(cleaned_raw.n_times, self.test_raw.n_times)
 
+    def test_threshold_method_visushrink(self):
+        """Test VisuShrink threshold method"""
+        processor = WaveletProcessor(
+            wavelet="db4", level=4, threshold_method="visushrink"
+        )
+        success = processor.fit(self.test_raw)
+        self.assertTrue(success)
+
+        info = processor.get_wavelet_info()
+        self.assertEqual(info["threshold_method"], "visushrink")
+
+        # Apply denoising
+        cleaned_raw = processor.apply_artifact_removal([])
+        self.assertIsNotNone(cleaned_raw)
+        self.assertEqual(cleaned_raw.n_times, self.test_raw.n_times)
+
+    def test_threshold_method_bayeshrink(self):
+        """Test BayesShrink threshold method"""
+        processor = WaveletProcessor(
+            wavelet="db4", level=4, threshold_method="bayeshrink"
+        )
+        success = processor.fit(self.test_raw)
+        self.assertTrue(success)
+
+        info = processor.get_wavelet_info()
+        self.assertEqual(info["threshold_method"], "bayeshrink")
+
+        # Apply denoising
+        cleaned_raw = processor.apply_artifact_removal([])
+        self.assertIsNotNone(cleaned_raw)
+        self.assertEqual(cleaned_raw.n_times, self.test_raw.n_times)
+
+    def test_threshold_method_sureshrink(self):
+        """Test SUREShrink threshold method"""
+        processor = WaveletProcessor(
+            wavelet="db4", level=4, threshold_method="sureshrink"
+        )
+        success = processor.fit(self.test_raw)
+        self.assertTrue(success)
+
+        info = processor.get_wavelet_info()
+        self.assertEqual(info["threshold_method"], "sureshrink")
+
+        # Apply denoising
+        cleaned_raw = processor.apply_artifact_removal([])
+        self.assertIsNotNone(cleaned_raw)
+        self.assertEqual(cleaned_raw.n_times, self.test_raw.n_times)
+
+    def test_set_threshold_method(self):
+        """Test updating threshold method dynamically"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        # Change to BayesShrink
+        self.wavelet_processor.set_wavelet_params(threshold_method="bayeshrink")
+        info = self.wavelet_processor.get_wavelet_info()
+        self.assertEqual(info["threshold_method"], "bayeshrink")
+
+        # Change to SUREShrink
+        self.wavelet_processor.set_wavelet_params(threshold_method="sureshrink")
+        info = self.wavelet_processor.get_wavelet_info()
+        self.assertEqual(info["threshold_method"], "sureshrink")
+
+    def test_invalid_threshold_method(self):
+        """Test that invalid threshold method raises error"""
+        self.wavelet_processor.fit(self.test_raw)
+
+        with self.assertRaises(ValueError):
+            self.wavelet_processor.set_wavelet_params(threshold_method="invalid_method")
+
+    def test_get_available_threshold_methods(self):
+        """Test available threshold methods list"""
+        methods = WaveletProcessor.get_available_threshold_methods()
+        self.assertIsInstance(methods, dict)
+        self.assertIn("visushrink", methods)
+        self.assertIn("bayeshrink", methods)
+        self.assertIn("sureshrink", methods)
+
+        # Check that descriptions are provided
+        for method, description in methods.items():
+            self.assertIsInstance(description, str)
+            self.assertTrue(len(description) > 0)
+
+    def test_different_methods_produce_different_results(self):
+        """Test that different threshold methods produce different denoised signals"""
+        # Create a noisy signal
+        noisy_data = self.test_raw.get_data().copy()
+        np.random.seed(42)
+        noisy_data += np.random.randn(*noisy_data.shape) * 1e-6
+
+        info = mne.create_info(
+            ch_names=self.test_raw.ch_names,
+            sfreq=self.test_raw.info["sfreq"],
+            ch_types="eeg",
+        )
+        noisy_raw = mne.io.RawArray(noisy_data, info)
+
+        # Process with different methods
+        processor_visu = WaveletProcessor(
+            wavelet="db4", level=4, threshold_method="visushrink"
+        )
+        processor_visu.fit(noisy_raw)
+        cleaned_visu = processor_visu.apply_artifact_removal([])
+
+        processor_bayes = WaveletProcessor(
+            wavelet="db4", level=4, threshold_method="bayeshrink"
+        )
+        processor_bayes.fit(noisy_raw)
+        cleaned_bayes = processor_bayes.apply_artifact_removal([])
+
+        processor_sure = WaveletProcessor(
+            wavelet="db4", level=4, threshold_method="sureshrink"
+        )
+        processor_sure.fit(noisy_raw)
+        cleaned_sure = processor_sure.apply_artifact_removal([])
+
+        # Results should be different (not exactly the same)
+        visu_data = cleaned_visu.get_data()
+        bayes_data = cleaned_bayes.get_data()
+        sure_data = cleaned_sure.get_data()
+
+        # Check that at least some differences exist
+        diff_visu_bayes = np.abs(visu_data - bayes_data).mean()
+        diff_visu_sure = np.abs(visu_data - sure_data).mean()
+
+        # They should produce different results (not identical)
+        self.assertGreater(diff_visu_bayes, 0)
+        self.assertGreater(diff_visu_sure, 0)
+
 
 class TestWaveletArtifactDetection(unittest.TestCase):
     """Tests for Wavelet artifact detection (should be automatic)"""
@@ -991,6 +1119,40 @@ class TestEEGArtifactCleaningServiceWavelet(unittest.TestCase):
             self.assertEqual(info["wavelet"], "sym8")
             self.assertEqual(info["level"], 3)
             self.assertEqual(info["threshold_mode"], "hard")
+
+    def test_set_threshold_method_on_service(self):
+        """Test setting threshold method on the service"""
+        # Set to BayesShrink
+        self.service.set_wavelet_params(threshold_method="bayeshrink")
+
+        processor = self.service.component_processor
+        if isinstance(processor, WaveletProcessor):
+            info = processor.get_wavelet_info()
+            self.assertEqual(info["threshold_method"], "bayeshrink")
+
+        # Set to SUREShrink
+        self.service.set_wavelet_params(threshold_method="sureshrink")
+        if isinstance(processor, WaveletProcessor):
+            info = processor.get_wavelet_info()
+            self.assertEqual(info["threshold_method"], "sureshrink")
+
+    def test_service_initialization_with_threshold_method(self):
+        """Test that service can be initialized with custom threshold method"""
+        service = EEGArtifactCleaningService(
+            analysis_method="WAVELETS",
+            wavelet="db8",
+            wavelet_level=4,
+            wavelet_threshold_mode="hard",
+            wavelet_threshold_method="bayeshrink",
+        )
+
+        processor = service.component_processor
+        if isinstance(processor, WaveletProcessor):
+            info = processor.get_wavelet_info()
+            self.assertEqual(info["wavelet"], "db8")
+            self.assertEqual(info["level"], 4)
+            self.assertEqual(info["threshold_mode"], "hard")
+            self.assertEqual(info["threshold_method"], "bayeshrink")
 
     def test_processing_summary_includes_wavelets_method(self):
         """Test that processing summary includes WAVELETS method"""

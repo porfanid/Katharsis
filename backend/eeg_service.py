@@ -72,7 +72,7 @@ class EEGArtifactCleaningService:
             wavelet (str): Wavelet family for Wavelet denoising (default 'db4')
             wavelet_level (int): Decomposition level for Wavelet (None for auto)
             wavelet_threshold_mode (str): Threshold mode for Wavelet ('soft' or 'hard')
-            wavelet_threshold_method (str): Threshold method for Wavelet 
+            wavelet_threshold_method (str): Threshold method for Wavelet
                                           ('visushrink', 'bayeshrink', 'sureshrink')
         """
         self.backend_core = EEGBackendCore()
