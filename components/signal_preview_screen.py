@@ -496,14 +496,16 @@ class ElectrodeSignalWidget(QWidget):
         range1_layout.setContentsMargins(3, 3, 3, 3)
 
         range1_layout.addWidget(QLabel("From:"))
-        self.freq_start1_spin = QSpinBox()
+        self.freq_start1_spin = QDoubleSpinBox()
         self.freq_start1_spin.setMinimum(0)
-        self.freq_start1_spin.setMaximum(int(self._max_time))
+        self.freq_start1_spin.setMaximum(self._max_time)
+        self.freq_start1_spin.setDecimals(3)  # Millisecond precision
+        self.freq_start1_spin.setSingleStep(0.001)  # 1 millisecond step
         self.freq_start1_spin.setSuffix(" s")
         self.freq_start1_spin.valueChanged.connect(self._update_frequency_analysis)
         self.freq_start1_spin.setStyleSheet(
             f"""
-            QSpinBox {{
+            QDoubleSpinBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
                 border-radius: 3px;
@@ -515,15 +517,17 @@ class ElectrodeSignalWidget(QWidget):
         range1_layout.addWidget(self.freq_start1_spin)
 
         range1_layout.addWidget(QLabel("to"))
-        self.freq_end1_spin = QSpinBox()
+        self.freq_end1_spin = QDoubleSpinBox()
         self.freq_end1_spin.setMinimum(0)
-        self.freq_end1_spin.setMaximum(int(self._max_time))
-        self.freq_end1_spin.setValue(int(self._max_time / 2))
+        self.freq_end1_spin.setMaximum(self._max_time)
+        self.freq_end1_spin.setValue(self._max_time / 2)
+        self.freq_end1_spin.setDecimals(3)  # Millisecond precision
+        self.freq_end1_spin.setSingleStep(0.001)  # 1 millisecond step
         self.freq_end1_spin.setSuffix(" s")
         self.freq_end1_spin.valueChanged.connect(self._update_frequency_analysis)
         self.freq_end1_spin.setStyleSheet(
             f"""
-            QSpinBox {{
+            QDoubleSpinBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
                 border-radius: 3px;
@@ -562,15 +566,17 @@ class ElectrodeSignalWidget(QWidget):
         range2_layout.setContentsMargins(3, 3, 3, 3)
 
         range2_layout.addWidget(QLabel("From:"))
-        self.freq_start2_spin = QSpinBox()
+        self.freq_start2_spin = QDoubleSpinBox()
         self.freq_start2_spin.setMinimum(0)
-        self.freq_start2_spin.setMaximum(int(self._max_time))
-        self.freq_start2_spin.setValue(int(self._max_time / 2))
+        self.freq_start2_spin.setMaximum(self._max_time)
+        self.freq_start2_spin.setValue(self._max_time / 2)
+        self.freq_start2_spin.setDecimals(3)  # Millisecond precision
+        self.freq_start2_spin.setSingleStep(0.001)  # 1 millisecond step
         self.freq_start2_spin.setSuffix(" s")
         self.freq_start2_spin.valueChanged.connect(self._update_frequency_analysis)
         self.freq_start2_spin.setStyleSheet(
             f"""
-            QSpinBox {{
+            QDoubleSpinBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
                 border-radius: 3px;
@@ -582,15 +588,17 @@ class ElectrodeSignalWidget(QWidget):
         range2_layout.addWidget(self.freq_start2_spin)
 
         range2_layout.addWidget(QLabel("to"))
-        self.freq_end2_spin = QSpinBox()
+        self.freq_end2_spin = QDoubleSpinBox()
         self.freq_end2_spin.setMinimum(0)
-        self.freq_end2_spin.setMaximum(int(self._max_time))
-        self.freq_end2_spin.setValue(int(self._max_time))
+        self.freq_end2_spin.setMaximum(self._max_time)
+        self.freq_end2_spin.setValue(self._max_time)
+        self.freq_end2_spin.setDecimals(3)  # Millisecond precision
+        self.freq_end2_spin.setSingleStep(0.001)  # 1 millisecond step
         self.freq_end2_spin.setSuffix(" s")
         self.freq_end2_spin.valueChanged.connect(self._update_frequency_analysis)
         self.freq_end2_spin.setStyleSheet(
             f"""
-            QSpinBox {{
+            QDoubleSpinBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
                 border-radius: 3px;
@@ -731,28 +739,28 @@ class ElectrodeSignalWidget(QWidget):
                 # Update frequency analysis ranges based on annotations
                 # Range 1 = Eyes Closed (first), Range 2 = Eyes Open (second)
                 if eyes_closed_annot is not None:
-                    self.freq_start1_spin.setValue(int(eyes_closed_annot["onset"]))
+                    self.freq_start1_spin.setValue(eyes_closed_annot["onset"])
                     self.freq_end1_spin.setValue(
-                        int(eyes_closed_annot["onset"] + eyes_closed_annot["duration"])
+                        eyes_closed_annot["onset"] + eyes_closed_annot["duration"]
                     )
                 if eyes_open_annot is not None:
-                    self.freq_start2_spin.setValue(int(eyes_open_annot["onset"]))
+                    self.freq_start2_spin.setValue(eyes_open_annot["onset"])
                     self.freq_end2_spin.setValue(
-                        int(eyes_open_annot["onset"] + eyes_open_annot["duration"])
+                        eyes_open_annot["onset"] + eyes_open_annot["duration"]
                     )
             else:
                 self.cut_timeline.set_annotations([])
 
                 # Update frequency analysis ranges (two ranges for comparison)
-                half_time = int(self._max_time / 2)
-                self.freq_start1_spin.setMaximum(int(self._max_time))
-                self.freq_end1_spin.setMaximum(int(self._max_time))
+                half_time = self._max_time / 2
+                self.freq_start1_spin.setMaximum(self._max_time)
+                self.freq_end1_spin.setMaximum(self._max_time)
                 self.freq_end1_spin.setValue(half_time)
 
-                self.freq_start2_spin.setMaximum(int(self._max_time))
+                self.freq_start2_spin.setMaximum(self._max_time)
                 self.freq_start2_spin.setValue(half_time)
-                self.freq_end2_spin.setMaximum(int(self._max_time))
-                self.freq_end2_spin.setValue(int(self._max_time))
+                self.freq_end2_spin.setMaximum(self._max_time)
+                self.freq_end2_spin.setValue(self._max_time)
 
             # Update frequency ranges on timeline
             self._update_frequency_ranges_on_timeline()
