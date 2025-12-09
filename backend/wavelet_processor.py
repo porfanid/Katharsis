@@ -5,15 +5,18 @@ Wavelet Processor - Discrete Wavelet Transform Denoising for EEG artifact cleani
 
 Implements Discrete Wavelet Transform (DWT) denoising for:
 - Signal denoising using wavelet decomposition
-- Automatic threshold calculation (Universal Thresholding based on MAD)
-- Soft thresholding for noise reduction
+- Adaptive threshold calculation methods:
+  * VisuShrink: Universal thresholding (global, conservative)
+  * BayesShrink: Bayes estimator (adaptive, data-driven)
+  * SUREShrink: SURE estimator (adaptive, MSE-optimal)
+- Soft/hard thresholding for noise reduction
 - Signal reconstruction
 
 This method is particularly useful for low-channel EEG systems (≤8 channels)
 where ICA/PCA may not be effective due to insufficient spatial information.
 
 Author: porfanid
-Version: 1.0
+Version: 2.0
 """
 
 import warnings
@@ -66,6 +69,7 @@ class WaveletProcessor(BaseComponentProcessor):
         wavelet: str = "db4",
         level: Optional[int] = None,
         threshold_mode: str = "soft",
+        threshold_method: str = "visushrink",
     ):
         """
         Initialize Wavelet processor.
@@ -83,11 +87,16 @@ class WaveletProcessor(BaseComponentProcessor):
             threshold_mode (str): Thresholding mode:
                 - 'soft': Soft thresholding (shrinks coefficients towards zero)
                 - 'hard': Hard thresholding (sets coefficients below threshold to zero)
+            threshold_method (str): Threshold estimation method:
+                - 'visushrink': Universal threshold (global, conservative)
+                - 'bayeshrink': Bayes estimator (adaptive, data-driven)
+                - 'sureshrink': SURE estimator (adaptive, minimizes MSE)
         """
         super().__init__(n_components, random_state)
         self.wavelet = wavelet
         self.level = level
         self.threshold_mode = threshold_mode
+        self.threshold_method = threshold_method.lower()
         self._denoised_data: Optional[np.ndarray] = None
         self._original_data: Optional[np.ndarray] = None
 
@@ -152,12 +161,138 @@ class WaveletProcessor(BaseComponentProcessor):
 
         return denoised
 
+    def _estimate_noise_sigma(self, detail_coeffs: np.ndarray) -> float:
+        """
+        Estimate noise standard deviation using MAD (Median Absolute Deviation).
+
+        Uses the robust MAD estimator on the finest level detail coefficients
+        to estimate the noise standard deviation.
+
+        Args:
+            detail_coeffs: Finest level detail coefficients
+
+        Returns:
+            float: Estimated noise standard deviation
+        """
+        return np.median(np.abs(detail_coeffs)) / MAD_NORMALIZATION_FACTOR
+
+    def _calculate_threshold_visushrink(
+        self, coeffs: List[np.ndarray], signal_length: int
+    ) -> float:
+        """
+        Calculate threshold using VisuShrink (Universal Thresholding).
+
+        This is a global threshold method that uses:
+        threshold = σ * sqrt(2 * log(n))
+
+        Conservative and effective for general denoising, but may over-smooth.
+
+        Args:
+            coeffs: List of wavelet coefficients
+            signal_length: Length of original signal
+
+        Returns:
+            float: Threshold value
+        """
+        detail_coeffs = coeffs[-1]  # Finest level detail coefficients
+        sigma = self._estimate_noise_sigma(detail_coeffs)
+        threshold = sigma * np.sqrt(2 * np.log(signal_length))
+        return threshold
+
+    def _calculate_threshold_bayeshrink(
+        self, detail_coeffs: np.ndarray, noise_sigma: float
+    ) -> float:
+        """
+        Calculate threshold using BayesShrink (Bayes Estimator).
+
+        This is an adaptive, data-driven threshold method that minimizes
+        the Bayesian risk. It estimates the signal variance and noise variance
+        to compute an optimal threshold for each subband.
+
+        threshold = σ_n^2 / σ_y
+
+        where σ_n is noise std and σ_y is the std of the noisy coefficients.
+
+        Args:
+            detail_coeffs: Detail coefficients for a subband
+            noise_sigma: Estimated noise standard deviation
+
+        Returns:
+            float: Threshold value for this subband
+        """
+        # Estimate variance of noisy coefficients
+        sigma_y = np.std(detail_coeffs)
+
+        # Estimate signal variance
+        # σ_s^2 = max(σ_y^2 - σ_n^2, 0)
+        sigma_s_squared = max(sigma_y**2 - noise_sigma**2, 0)
+
+        if sigma_s_squared == 0:
+            # No signal, only noise - use high threshold
+            return noise_sigma * np.sqrt(2 * np.log(len(detail_coeffs)))
+
+        # BayesShrink threshold
+        threshold = noise_sigma**2 / np.sqrt(sigma_s_squared)
+        return threshold
+
+    def _calculate_threshold_sureshrink(
+        self, detail_coeffs: np.ndarray, noise_sigma: float
+    ) -> float:
+        """
+        Calculate threshold using SUREShrink (SURE Estimator).
+
+        This is an adaptive threshold method that minimizes Stein's Unbiased
+        Risk Estimate (SURE). It chooses the threshold that minimizes the MSE
+        between the true and denoised signals.
+
+        Args:
+            detail_coeffs: Detail coefficients for a subband
+            noise_sigma: Estimated noise standard deviation
+
+        Returns:
+            float: Threshold value for this subband
+        """
+        n = len(detail_coeffs)
+        if n <= 1:
+            # Fall back to VisuShrink for very small subbands
+            return noise_sigma * np.sqrt(2 * np.log(max(n, 2)))
+
+        # Sort coefficients by absolute value
+        abs_coeffs = np.sort(np.abs(detail_coeffs))
+
+        # Compute SURE for a range of thresholds
+        # We'll test thresholds from 0 to the universal threshold
+        universal_threshold = noise_sigma * np.sqrt(2 * np.log(n))
+
+        # Sample 100 candidate thresholds
+        num_candidates = min(100, n)
+        candidate_thresholds = np.linspace(0, universal_threshold, num_candidates)
+
+        min_sure = float("inf")
+        best_threshold = universal_threshold
+
+        for t in candidate_thresholds:
+            # Count coefficients below threshold
+            n_below = np.sum(abs_coeffs <= t)
+
+            # SURE formula
+            # SURE(t) = n - 2 * #{|x_i| ≤ t} + Σ min(|x_i|^2, t^2)
+            sure_value = n - 2 * n_below + np.sum(np.minimum(abs_coeffs**2, t**2))
+
+            if sure_value < min_sure:
+                min_sure = sure_value
+                best_threshold = t
+
+        return best_threshold
+
     def _denoise_signal(self, signal: np.ndarray) -> np.ndarray:
         """
         Denoise a single signal using DWT.
 
-        Applies Universal Thresholding (VisuShrink) based on the median
-        absolute deviation (MAD) of the detail coefficients.
+        Applies wavelet thresholding based on the selected threshold method:
+        - VisuShrink: Universal thresholding (global, conservative)
+        - BayesShrink: Adaptive Bayes estimator (subband-specific)
+        - SUREShrink: Adaptive SURE estimator (subband-specific, MSE-optimal)
 
         Args:
             signal: 1D signal array
@@ -167,25 +302,36 @@ class WaveletProcessor(BaseComponentProcessor):
         """
         # Decompose signal
         coeffs = pywt.wavedec(signal, self.wavelet, level=self.level)
-
-        # Calculate threshold using Universal Thresholding (VisuShrink)
-        # Based on MAD (Median Absolute Deviation) of finest detail coefficients
-        # σ = MAD(d1) / 0.6745, where d1 is the first level detail coefficients
-        detail_coeffs = coeffs[-1]  # Finest level detail coefficients
-        sigma = np.median(np.abs(detail_coeffs)) / MAD_NORMALIZATION_FACTOR
-
-        # Universal threshold: sqrt(2 * log(n)) * σ
         n = len(signal)
-        threshold = sigma * np.sqrt(2 * np.log(n))
+
+        # Estimate noise from finest level detail coefficients
+        detail_coeffs_finest = coeffs[-1]
+        noise_sigma = self._estimate_noise_sigma(detail_coeffs_finest)
 
         # Apply thresholding to detail coefficients (not approximation)
         thresholded_coeffs = [coeffs[0]]  # Keep approximation coefficients unchanged
 
         for i in range(1, len(coeffs)):
+            detail_coeffs = coeffs[i]
+
+            # Calculate threshold based on selected method
+            if self.threshold_method == "bayeshrink":
+                threshold = self._calculate_threshold_bayeshrink(
+                    detail_coeffs, noise_sigma
+                )
+            elif self.threshold_method == "sureshrink":
+                threshold = self._calculate_threshold_sureshrink(
+                    detail_coeffs, noise_sigma
+                )
+            else:  # visushrink (default)
+                # For VisuShrink, use global threshold for all subbands
+                threshold = self._calculate_threshold_visushrink(coeffs, n)
+
+            # Apply threshold with selected mode
             if self.threshold_mode == "soft":
-                thresholded_coeffs.append(pywt.threshold(coeffs[i], threshold, "soft"))
+                thresholded_coeffs.append(pywt.threshold(detail_coeffs, threshold, "soft"))
             else:
-                thresholded_coeffs.append(pywt.threshold(coeffs[i], threshold, "hard"))
+                thresholded_coeffs.append(pywt.threshold(detail_coeffs, threshold, "hard"))
 
         # Reconstruct signal
         denoised_signal = pywt.waverec(thresholded_coeffs, self.wavelet)
@@ -293,6 +439,7 @@ class WaveletProcessor(BaseComponentProcessor):
             "wavelet": self.wavelet,
             "level": self.level,
             "threshold_mode": self.threshold_mode,
+            "threshold_method": self.threshold_method,
         }
 
     def set_wavelet_params(
@@ -300,6 +447,7 @@ class WaveletProcessor(BaseComponentProcessor):
         wavelet: Optional[str] = None,
         level: Optional[int] = None,
         threshold_mode: Optional[str] = None,
+        threshold_method: Optional[str] = None,
     ):
         """
         Update wavelet parameters.
@@ -308,6 +456,7 @@ class WaveletProcessor(BaseComponentProcessor):
             wavelet: New wavelet family
             level: New decomposition level
             threshold_mode: New threshold mode ('soft' or 'hard')
+            threshold_method: New threshold method ('visushrink', 'bayeshrink', 'sureshrink')
         """
         if wavelet is not None:
             self.wavelet = wavelet
@@ -317,6 +466,13 @@ class WaveletProcessor(BaseComponentProcessor):
             if threshold_mode not in ["soft", "hard"]:
                 raise ValueError("threshold_mode must be 'soft' or 'hard'")
             self.threshold_mode = threshold_mode
+        if threshold_method is not None:
+            method = threshold_method.lower()
+            if method not in ["visushrink", "bayeshrink", "sureshrink"]:
+                raise ValueError(
+                    "threshold_method must be 'visushrink', 'bayeshrink', or 'sureshrink'"
+                )
+            self.threshold_method = method
 
         # Re-compute denoised data if we have raw data
         if self._original_data is not None:
@@ -371,3 +527,17 @@ class WaveletProcessor(BaseComponentProcessor):
             "coif3",  # Coiflet 3 - good for signals with discontinuities
             "bior3.5",  # Biorthogonal - good reconstruction properties
         ]
+
+    @staticmethod
+    def get_available_threshold_methods() -> Dict[str, str]:
+        """
+        Get list of available threshold methods with descriptions.
+
+        Returns:
+            Dict mapping method names to descriptions
+        """
+        return {
+            "visushrink": "VisuShrink - Universal threshold (conservative, global)",
+            "bayeshrink": "BayesShrink - Adaptive Bayes estimator (data-driven, subband-specific)",
+            "sureshrink": "SUREShrink - SURE estimator (MSE-optimal, adaptive)",
+        }

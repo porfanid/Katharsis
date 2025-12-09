@@ -40,6 +40,9 @@ class AnalysisMethodSelector(QWidget):
     wavelet_threshold_mode_changed = pyqtSignal(
         str
     )  # Emits threshold mode ('soft' or 'hard')
+    wavelet_threshold_method_changed = pyqtSignal(
+        str
+    )  # Emits threshold method ('visushrink', 'bayeshrink', 'sureshrink')
 
     # Method definitions with icons, names, and descriptions
     METHODS = {
@@ -76,6 +79,13 @@ class AnalysisMethodSelector(QWidget):
         "hard": "Hard (sharper)",
     }
 
+    # Threshold methods with descriptions
+    THRESHOLD_METHODS = {
+        "visushrink": "VisuShrink - Universal (conservative, good for general use)",
+        "bayeshrink": "BayesShrink - Adaptive (data-driven, better for non-stationary noise)",
+        "sureshrink": "SUREShrink - Optimal (MSE-minimizing, best for complex signals)",
+    }
+
     def __init__(self, theme: Dict[str, str], parent=None):
         super().__init__(parent)
         self.theme = theme
@@ -84,6 +94,7 @@ class AnalysisMethodSelector(QWidget):
         self._wavelet_level = 5  # Default wavelet level
         self._wavelet_family = "db4"  # Default wavelet family
         self._threshold_mode = "soft"  # Default threshold mode
+        self._threshold_method = "visushrink"  # Default threshold method
         self._setup_ui()
 
     def _setup_ui(self):
@@ -236,6 +247,46 @@ class AnalysisMethodSelector(QWidget):
         row2_layout.addStretch()
         wavelet_main_layout.addLayout(row2_layout)
 
+        # Third row: Threshold Method (Adaptive Thresholding)
+        row3_layout = QHBoxLayout()
+        row3_layout.setSpacing(15)
+
+        method_label = QLabel("🎯 Method:")
+        method_label.setFont(QFont("Arial", 10))
+        method_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        row3_layout.addWidget(method_label)
+
+        self._threshold_method_combo = QComboBox()
+        self._threshold_method_combo.setFont(QFont("Arial", 10))
+        self._threshold_method_combo.setMinimumWidth(350)
+        for key, display_name in self.THRESHOLD_METHODS.items():
+            self._threshold_method_combo.addItem(display_name, key)
+        self._threshold_method_combo.setCurrentIndex(0)  # Default to visushrink
+        self._threshold_method_combo.setStyleSheet(
+            f"""
+            QComboBox {{
+                padding: 5px 10px;
+                border: 2px solid {self.theme.get('border', '#dee2e6')};
+                border-radius: 4px;
+                background-color: white;
+            }}
+            QComboBox:focus {{
+                border-color: {self.theme.get('primary', '#007AFF')};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                padding-right: 10px;
+            }}
+            """
+        )
+        self._threshold_method_combo.currentIndexChanged.connect(
+            self._on_threshold_method_changed
+        )
+        row3_layout.addWidget(self._threshold_method_combo)
+
+        row3_layout.addStretch()
+        wavelet_main_layout.addLayout(row3_layout)
+
         main_layout.addWidget(self._wavelet_settings)
 
         # Initially hide wavelet settings
@@ -309,6 +360,11 @@ class AnalysisMethodSelector(QWidget):
         self._threshold_mode = self._threshold_combo.currentData()
         self.wavelet_threshold_mode_changed.emit(self._threshold_mode)
 
+    def _on_threshold_method_changed(self, index: int):
+        """Handle threshold method change."""
+        self._threshold_method = self._threshold_method_combo.currentData()
+        self.wavelet_threshold_method_changed.emit(self._threshold_method)
+
     def get_selected_method(self) -> str:
         """Get the currently selected method."""
         return self._selected_method
@@ -324,6 +380,10 @@ class AnalysisMethodSelector(QWidget):
     def get_threshold_mode(self) -> str:
         """Get the current threshold mode."""
         return self._threshold_mode
+
+    def get_threshold_method(self) -> str:
+        """Get the current threshold method."""
+        return self._threshold_method
 
     def set_selected_method(self, method: str):
         """Set the selected method programmatically."""
@@ -474,6 +534,7 @@ class ChannelSelectorWidget(QWidget):
         self.wavelet_level = 5  # Default wavelet level
         self.wavelet_family = "db4"  # Default wavelet family
         self.threshold_mode = "soft"  # Default threshold mode
+        self.threshold_method = "visushrink"  # Default threshold method
 
         self.setup_ui()
 
@@ -537,6 +598,9 @@ class ChannelSelectorWidget(QWidget):
         )
         self.method_selector.wavelet_threshold_mode_changed.connect(
             self._on_threshold_mode_changed
+        )
+        self.method_selector.wavelet_threshold_method_changed.connect(
+            self._on_threshold_method_changed
         )
         method_layout.addWidget(self.method_selector)
 
@@ -932,6 +996,7 @@ class ChannelSelectorWidget(QWidget):
                 "level": self.wavelet_level,
                 "wavelet": self.wavelet_family,
                 "threshold_mode": self.threshold_mode,
+                "threshold_method": self.threshold_method,
             }
             self.channels_selected.emit(
                 selected_channels, self.analysis_method, wavelet_params
@@ -955,6 +1020,10 @@ class ChannelSelectorWidget(QWidget):
     def _on_threshold_mode_changed(self, mode: str):
         """Handle threshold mode change"""
         self.threshold_mode = mode
+
+    def _on_threshold_method_changed(self, method: str):
+        """Handle threshold method change"""
+        self.threshold_method = method
 
     def get_analysis_method(self) -> str:
         """Get the selected analysis method"""
