@@ -80,6 +80,7 @@ class AnalysisMethodSelector(QWidget):
     }
 
     # Threshold methods with descriptions
+    # Note: These descriptions should match WaveletProcessor.get_available_threshold_methods()
     THRESHOLD_METHODS = {
         "visushrink": "VisuShrink - Universal (conservative, good for general use)",
         "bayeshrink": "BayesShrink - Adaptive (data-driven, better for non-stationary noise)",

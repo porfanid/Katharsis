@@ -264,8 +264,8 @@ class WaveletProcessor(BaseComponentProcessor):
         # We'll test thresholds from 0 to the universal threshold
         universal_threshold = noise_sigma * np.sqrt(2 * np.log(n))
 
-        # Sample 100 candidate thresholds
-        num_candidates = min(100, n)
+        # Sample 50 candidate thresholds (reduced from 100 for efficiency)
+        num_candidates = min(50, n)
         candidate_thresholds = np.linspace(0, universal_threshold, num_candidates)
 
         min_sure = float("inf")
@@ -308,6 +308,11 @@ class WaveletProcessor(BaseComponentProcessor):
         detail_coeffs_finest = coeffs[-1]
         noise_sigma = self._estimate_noise_sigma(detail_coeffs_finest)
 
+        # Pre-calculate threshold for VisuShrink (global threshold, same for all subbands)
+        visushrink_threshold = None
+        if self.threshold_method == "visushrink":
+            visushrink_threshold = self._calculate_threshold_visushrink(coeffs, n)
+
         # Apply thresholding to detail coefficients (not approximation)
         thresholded_coeffs = [coeffs[0]]  # Keep approximation coefficients unchanged
 
@@ -324,8 +329,8 @@ class WaveletProcessor(BaseComponentProcessor):
                     detail_coeffs, noise_sigma
                 )
             else:  # visushrink (default)
-                # For VisuShrink, use global threshold for all subbands
-                threshold = self._calculate_threshold_visushrink(coeffs, n)
+                # Use pre-calculated global threshold
+                threshold = visushrink_threshold
 
             # Apply threshold with selected mode
             if self.threshold_mode == "soft":
