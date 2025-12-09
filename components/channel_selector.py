@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSlider,
     QSpinBox,
     QSplitter,
     QTextEdit,
@@ -42,7 +43,9 @@ class AnalysisMethodSelector(QWidget):
     )  # Emits threshold mode ('soft' or 'hard')
     wavelet_threshold_method_changed = pyqtSignal(
         str
-    )  # Emits threshold method ('visushrink', 'bayeshrink', 'sureshrink')
+    )  # Emits threshold method ('visushrink', 'bayeshrink', 'sureshrink', 'manual')
+    wavelet_manual_threshold_changed = pyqtSignal(float)  # Emits manual threshold value
+    wavelet_threshold_scale_changed = pyqtSignal(float)  # Emits threshold scale value
 
     # Method definitions with icons, names, and descriptions
     METHODS = {
@@ -85,6 +88,7 @@ class AnalysisMethodSelector(QWidget):
         "visushrink": "VisuShrink - Universal (conservative, good for general use)",
         "bayeshrink": "BayesShrink - Adaptive (data-driven, better for non-stationary noise)",
         "sureshrink": "SUREShrink - Optimal (MSE-minimizing, best for complex signals)",
+        "manual": "Manual - Custom threshold (full control over denoising strength)",
     }
 
     def __init__(self, theme: Dict[str, str], parent=None):
@@ -96,6 +100,8 @@ class AnalysisMethodSelector(QWidget):
         self._wavelet_family = "db4"  # Default wavelet family
         self._threshold_mode = "soft"  # Default threshold mode
         self._threshold_method = "visushrink"  # Default threshold method
+        self._manual_threshold = 0.1  # Default manual threshold value
+        self._threshold_scale = 1.0  # Default threshold scale for automatic methods
         self._setup_ui()
 
     def _setup_ui(self):
@@ -288,6 +294,134 @@ class AnalysisMethodSelector(QWidget):
         row3_layout.addStretch()
         wavelet_main_layout.addLayout(row3_layout)
 
+        # Fourth row: Manual Threshold (visible only when Manual method is selected)
+        self._manual_threshold_widget = QWidget()
+        row4_layout = QHBoxLayout(self._manual_threshold_widget)
+        row4_layout.setContentsMargins(0, 0, 0, 0)
+        row4_layout.setSpacing(15)
+
+        manual_label = QLabel("🎚️ Threshold Value:")
+        manual_label.setFont(QFont("Arial", 10))
+        manual_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        row4_layout.addWidget(manual_label)
+
+        # Manual threshold slider
+        self._manual_threshold_slider = QSlider(Qt.Orientation.Horizontal)
+        self._manual_threshold_slider.setMinimum(0)
+        self._manual_threshold_slider.setMaximum(200)  # 0 to 2.0 (in 0.01 increments)
+        self._manual_threshold_slider.setValue(int(self._manual_threshold * 100))
+        self._manual_threshold_slider.setMinimumWidth(200)
+        self._manual_threshold_slider.setStyleSheet(
+            f"""
+            QSlider::groove:horizontal {{
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                height: 8px;
+                background: #e9ecef;
+                border-radius: 4px;
+            }}
+            QSlider::handle:horizontal {{
+                background: {self.theme.get('primary', '#007AFF')};
+                border: 2px solid white;
+                width: 18px;
+                margin: -5px 0;
+                border-radius: 9px;
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: #0056b3;
+            }}
+            """
+        )
+        self._manual_threshold_slider.valueChanged.connect(
+            self._on_manual_threshold_changed
+        )
+        row4_layout.addWidget(self._manual_threshold_slider)
+
+        # Manual threshold value display
+        self._manual_threshold_value_label = QLabel(f"{self._manual_threshold:.2f}")
+        self._manual_threshold_value_label.setFont(
+            QFont("Arial", 10, QFont.Weight.Bold)
+        )
+        self._manual_threshold_value_label.setStyleSheet(
+            f"color: {self.theme.get('primary', '#007AFF')}; min-width: 40px;"
+        )
+        row4_layout.addWidget(self._manual_threshold_value_label)
+
+        manual_hint = QLabel("(lower=more denoising, higher=preserve more signal)")
+        manual_hint.setFont(QFont("Arial", 9))
+        manual_hint.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;"
+        )
+        row4_layout.addWidget(manual_hint)
+
+        row4_layout.addStretch()
+        wavelet_main_layout.addWidget(self._manual_threshold_widget)
+
+        # Initially hide manual threshold control
+        self._manual_threshold_widget.setVisible(False)
+
+        # Fifth row: Threshold Scale (visible for automatic methods)
+        self._threshold_scale_widget = QWidget()
+        row5_layout = QHBoxLayout(self._threshold_scale_widget)
+        row5_layout.setContentsMargins(0, 0, 0, 0)
+        row5_layout.setSpacing(15)
+
+        scale_label = QLabel("🎚️ Threshold Scale:")
+        scale_label.setFont(QFont("Arial", 10))
+        scale_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
+        row5_layout.addWidget(scale_label)
+
+        # Threshold scale slider (0.5 to 2.0, default 1.0)
+        self._threshold_scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self._threshold_scale_slider.setMinimum(25)  # 0.25
+        self._threshold_scale_slider.setMaximum(300)  # 3.0
+        self._threshold_scale_slider.setValue(int(self._threshold_scale * 100))
+        self._threshold_scale_slider.setMinimumWidth(200)
+        self._threshold_scale_slider.setStyleSheet(
+            f"""
+            QSlider::groove:horizontal {{
+                border: 1px solid {self.theme.get('border', '#dee2e6')};
+                height: 8px;
+                background: #e9ecef;
+                border-radius: 4px;
+            }}
+            QSlider::handle:horizontal {{
+                background: {self.theme.get('primary', '#007AFF')};
+                border: 2px solid white;
+                width: 18px;
+                margin: -5px 0;
+                border-radius: 9px;
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: #0056b3;
+            }}
+            """
+        )
+        self._threshold_scale_slider.valueChanged.connect(
+            self._on_threshold_scale_changed
+        )
+        row5_layout.addWidget(self._threshold_scale_slider)
+
+        # Threshold scale value display
+        self._threshold_scale_value_label = QLabel(f"{self._threshold_scale:.2f}×")
+        self._threshold_scale_value_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self._threshold_scale_value_label.setStyleSheet(
+            f"color: {self.theme.get('primary', '#007AFF')}; min-width: 50px;"
+        )
+        row5_layout.addWidget(self._threshold_scale_value_label)
+
+        scale_hint = QLabel("(<1.0=more denoising, >1.0=less denoising)")
+        scale_hint.setFont(QFont("Arial", 9))
+        scale_hint.setStyleSheet(
+            f"color: {self.theme.get('text_light', '#6c757d')}; font-style: italic;"
+        )
+        row5_layout.addWidget(scale_hint)
+
+        row5_layout.addStretch()
+        wavelet_main_layout.addWidget(self._threshold_scale_widget)
+
+        # Initially show threshold scale for automatic methods
+        self._threshold_scale_widget.setVisible(True)
+
         main_layout.addWidget(self._wavelet_settings)
 
         # Initially hide wavelet settings
@@ -366,6 +500,23 @@ class AnalysisMethodSelector(QWidget):
         self._threshold_method = self._threshold_method_combo.currentData()
         self.wavelet_threshold_method_changed.emit(self._threshold_method)
 
+        # Show/hide controls based on selected method
+        is_manual = self._threshold_method == "manual"
+        self._manual_threshold_widget.setVisible(is_manual)
+        self._threshold_scale_widget.setVisible(not is_manual)
+
+    def _on_manual_threshold_changed(self, value: int):
+        """Handle manual threshold slider change."""
+        self._manual_threshold = value / 100.0  # Convert slider value to float
+        self._manual_threshold_value_label.setText(f"{self._manual_threshold:.2f}")
+        self.wavelet_manual_threshold_changed.emit(self._manual_threshold)
+
+    def _on_threshold_scale_changed(self, value: int):
+        """Handle threshold scale slider change."""
+        self._threshold_scale = value / 100.0  # Convert slider value to float
+        self._threshold_scale_value_label.setText(f"{self._threshold_scale:.2f}×")
+        self.wavelet_threshold_scale_changed.emit(self._threshold_scale)
+
     def get_selected_method(self) -> str:
         """Get the currently selected method."""
         return self._selected_method
@@ -385,6 +536,14 @@ class AnalysisMethodSelector(QWidget):
     def get_threshold_method(self) -> str:
         """Get the current threshold method."""
         return self._threshold_method
+
+    def get_manual_threshold(self) -> float:
+        """Get the current manual threshold value."""
+        return self._manual_threshold
+
+    def get_threshold_scale(self) -> float:
+        """Get the current threshold scale value."""
+        return self._threshold_scale
 
     def set_selected_method(self, method: str):
         """Set the selected method programmatically."""
@@ -536,6 +695,8 @@ class ChannelSelectorWidget(QWidget):
         self.wavelet_family = "db4"  # Default wavelet family
         self.threshold_mode = "soft"  # Default threshold mode
         self.threshold_method = "visushrink"  # Default threshold method
+        self.manual_threshold = 0.1  # Default manual threshold value
+        self.threshold_scale = 1.0  # Default threshold scale
 
         self.setup_ui()
 
@@ -602,6 +763,12 @@ class ChannelSelectorWidget(QWidget):
         )
         self.method_selector.wavelet_threshold_method_changed.connect(
             self._on_threshold_method_changed
+        )
+        self.method_selector.wavelet_manual_threshold_changed.connect(
+            self._on_manual_threshold_changed
+        )
+        self.method_selector.wavelet_threshold_scale_changed.connect(
+            self._on_threshold_scale_changed
         )
         method_layout.addWidget(self.method_selector)
 
@@ -998,6 +1165,8 @@ class ChannelSelectorWidget(QWidget):
                 "wavelet": self.wavelet_family,
                 "threshold_mode": self.threshold_mode,
                 "threshold_method": self.threshold_method,
+                "manual_threshold": self.manual_threshold,
+                "threshold_scale": self.threshold_scale,
             }
             self.channels_selected.emit(
                 selected_channels, self.analysis_method, wavelet_params
@@ -1025,6 +1194,14 @@ class ChannelSelectorWidget(QWidget):
     def _on_threshold_method_changed(self, method: str):
         """Handle threshold method change"""
         self.threshold_method = method
+
+    def _on_manual_threshold_changed(self, value: float):
+        """Handle manual threshold value change"""
+        self.manual_threshold = value
+
+    def _on_threshold_scale_changed(self, value: float):
+        """Handle threshold scale value change"""
+        self.threshold_scale = value
 
     def get_analysis_method(self) -> str:
         """Get the selected analysis method"""

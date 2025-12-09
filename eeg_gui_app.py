@@ -814,7 +814,7 @@ class EEGArtifactCleanerGUI(QMainWindow):
         Args:
             selected_channels (List[str]): List of selected channels
             analysis_method (str): Analysis method ("ICA", "PCA", or "WAVELETS")
-            wavelet_params (dict): Wavelet parameters (level, wavelet, threshold_mode, threshold_method)
+            wavelet_params (dict): Wavelet parameters (level, wavelet, threshold_mode, threshold_method, etc.)
         """
         if wavelet_params is None:
             wavelet_params = {
@@ -822,6 +822,8 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 "wavelet": "db4",
                 "threshold_mode": "soft",
                 "threshold_method": "visushrink",
+                "manual_threshold": 0.1,
+                "threshold_scale": 1.0,
             }
 
         self.selected_channels = selected_channels
@@ -837,6 +839,8 @@ class EEGArtifactCleanerGUI(QMainWindow):
                 wavelet=wavelet_params.get("wavelet", "db4"),
                 threshold_mode=wavelet_params.get("threshold_mode", "soft"),
                 threshold_method=wavelet_params.get("threshold_method", "visushrink"),
+                manual_threshold=wavelet_params.get("manual_threshold", 0.1),
+                threshold_scale=wavelet_params.get("threshold_scale", 1.0),
             )
 
         # Load the raw data with selected channels for preview

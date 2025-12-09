@@ -58,6 +58,8 @@ class EEGArtifactCleaningService:
         wavelet_level: int = None,
         wavelet_threshold_mode: str = "soft",
         wavelet_threshold_method: str = "visushrink",
+        wavelet_manual_threshold: float = 0.1,
+        wavelet_threshold_scale: float = 1.0,
     ):
         """
         Initialize the EEG cleaning service.
@@ -73,7 +75,9 @@ class EEGArtifactCleaningService:
             wavelet_level (int): Decomposition level for Wavelet (None for auto)
             wavelet_threshold_mode (str): Threshold mode for Wavelet ('soft' or 'hard')
             wavelet_threshold_method (str): Threshold method for Wavelet
-                                          ('visushrink', 'bayeshrink', 'sureshrink')
+                                          ('visushrink', 'bayeshrink', 'sureshrink', 'manual')
+            wavelet_manual_threshold (float): Manual threshold value (for manual mode)
+            wavelet_threshold_scale (float): Threshold scaling factor (for automatic methods)
         """
         self.backend_core = EEGBackendCore()
         self._n_components = n_components
@@ -84,6 +88,8 @@ class EEGArtifactCleaningService:
         self._wavelet_level = wavelet_level
         self._wavelet_threshold_mode = wavelet_threshold_mode
         self._wavelet_threshold_method = wavelet_threshold_method
+        self._wavelet_manual_threshold = wavelet_manual_threshold
+        self._wavelet_threshold_scale = wavelet_threshold_scale
 
         # Create the appropriate processor based on method
         self._create_processor()
@@ -118,6 +124,8 @@ class EEGArtifactCleaningService:
                 level=self._wavelet_level,
                 threshold_mode=self._wavelet_threshold_mode,
                 threshold_method=self._wavelet_threshold_method,
+                manual_threshold=self._wavelet_manual_threshold,
+                threshold_scale=self._wavelet_threshold_scale,
             )
         else:
             self.component_processor = ICAProcessor(n_components=self._n_components)
@@ -153,6 +161,8 @@ class EEGArtifactCleaningService:
         level: Optional[int] = None,
         threshold_mode: Optional[str] = None,
         threshold_method: Optional[str] = None,
+        manual_threshold: Optional[float] = None,
+        threshold_scale: Optional[float] = None,
     ):
         """
         Set wavelet parameters for Wavelet denoising.
@@ -161,7 +171,9 @@ class EEGArtifactCleaningService:
             wavelet: Wavelet family (e.g., 'db4', 'sym8')
             level: Decomposition level
             threshold_mode: Thresholding mode ('soft' or 'hard')
-            threshold_method: Threshold method ('visushrink', 'bayeshrink', 'sureshrink')
+            threshold_method: Threshold method ('visushrink', 'bayeshrink', 'sureshrink', 'manual')
+            manual_threshold: Manual threshold value (for manual mode)
+            threshold_scale: Threshold scaling factor (for automatic methods)
         """
         if wavelet is not None:
             self._wavelet = wavelet
@@ -171,6 +183,10 @@ class EEGArtifactCleaningService:
             self._wavelet_threshold_mode = threshold_mode
         if threshold_method is not None:
             self._wavelet_threshold_method = threshold_method
+        if manual_threshold is not None:
+            self._wavelet_manual_threshold = manual_threshold
+        if threshold_scale is not None:
+            self._wavelet_threshold_scale = threshold_scale
 
         # Update processor if it's a WaveletProcessor
         if isinstance(self.component_processor, WaveletProcessor):
@@ -179,6 +195,8 @@ class EEGArtifactCleaningService:
                 level=level,
                 threshold_mode=threshold_mode,
                 threshold_method=threshold_method,
+                manual_threshold=manual_threshold,
+                threshold_scale=threshold_scale,
             )
 
     # Backward compatibility property

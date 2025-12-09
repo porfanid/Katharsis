@@ -70,6 +70,8 @@ class WaveletProcessor(BaseComponentProcessor):
         level: Optional[int] = None,
         threshold_mode: str = "soft",
         threshold_method: str = "visushrink",
+        manual_threshold: float = 0.1,
+        threshold_scale: float = 1.0,
     ):
         """
         Initialize Wavelet processor.
@@ -91,12 +93,19 @@ class WaveletProcessor(BaseComponentProcessor):
                 - 'visushrink': Universal threshold (global, conservative)
                 - 'bayeshrink': Bayes estimator (adaptive, data-driven)
                 - 'sureshrink': SURE estimator (adaptive, minimizes MSE)
+                - 'manual': User-specified threshold value
+            manual_threshold (float): Threshold value for manual mode (default: 0.1)
+            threshold_scale (float): Scaling factor for automatic thresholds (default: 1.0)
+                - Values > 1.0 increase threshold (less denoising, preserve more signal)
+                - Values < 1.0 decrease threshold (more denoising, remove more noise)
         """
         super().__init__(n_components, random_state)
         self.wavelet = wavelet
         self.level = level
         self.threshold_mode = threshold_mode
         self.threshold_method = threshold_method.lower()
+        self.manual_threshold = manual_threshold
+        self.threshold_scale = threshold_scale
         self._denoised_data: Optional[np.ndarray] = None
         self._original_data: Optional[np.ndarray] = None
 
@@ -324,13 +333,20 @@ class WaveletProcessor(BaseComponentProcessor):
                 threshold = self._calculate_threshold_bayeshrink(
                     detail_coeffs, noise_sigma
                 )
+                # Apply scaling factor
+                threshold *= self.threshold_scale
             elif self.threshold_method == "sureshrink":
                 threshold = self._calculate_threshold_sureshrink(
                     detail_coeffs, noise_sigma
                 )
+                # Apply scaling factor
+                threshold *= self.threshold_scale
+            elif self.threshold_method == "manual":
+                # Use user-specified manual threshold (no scaling)
+                threshold = self.manual_threshold
             else:  # visushrink (default)
-                # Use pre-calculated global threshold
-                threshold = visushrink_threshold
+                # Use pre-calculated global threshold with scaling
+                threshold = visushrink_threshold * self.threshold_scale
 
             # Apply threshold with selected mode
             if self.threshold_mode == "soft":
@@ -449,6 +465,8 @@ class WaveletProcessor(BaseComponentProcessor):
             "level": self.level,
             "threshold_mode": self.threshold_mode,
             "threshold_method": self.threshold_method,
+            "manual_threshold": self.manual_threshold,
+            "threshold_scale": self.threshold_scale,
         }
 
     def set_wavelet_params(
@@ -457,6 +475,8 @@ class WaveletProcessor(BaseComponentProcessor):
         level: Optional[int] = None,
         threshold_mode: Optional[str] = None,
         threshold_method: Optional[str] = None,
+        manual_threshold: Optional[float] = None,
+        threshold_scale: Optional[float] = None,
     ):
         """
         Update wavelet parameters.
@@ -465,7 +485,9 @@ class WaveletProcessor(BaseComponentProcessor):
             wavelet: New wavelet family
             level: New decomposition level
             threshold_mode: New threshold mode ('soft' or 'hard')
-            threshold_method: New threshold method ('visushrink', 'bayeshrink', 'sureshrink')
+            threshold_method: New threshold method ('visushrink', 'bayeshrink', 'sureshrink', 'manual')
+            manual_threshold: New manual threshold value
+            threshold_scale: New threshold scaling factor (for automatic methods)
         """
         if wavelet is not None:
             self.wavelet = wavelet
@@ -477,11 +499,19 @@ class WaveletProcessor(BaseComponentProcessor):
             self.threshold_mode = threshold_mode
         if threshold_method is not None:
             method = threshold_method.lower()
-            if method not in ["visushrink", "bayeshrink", "sureshrink"]:
+            if method not in ["visushrink", "bayeshrink", "sureshrink", "manual"]:
                 raise ValueError(
-                    "threshold_method must be 'visushrink', 'bayeshrink', or 'sureshrink'"
+                    "threshold_method must be 'visushrink', 'bayeshrink', 'sureshrink', or 'manual'"
                 )
             self.threshold_method = method
+        if manual_threshold is not None:
+            if manual_threshold < 0:
+                raise ValueError("manual_threshold must be non-negative")
+            self.manual_threshold = manual_threshold
+        if threshold_scale is not None:
+            if threshold_scale <= 0:
+                raise ValueError("threshold_scale must be positive")
+            self.threshold_scale = threshold_scale
 
         # Re-compute denoised data if we have raw data
         if self._original_data is not None:
@@ -549,4 +579,5 @@ class WaveletProcessor(BaseComponentProcessor):
             "visushrink": "VisuShrink - Universal threshold (conservative, global)",
             "bayeshrink": "BayesShrink - Adaptive Bayes estimator (data-driven, subband-specific)",
             "sureshrink": "SUREShrink - SURE estimator (MSE-optimal, adaptive)",
+            "manual": "Manual - Custom threshold (full control over denoising strength)",
         }
