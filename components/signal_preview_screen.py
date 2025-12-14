@@ -500,7 +500,9 @@ class ElectrodeSignalWidget(QWidget):
         self.freq_start1_spin.setMinimum(0)
         self.freq_start1_spin.setMaximum(self._max_time)
         self.freq_start1_spin.setDecimals(3)  # Millisecond precision
-        self.freq_start1_spin.setSingleStep(0.001)  # 1 millisecond step
+        self.freq_start1_spin.setSingleStep(
+            0.5
+        )  # Half second step for easier scrolling
         self.freq_start1_spin.setSuffix(" s")
         self.freq_start1_spin.valueChanged.connect(self._update_frequency_analysis)
         self.freq_start1_spin.setStyleSheet(
@@ -522,7 +524,7 @@ class ElectrodeSignalWidget(QWidget):
         self.freq_end1_spin.setMaximum(self._max_time)
         self.freq_end1_spin.setValue(self._max_time / 2)
         self.freq_end1_spin.setDecimals(3)  # Millisecond precision
-        self.freq_end1_spin.setSingleStep(0.001)  # 1 millisecond step
+        self.freq_end1_spin.setSingleStep(0.5)  # Half second step for easier scrolling
         self.freq_end1_spin.setSuffix(" s")
         self.freq_end1_spin.valueChanged.connect(self._update_frequency_analysis)
         self.freq_end1_spin.setStyleSheet(
@@ -571,7 +573,9 @@ class ElectrodeSignalWidget(QWidget):
         self.freq_start2_spin.setMaximum(self._max_time)
         self.freq_start2_spin.setValue(self._max_time / 2)
         self.freq_start2_spin.setDecimals(3)  # Millisecond precision
-        self.freq_start2_spin.setSingleStep(0.001)  # 1 millisecond step
+        self.freq_start2_spin.setSingleStep(
+            0.5
+        )  # Half second step for easier scrolling
         self.freq_start2_spin.setSuffix(" s")
         self.freq_start2_spin.valueChanged.connect(self._update_frequency_analysis)
         self.freq_start2_spin.setStyleSheet(
@@ -593,7 +597,7 @@ class ElectrodeSignalWidget(QWidget):
         self.freq_end2_spin.setMaximum(self._max_time)
         self.freq_end2_spin.setValue(self._max_time)
         self.freq_end2_spin.setDecimals(3)  # Millisecond precision
-        self.freq_end2_spin.setSingleStep(0.001)  # 1 millisecond step
+        self.freq_end2_spin.setSingleStep(0.5)  # Half second step for easier scrolling
         self.freq_end2_spin.setSuffix(" s")
         self.freq_end2_spin.valueChanged.connect(self._update_frequency_analysis)
         self.freq_end2_spin.setStyleSheet(
@@ -813,6 +817,9 @@ class ElectrodeSignalWidget(QWidget):
             # Notify parent
             self.cut_region_removed.emit(index)
 
+            # After removing a cut region, update frequency ranges to cover remaining signal
+            self._update_frequency_ranges_after_cuts()
+
     def _add_cut_region(self):
         """Add the current selection as a cut region."""
         start, end = self._current_selection
@@ -835,6 +842,9 @@ class ElectrodeSignalWidget(QWidget):
                 return
 
         self.cut_region_added.emit(start, end)
+
+        # After adding a cut region, update frequency ranges to cover remaining signal
+        self._update_frequency_ranges_after_cuts()
 
     def _update_regions_display(self):
         """Update the cut regions display label."""
@@ -1063,6 +1073,83 @@ class ElectrodeSignalWidget(QWidget):
         range2 = (float(start2), float(end2), "Range 2") if start2 < end2 else None
 
         self.cut_timeline.set_frequency_ranges(range1, range2)
+
+    def _update_frequency_ranges_after_cuts(self):
+        """
+        Update frequency ranges to cover all remaining signal after cuts.
+
+        Automatically adjusts the eyes open/closed frequency band ranges
+        to span the entire remaining signal (excluding cut regions).
+        """
+        if self._max_time <= 0:
+            return
+
+        # Calculate remaining segments (non-cut regions)
+        remaining_segments = []
+        sorted_cuts = sorted(self._cut_regions)
+
+        if not sorted_cuts:
+            # No cuts, use the whole signal
+            remaining_segments = [(0.0, self._max_time)]
+        else:
+            # Find segments between cuts
+            current_pos = 0.0
+            for cut_start, cut_end in sorted_cuts:
+                if current_pos < cut_start:
+                    remaining_segments.append((current_pos, cut_start))
+                current_pos = max(current_pos, cut_end)
+
+            # Add final segment if there's signal after the last cut
+            if current_pos < self._max_time:
+                remaining_segments.append((current_pos, self._max_time))
+
+        if not remaining_segments:
+            # All signal is cut - reset to defaults
+            self.freq_start1_spin.setValue(0.0)
+            self.freq_end1_spin.setValue(0.0)
+            self.freq_start2_spin.setValue(0.0)
+            self.freq_end2_spin.setValue(0.0)
+            return
+
+        # Calculate total remaining time
+        total_remaining = sum(end - start for start, end in remaining_segments)
+
+        # Split remaining time in half for eyes closed/open comparison
+        half_time = total_remaining / 2.0
+
+        # Find the segment boundaries for range 1 (eyes closed) and range 2 (eyes open)
+        accumulated = 0.0
+        range1_start = remaining_segments[0][0]
+        range1_end = remaining_segments[0][0]
+        range2_start = remaining_segments[-1][1]
+        range2_end = remaining_segments[-1][1]
+
+        # Assign first half to range 1 (eyes closed)
+        for seg_start, seg_end in remaining_segments:
+            seg_duration = seg_end - seg_start
+            if accumulated + seg_duration <= half_time:
+                range1_end = seg_end
+                accumulated += seg_duration
+            else:
+                # This segment spans the midpoint
+                remaining_in_seg = half_time - accumulated
+                range1_end = seg_start + remaining_in_seg
+                range2_start = range1_end
+                break
+        else:
+            # First half ends exactly at a segment boundary
+            range2_start = range1_end
+
+        range2_end = remaining_segments[-1][1]
+
+        # Update the spinboxes
+        self.freq_start1_spin.setValue(range1_start)
+        self.freq_end1_spin.setValue(range1_end)
+        self.freq_start2_spin.setValue(range2_start)
+        self.freq_end2_spin.setValue(range2_end)
+
+        # Trigger update
+        self._update_frequency_ranges_on_timeline()
 
     def _do_update_frequency(self):
         """Actually update frequency analysis (called after debounce)."""

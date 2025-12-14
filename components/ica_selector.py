@@ -1425,6 +1425,8 @@ class ICAComponentSelector(QWidget):
         components_info=None,
         explanations=None,
         analysis_method="ICA",
+        wavelet_info=None,
+        noise_reduction_stats=None,
         **kwargs,
     ):
         """
@@ -1440,7 +1442,9 @@ class ICAComponentSelector(QWidget):
             suggested_artifacts: List of suggested artifact component indices
             components_info: Dictionary with component statistics
             explanations: Dictionary with artifact explanations
-            analysis_method: "ICA" or "PCA"
+            analysis_method: "ICA", "PCA", or "WAVELETS"
+            wavelet_info: Wavelet configuration info (for WAVELETS method)
+            noise_reduction_stats: Noise reduction statistics (for WAVELETS method)
         """
         self.ica = ica
         self.pca = pca
@@ -1450,6 +1454,8 @@ class ICAComponentSelector(QWidget):
         self.components_info = components_info or {}
         self.explanations = explanations or {}
         self.analysis_method = analysis_method
+        self.wavelet_info = wavelet_info or {}
+        self.noise_reduction_stats = noise_reduction_stats or {}
 
         # Determine number of components based on analysis method
         if ica is not None:
@@ -1461,7 +1467,13 @@ class ICAComponentSelector(QWidget):
 
         # Update title based on method
         if analysis_method == "WAVELETS":
-            self.title_label.setText("🌊 Wavelet Denoising - All Channels (Automatic)")
+            # Show wavelet configuration in title
+            wavelet_name = self.wavelet_info.get("wavelet", "db4")
+            level = self.wavelet_info.get("level", 5)
+            method = self.wavelet_info.get("threshold_method", "visushrink")
+            self.title_label.setText(
+                f"🌊 Wavelet Denoising - {wavelet_name.upper()} L{level} ({method.capitalize()})"
+            )
         else:
             self.title_label.setText(
                 f"🔍 Select {analysis_method} Components for Removal"
