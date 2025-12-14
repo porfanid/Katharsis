@@ -13,11 +13,13 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
     QSlider,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -1130,6 +1132,10 @@ class ICAComponentSelector(QWidget):
         self.analysis_method = "ICA"  # Track current method
         self.n_components = 0  # Track number of components
 
+        # Wavelet-specific state
+        self.wavelet_info = {}
+        self.noise_reduction_stats = {}
+
         # Preview functionality
         self.preview_timer = QTimer()
         self.preview_timer.setSingleShot(True)  # Μόνο μία φορά όταν λήξει
@@ -1186,6 +1192,10 @@ class ICAComponentSelector(QWidget):
         controls_layout.addStretch()
         main_layout.addLayout(controls_layout)
 
+        # Wavelet configuration panel (visible only for WAVELETS method)
+        self._create_wavelet_config_panel()
+        main_layout.addWidget(self.wavelet_config_panel)
+
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setStyleSheet(
@@ -1215,6 +1225,188 @@ class ICAComponentSelector(QWidget):
         main_layout.addWidget(self.apply_btn)
 
         self.apply_styling()
+
+    def _create_wavelet_config_panel(self):
+        """Create the wavelet configuration panel (visible only for WAVELETS method)."""
+        self.wavelet_config_panel = QGroupBox("🌊 Wavelet Configuration")
+        self.wavelet_config_panel.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.wavelet_config_panel.setStyleSheet(
+            f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 2px solid {self.theme.get('primary', '#007AFF')};
+                border-radius: 8px;
+                margin-top: 10px;
+                padding: 15px;
+                background-color: #f8f9fa;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: {self.theme.get('primary', '#007AFF')};
+                background-color: #f8f9fa;
+            }}
+        """
+        )
+        panel_layout = QVBoxLayout(self.wavelet_config_panel)
+        panel_layout.setSpacing(10)
+
+        # Row 1: Wavelet family and Level
+        row1 = QHBoxLayout()
+
+        # Wavelet family
+        row1.addWidget(QLabel("Wavelet:"))
+        self.wavelet_combo = QComboBox()
+        wavelet_families = {
+            "db4": "Daubechies 4",
+            "db8": "Daubechies 8",
+            "sym4": "Symlet 4",
+            "sym8": "Symlet 8",
+            "coif3": "Coiflet 3",
+            "bior3.5": "Biorthogonal 3.5",
+        }
+        for key, name in wavelet_families.items():
+            self.wavelet_combo.addItem(name, key)
+        self.wavelet_combo.currentIndexChanged.connect(self._on_wavelet_param_changed)
+        row1.addWidget(self.wavelet_combo)
+
+        row1.addSpacing(20)
+
+        # Level
+        row1.addWidget(QLabel("Level:"))
+        self.level_spin = QSpinBox()
+        self.level_spin.setRange(1, 10)
+        self.level_spin.setValue(5)
+        self.level_spin.valueChanged.connect(self._on_wavelet_param_changed)
+        row1.addWidget(self.level_spin)
+
+        row1.addStretch()
+        panel_layout.addLayout(row1)
+
+        # Row 2: Threshold mode and method
+        row2 = QHBoxLayout()
+
+        # Threshold mode
+        row2.addWidget(QLabel("Threshold Mode:"))
+        self.threshold_mode_combo = QComboBox()
+        self.threshold_mode_combo.addItem("Soft (smoother)", "soft")
+        self.threshold_mode_combo.addItem("Hard (sharper)", "hard")
+        self.threshold_mode_combo.currentIndexChanged.connect(
+            self._on_wavelet_param_changed
+        )
+        row2.addWidget(self.threshold_mode_combo)
+
+        row2.addSpacing(20)
+
+        # Threshold method
+        row2.addWidget(QLabel("Method:"))
+        self.threshold_method_combo = QComboBox()
+        threshold_methods = {
+            "visushrink": "VisuShrink (Universal)",
+            "bayeshrink": "BayesShrink (Adaptive)",
+            "sureshrink": "SUREShrink (Optimal)",
+            "manual": "Manual (Custom)",
+        }
+        for key, name in threshold_methods.items():
+            self.threshold_method_combo.addItem(name, key)
+        self.threshold_method_combo.currentIndexChanged.connect(
+            self._on_threshold_method_changed
+        )
+        row2.addWidget(self.threshold_method_combo)
+
+        row2.addStretch()
+        panel_layout.addLayout(row2)
+
+        # Row 3: Threshold scale (for automatic methods) or manual threshold
+        row3 = QHBoxLayout()
+
+        # Threshold scale slider (for automatic methods)
+        self.threshold_scale_widget = QWidget()
+        scale_layout = QHBoxLayout(self.threshold_scale_widget)
+        scale_layout.setContentsMargins(0, 0, 0, 0)
+        scale_layout.addWidget(QLabel("Threshold Scale:"))
+        self.threshold_scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self.threshold_scale_slider.setMinimum(25)  # 0.25
+        self.threshold_scale_slider.setMaximum(300)  # 3.0
+        self.threshold_scale_slider.setValue(100)  # 1.0
+        self.threshold_scale_slider.setMinimumWidth(150)
+        self.threshold_scale_slider.valueChanged.connect(self._on_wavelet_param_changed)
+        scale_layout.addWidget(self.threshold_scale_slider)
+        self.threshold_scale_label = QLabel("1.00×")
+        self.threshold_scale_label.setMinimumWidth(50)
+        self.threshold_scale_label.setStyleSheet(
+            f"color: {self.theme.get('primary', '#007AFF')}; font-weight: bold;"
+        )
+        scale_layout.addWidget(self.threshold_scale_label)
+        scale_layout.addWidget(QLabel("(<1=more denoising, >1=less denoising)"))
+        scale_layout.addStretch()
+        row3.addWidget(self.threshold_scale_widget)
+
+        # Manual threshold slider (for manual mode)
+        self.manual_threshold_widget = QWidget()
+        manual_layout = QHBoxLayout(self.manual_threshold_widget)
+        manual_layout.setContentsMargins(0, 0, 0, 0)
+        manual_layout.addWidget(QLabel("Manual Threshold:"))
+        self.manual_threshold_slider = QSlider(Qt.Orientation.Horizontal)
+        self.manual_threshold_slider.setMinimum(0)
+        self.manual_threshold_slider.setMaximum(200)  # 0 to 2.0
+        self.manual_threshold_slider.setValue(10)  # 0.1
+        self.manual_threshold_slider.setMinimumWidth(150)
+        self.manual_threshold_slider.valueChanged.connect(
+            self._on_wavelet_param_changed
+        )
+        manual_layout.addWidget(self.manual_threshold_slider)
+        self.manual_threshold_label = QLabel("0.10")
+        self.manual_threshold_label.setMinimumWidth(50)
+        self.manual_threshold_label.setStyleSheet(
+            f"color: {self.theme.get('primary', '#007AFF')}; font-weight: bold;"
+        )
+        manual_layout.addWidget(self.manual_threshold_label)
+        manual_layout.addWidget(QLabel("(lower=more denoising)"))
+        manual_layout.addStretch()
+        row3.addWidget(self.manual_threshold_widget)
+
+        # Initially show scale widget, hide manual widget
+        self.manual_threshold_widget.setVisible(False)
+
+        panel_layout.addLayout(row3)
+
+        # Initially hide the entire panel (will be shown when WAVELETS method is selected)
+        self.wavelet_config_panel.setVisible(False)
+
+    def _on_threshold_method_changed(self):
+        """Handle threshold method change - show/hide appropriate controls."""
+        method = self.threshold_method_combo.currentData()
+        is_manual = method == "manual"
+        self.threshold_scale_widget.setVisible(not is_manual)
+        self.manual_threshold_widget.setVisible(is_manual)
+        self._on_wavelet_param_changed()
+
+    def _on_wavelet_param_changed(self):
+        """Handle wavelet parameter change - trigger recalculation."""
+        # Update labels
+        scale_value = self.threshold_scale_slider.value() / 100.0
+        self.threshold_scale_label.setText(f"{scale_value:.2f}×")
+
+        manual_value = self.manual_threshold_slider.value() / 100.0
+        self.manual_threshold_label.setText(f"{manual_value:.2f}")
+
+        # If processor is available and it's a wavelet processor, update parameters
+        if self.processor is not None and hasattr(self.processor, "set_wavelet_params"):
+            try:
+                self.processor.set_wavelet_params(
+                    wavelet=self.wavelet_combo.currentData(),
+                    level=self.level_spin.value(),
+                    threshold_mode=self.threshold_mode_combo.currentData(),
+                    threshold_method=self.threshold_method_combo.currentData(),
+                    threshold_scale=scale_value,
+                    manual_threshold=manual_value,
+                )
+                # Trigger preview update
+                self._start_preview_update()
+            except Exception as e:
+                print(f"Error updating wavelet parameters: {e}")
 
     def _on_back_clicked(self):
         """Handle back button click"""
@@ -1467,14 +1659,41 @@ class ICAComponentSelector(QWidget):
 
         # Update title based on method
         if analysis_method == "WAVELETS":
-            # Show wavelet configuration in title
+            # Show wavelet configuration panel
+            self.wavelet_config_panel.setVisible(True)
+
+            # Populate wavelet controls with current settings
             wavelet_name = self.wavelet_info.get("wavelet", "db4")
             level = self.wavelet_info.get("level", 5)
-            method = self.wavelet_info.get("threshold_method", "visushrink")
-            self.title_label.setText(
-                f"🌊 Wavelet Denoising - {wavelet_name.upper()} L{level} ({method.capitalize()})"
-            )
+            threshold_mode = self.wavelet_info.get("threshold_mode", "soft")
+            threshold_method = self.wavelet_info.get("threshold_method", "visushrink")
+            threshold_scale = self.wavelet_info.get("threshold_scale", 1.0)
+            manual_threshold = self.wavelet_info.get("manual_threshold", 0.1)
+
+            # Set combo boxes and sliders
+            wavelet_idx = self.wavelet_combo.findData(wavelet_name)
+            if wavelet_idx >= 0:
+                self.wavelet_combo.setCurrentIndex(wavelet_idx)
+
+            self.level_spin.setValue(level)
+
+            mode_idx = self.threshold_mode_combo.findData(threshold_mode)
+            if mode_idx >= 0:
+                self.threshold_mode_combo.setCurrentIndex(mode_idx)
+
+            method_idx = self.threshold_method_combo.findData(threshold_method)
+            if method_idx >= 0:
+                self.threshold_method_combo.setCurrentIndex(method_idx)
+
+            self.threshold_scale_slider.setValue(int(threshold_scale * 100))
+            self.manual_threshold_slider.setValue(int(manual_threshold * 100))
+
+            # Update title
+            method = threshold_method
+            self.title_label.setText(f"🌊 Wavelet Denoising - Real-Time Configuration")
         else:
+            # Hide wavelet configuration panel for ICA/PCA
+            self.wavelet_config_panel.setVisible(False)
             self.title_label.setText(
                 f"🔍 Select {analysis_method} Components for Removal"
             )

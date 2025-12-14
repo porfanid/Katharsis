@@ -729,29 +729,32 @@ class ElectrodeSignalWidget(QWidget):
                 # Set default frequency ranges to "Eyes Closed" and "Eyes Open" annotations
                 # Range 1 (Blue) = Eyes Closed (displayed first in ICA selector)
                 # Range 2 (Orange) = Eyes Open (displayed second in ICA selector)
-                eyes_open_annot = None
-                eyes_closed_annot = None
+                # Find ALL eyes open/closed annotations and span from min to max
+                eyes_open_annots = []
+                eyes_closed_annots = []
                 for annot in annotations_list:
                     desc_lower = annot["description"].lower()
                     if "eyes open" in desc_lower or "open" in desc_lower:
-                        if eyes_open_annot is None:
-                            eyes_open_annot = annot
+                        eyes_open_annots.append(annot)
                     elif "eyes closed" in desc_lower or "closed" in desc_lower:
-                        if eyes_closed_annot is None:
-                            eyes_closed_annot = annot
+                        eyes_closed_annots.append(annot)
 
                 # Update frequency analysis ranges based on annotations
-                # Range 1 = Eyes Closed (first), Range 2 = Eyes Open (second)
-                if eyes_closed_annot is not None:
-                    self.freq_start1_spin.setValue(eyes_closed_annot["onset"])
-                    self.freq_end1_spin.setValue(
-                        eyes_closed_annot["onset"] + eyes_closed_annot["duration"]
+                # Range 1 = Eyes Closed: from smallest start to largest end
+                if eyes_closed_annots:
+                    min_start = min(a["onset"] for a in eyes_closed_annots)
+                    max_end = max(
+                        a["onset"] + a["duration"] for a in eyes_closed_annots
                     )
-                if eyes_open_annot is not None:
-                    self.freq_start2_spin.setValue(eyes_open_annot["onset"])
-                    self.freq_end2_spin.setValue(
-                        eyes_open_annot["onset"] + eyes_open_annot["duration"]
-                    )
+                    self.freq_start1_spin.setValue(min_start)
+                    self.freq_end1_spin.setValue(max_end)
+
+                # Range 2 = Eyes Open: from smallest start to largest end
+                if eyes_open_annots:
+                    min_start = min(a["onset"] for a in eyes_open_annots)
+                    max_end = max(a["onset"] + a["duration"] for a in eyes_open_annots)
+                    self.freq_start2_spin.setValue(min_start)
+                    self.freq_end2_spin.setValue(max_end)
             else:
                 self.cut_timeline.set_annotations([])
 
