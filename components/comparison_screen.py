@@ -60,13 +60,22 @@ class ComparisonScreen(QWidget):
         self.tab_widget = QTabWidget()
         self.tab_widget.setFont(QFont("Arial", 10))
 
-        # Tab 1: Results Display (existing)
+        # Tab 1: Results Display (existing) - wrapped in scroll area for responsiveness
         results_tab = QWidget()
         results_layout = QVBoxLayout(results_tab)
         results_layout.setContentsMargins(5, 5, 5, 5)
 
+        # Scroll area for results display to handle smaller screens
+        results_scroll = QScrollArea()
+        results_scroll.setWidgetResizable(True)
+        results_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        results_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
         self.results_widget = ResultsDisplayWidget()
-        results_layout.addWidget(self.results_widget)
+        results_scroll.setWidget(self.results_widget)
+        results_layout.addWidget(results_scroll)
 
         self.tab_widget.addTab(results_tab, "📈 Signal Comparison")
 
@@ -116,11 +125,13 @@ class ComparisonScreen(QWidget):
             )
         )
 
-        # Save diagrams button
+        # Save diagrams button - responsive sizing
         self.save_diagrams_button = QPushButton("💾 Save All Diagrams")
-        self.save_diagrams_button.setMinimumHeight(50)
-        self.save_diagrams_button.setMinimumWidth(200)
-        self.save_diagrams_button.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.save_diagrams_button.setMinimumHeight(40)
+        self.save_diagrams_button.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+        )
+        self.save_diagrams_button.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         self.save_diagrams_button.clicked.connect(self._save_all_diagrams)
 
         # Apply theme styling
@@ -146,11 +157,13 @@ class ComparisonScreen(QWidget):
         # Add spacing between buttons
         button_layout.addSpacing(20)
 
-        # Return to home button
+        # Return to home button - responsive sizing
         self.return_button = QPushButton("🏠 Return to Home / Process New File")
-        self.return_button.setMinimumHeight(50)
-        self.return_button.setMinimumWidth(400)
-        self.return_button.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.return_button.setMinimumHeight(40)
+        self.return_button.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self.return_button.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         self.return_button.clicked.connect(self.return_to_home.emit)
 
         # Apply theme styling
