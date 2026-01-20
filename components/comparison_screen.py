@@ -270,10 +270,10 @@ class ComparisonScreen(QWidget):
             saved_files = []
 
             # Save signal comparison plot from results widget
-            if hasattr(self.results_widget, "plot_widget") and hasattr(
-                self.results_widget.plot_widget, "figure"
+            if hasattr(self.results_widget, "comparison_widget") and hasattr(
+                self.results_widget.comparison_widget, "figure"
             ):
-                figure = self.results_widget.plot_widget.figure
+                figure = self.results_widget.comparison_widget.figure
                 if figure is not None and len(figure.get_axes()) > 0:
                     filename = root_folder / f"signal_comparison_{timestamp}.png"
                     figure.savefig(filename, dpi=150, bbox_inches="tight")
