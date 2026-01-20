@@ -3,6 +3,8 @@
 Comparison Screen Widget - "Before & After" Visual Comparison
 """
 
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import mne
@@ -10,6 +12,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QHBoxLayout,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -107,12 +110,42 @@ class ComparisonScreen(QWidget):
         # Button section at bottom
         button_layout = QHBoxLayout()
 
-        # Spacer to push button to center
+        # Spacer to push buttons to center
         button_layout.addItem(
             QSpacerItem(
                 40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
             )
         )
+
+        # Save diagrams button
+        self.save_diagrams_button = QPushButton("💾 Save All Diagrams")
+        self.save_diagrams_button.setMinimumHeight(50)
+        self.save_diagrams_button.setMinimumWidth(200)
+        self.save_diagrams_button.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.save_diagrams_button.clicked.connect(self._save_all_diagrams)
+
+        # Apply theme styling
+        self.save_diagrams_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.theme.get('success', '#28a745')};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 15px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {self.theme.get('success_hover', '#218838')};
+            }}
+            QPushButton:pressed {{
+                background-color: {self.theme.get('success', '#28a745')};
+            }}
+        """)
+
+        button_layout.addWidget(self.save_diagrams_button)
+
+        # Add spacing between buttons
+        button_layout.addSpacing(20)
 
         # Return to home button
         self.return_button = QPushButton("🏠 Return to Home / Process New File")
@@ -122,8 +155,7 @@ class ComparisonScreen(QWidget):
         self.return_button.clicked.connect(self.return_to_home.emit)
 
         # Apply theme styling
-        self.return_button.setStyleSheet(
-            f"""
+        self.return_button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme['primary']};
                 color: white;
@@ -138,12 +170,11 @@ class ComparisonScreen(QWidget):
             QPushButton:pressed {{
                 background-color: {self.theme['primary']};
             }}
-        """
-        )
+        """)
 
         button_layout.addWidget(self.return_button)
 
-        # Spacer to keep button centered
+        # Spacer to keep buttons centered
         button_layout.addItem(
             QSpacerItem(
                 40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
@@ -208,3 +239,62 @@ class ComparisonScreen(QWidget):
         self.results_widget.clear_results()
         self.band_power_widget.clear()
         self.signal_cutter.clear_regions()
+
+    def _save_all_diagrams(self):
+        """
+        Save all diagrams to the root repository folder.
+
+        Saves the following diagrams as PNG files with timestamp:
+        - Signal comparison plot
+        - Band power analysis chart
+        """
+        try:
+            # Get timestamp for unique filenames
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # Get root folder (assuming we're in the repo)
+            root_folder = Path.cwd()
+
+            saved_files = []
+
+            # Save signal comparison plot from results widget
+            if hasattr(self.results_widget, "plot_widget") and hasattr(
+                self.results_widget.plot_widget, "figure"
+            ):
+                figure = self.results_widget.plot_widget.figure
+                if figure is not None and len(figure.get_axes()) > 0:
+                    filename = root_folder / f"signal_comparison_{timestamp}.png"
+                    figure.savefig(filename, dpi=150, bbox_inches="tight")
+                    saved_files.append(str(filename.name))
+
+            # Save band power comparison plot
+            if hasattr(self.band_power_widget, "band_power_comparison") and hasattr(
+                self.band_power_widget.band_power_comparison, "figure"
+            ):
+                figure = self.band_power_widget.band_power_comparison.figure
+                if figure is not None and len(figure.get_axes()) > 0:
+                    filename = root_folder / f"band_power_analysis_{timestamp}.png"
+                    figure.savefig(filename, dpi=150, bbox_inches="tight")
+                    saved_files.append(str(filename.name))
+
+            # Show success message
+            if saved_files:
+                message = (
+                    f"Successfully saved {len(saved_files)} diagram(s):\n\n"
+                    + "\n".join(f"• {f}" for f in saved_files)
+                    + f"\n\nLocation: {root_folder}"
+                )
+                QMessageBox.information(self, "Diagrams Saved", message)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "No Diagrams",
+                    "No diagrams available to save. Please ensure data has been processed.",
+                )
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Save Error",
+                f"An error occurred while saving diagrams:\n{str(e)}",
+            )
