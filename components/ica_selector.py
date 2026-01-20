@@ -1145,6 +1145,30 @@ class ICAComponentSelector(QWidget):
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
 
+        # Create a single scroll area for ALL content
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        scroll_area.setStyleSheet(f"""
+            QScrollArea {{ background: transparent; border: none; }}
+            QScrollBar:vertical {{ border: none; background: {self.theme['background']}; width: 12px; margin: 0px; }}
+            QScrollBar::handle:vertical {{ background: #bdc3c7; min-height: 20px; border-radius: 6px; }}
+            QScrollBar::handle:vertical:hover {{ background: #95a5a6; }}
+            QScrollBar:horizontal {{ border: none; background: {self.theme['background']}; height: 12px; margin: 0px; }}
+            QScrollBar::handle:horizontal {{ background: #bdc3c7; min-width: 20px; border-radius: 6px; }}
+            QScrollBar::handle:horizontal:hover {{ background: #95a5a6; }}
+        """)
+
+        # Create a container widget for all scrollable content
+        scroll_content = QWidget()
+        scroll_content_layout = QVBoxLayout(scroll_content)
+        scroll_content_layout.setContentsMargins(
+            0, 0, 10, 0
+        )  # Right margin for scrollbar
+        scroll_content_layout.setSpacing(15)
+
+        # Header with back button and title
         header_layout = QHBoxLayout()
 
         # Back button
@@ -1173,8 +1197,9 @@ class ICAComponentSelector(QWidget):
         self.title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         header_layout.addWidget(self.title_label)
         header_layout.addStretch()
-        main_layout.addLayout(header_layout)
+        scroll_content_layout.addLayout(header_layout)
 
+        # Control buttons
         controls_layout = QHBoxLayout()
         self.select_suggested_btn = QPushButton("Select Suggested")
         self.select_all_btn = QPushButton("Select All")
@@ -1183,50 +1208,19 @@ class ICAComponentSelector(QWidget):
         controls_layout.addWidget(self.select_all_btn)
         controls_layout.addWidget(self.select_none_btn)
         controls_layout.addStretch()
-        main_layout.addLayout(controls_layout)
+        scroll_content_layout.addLayout(controls_layout)
 
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setStyleSheet(f"""
-            QScrollArea {{ background: transparent; border: none; }}
-            QScrollBar:vertical {{ border: none; background: {self.theme['background']}; width: 12px; margin: 0px; }}
-            QScrollBar::handle:vertical {{ background: #bdc3c7; min-height: 20px; border-radius: 6px; }}
-            QScrollBar::handle:vertical:hover {{ background: #95a5a6; }}
-        """)
-
+        # Components list (no separate scroll area)
         self.components_widget = QWidget()
         self.components_layout = QVBoxLayout(self.components_widget)
-        self.components_layout.setContentsMargins(0, 0, 5, 0)
+        self.components_layout.setContentsMargins(0, 0, 0, 0)
         self.components_layout.setSpacing(10)
-        self.scroll_area.setWidget(self.components_widget)
-        main_layout.addWidget(self.scroll_area, 1)  # Μικρότερο stretch factor
+        scroll_content_layout.addWidget(self.components_widget)
 
-        # Add Preview Widget - wrapped in scroll area for small screens
-        preview_scroll = QScrollArea()
-        preview_scroll.setWidgetResizable(True)
-        preview_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
-        preview_scroll.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOn
-        )  # Always show for visibility
-        preview_scroll.setStyleSheet(f"""
-            QScrollArea {{ background: transparent; border: none; }}
-            QScrollBar:vertical {{ border: none; background: {self.theme['background']}; width: 12px; margin: 0px; }}
-            QScrollBar::handle:vertical {{ background: #bdc3c7; min-height: 20px; border-radius: 6px; }}
-            QScrollBar::handle:vertical:hover {{ background: #95a5a6; }}
-            QScrollBar:horizontal {{ border: none; background: {self.theme['background']}; height: 12px; margin: 0px; }}
-            QScrollBar::handle:horizontal {{ background: #bdc3c7; min-width: 20px; border-radius: 6px; }}
-            QScrollBar::handle:horizontal:hover {{ background: #95a5a6; }}
-        """)
-
+        # Preview Widget (no separate scroll area)
         self.preview_widget = PreviewWidget(self.theme)
-        # Set a fixed height that ensures content is fully visible
-        self.preview_widget.setMinimumHeight(400)  # Increased to ensure content fits
-        self.preview_widget.setMaximumHeight(600)  # Cap maximum height
-        preview_scroll.setWidget(self.preview_widget)
-        # Don't use stretch factor - let it take natural size
-        main_layout.addWidget(preview_scroll, 0)
+        self.preview_widget.setMinimumHeight(400)
+        scroll_content_layout.addWidget(self.preview_widget)
 
         # Button layout at bottom
         button_layout = QHBoxLayout()
@@ -1259,16 +1253,18 @@ class ICAComponentSelector(QWidget):
         button_layout.addWidget(self.save_diagrams_btn)
 
         self.apply_btn = QPushButton("✅ Apply Cleaning and Save")
-        self.apply_btn.setMinimumHeight(40)  # Reduced from 50px
+        self.apply_btn.setMinimumHeight(40)
         self.apply_btn.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        self.apply_btn.setFont(
-            QFont("Arial", 11, QFont.Weight.Bold)
-        )  # Reduced from 14pt
+        self.apply_btn.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         button_layout.addWidget(self.apply_btn)
 
-        main_layout.addLayout(button_layout)
+        scroll_content_layout.addLayout(button_layout)
+
+        # Set the scroll content and add to main layout
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
 
         self.apply_styling()
 
