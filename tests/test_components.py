@@ -784,3 +784,44 @@ class TestComparisonScreenEnhanced:
         self.widget._on_apply_cuts([(5.0, 10.0)])
 
         assert received_regions == [(5.0, 10.0)]
+
+    def test_save_diagrams_button_exists(self, qapp):
+        """Test that save diagrams button exists"""
+        assert hasattr(self.widget, "save_diagrams_button")
+        from PyQt6.QtWidgets import QPushButton
+
+        assert isinstance(self.widget.save_diagrams_button, QPushButton)
+        assert "Save All Diagrams" in self.widget.save_diagrams_button.text()
+
+    @patch("components.comparison_screen.Path")
+    @patch("components.comparison_screen.QMessageBox")
+    def test_save_all_diagrams_with_data(
+        self, mock_messagebox, mock_path, qapp, tmp_path
+    ):
+        """Test saving diagrams with data"""
+        # Setup mock path
+        mock_path.cwd.return_value = tmp_path
+
+        # Update widget with data
+        self.widget.update_comparison(
+            original_data=self.test_raw,
+            cleaned_data=self.test_raw.copy(),
+            original_stats=self.original_stats,
+            cleaned_stats=self.cleaned_stats,
+            components_removed=[0],
+        )
+
+        # Call save method
+        self.widget._save_all_diagrams()
+
+        # Verify that a message box was shown (either success or warning)
+        assert mock_messagebox.information.called or mock_messagebox.warning.called
+
+    @patch("components.comparison_screen.QMessageBox")
+    def test_save_all_diagrams_without_data(self, mock_messagebox, qapp):
+        """Test saving diagrams without data shows warning"""
+        # Call save method without setting data
+        self.widget._save_all_diagrams()
+
+        # Should show warning that no diagrams are available
+        mock_messagebox.warning.assert_called_once()

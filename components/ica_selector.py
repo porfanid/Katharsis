@@ -2,6 +2,9 @@
 """
 ICA Component Selector Widget - v4.0 - Correct Event Bubbling for Scrolling
 """
+
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -15,8 +18,10 @@ from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSlider,
     QVBoxLayout,
     QWidget,
@@ -197,8 +202,7 @@ class PreviewWidget(QWidget):
         self.view_combo.setCurrentText("10s")
         self.view_combo.currentTextChanged.connect(self._on_view_changed)
         self.view_combo.setMinimumWidth(60)
-        self.view_combo.setStyleSheet(
-            f"""
+        self.view_combo.setStyleSheet(f"""
             QComboBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
@@ -206,8 +210,7 @@ class PreviewWidget(QWidget):
                 padding: 3px 6px;
                 color: {self.theme.get('text', '#212529')};
             }}
-        """
-        )
+        """)
         header_layout.addWidget(self.view_combo)
 
         # Channel selection
@@ -217,8 +220,7 @@ class PreviewWidget(QWidget):
 
         self.channel_dropdown = QComboBox()
         self.channel_dropdown.setMinimumWidth(100)
-        self.channel_dropdown.setStyleSheet(
-            f"""
+        self.channel_dropdown.setStyleSheet(f"""
             QComboBox {{
                 background-color: white;
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
@@ -226,8 +228,7 @@ class PreviewWidget(QWidget):
                 padding: 3px 6px;
                 color: {self.theme.get('text', '#212529')};
             }}
-        """
-        )
+        """)
         self.channel_dropdown.currentIndexChanged.connect(self._on_channel_changed)
         header_layout.addWidget(self.channel_dropdown)
 
@@ -241,10 +242,10 @@ class PreviewWidget(QWidget):
         signal_layout = QVBoxLayout()
         signal_layout.setSpacing(3)
 
-        # Canvas for signal plots
-        self.figure = Figure(figsize=(8, 4), dpi=80)
+        # Canvas for signal plots - responsive
+        self.figure = Figure(figsize=(7, 3), dpi=80)  # Reduced from (8, 4)
         self.canvas = CustomCanvas(self.figure)
-        self.canvas.setMinimumHeight(180)
+        self.canvas.setMinimumHeight(150)  # Reduced from 180px
         signal_layout.addWidget(self.canvas)
 
         # Navigation slider
@@ -252,8 +253,10 @@ class PreviewWidget(QWidget):
         nav_layout.setSpacing(5)
 
         self.nav_label = QLabel("Pos: 0.0s")
-        self.nav_label.setStyleSheet(f"color: {self.theme.get('text', '#212529')};")
-        self.nav_label.setMinimumWidth(60)
+        self.nav_label.setStyleSheet(
+            f"color: {self.theme.get('text', '#212529')}; font-size: 10px;"
+        )  # Smaller font
+        self.nav_label.setMinimumWidth(50)  # Reduced from 60px
         nav_layout.addWidget(self.nav_label)
 
         self.nav_slider = QSlider(Qt.Orientation.Horizontal)
@@ -261,8 +264,7 @@ class PreviewWidget(QWidget):
         self.nav_slider.setMaximum(1000)
         self.nav_slider.setValue(0)
         self.nav_slider.valueChanged.connect(self._on_nav_changed)
-        self.nav_slider.setStyleSheet(
-            f"""
+        self.nav_slider.setStyleSheet(f"""
             QSlider::groove:horizontal {{
                 border: 1px solid {self.theme.get('border', '#dee2e6')};
                 height: 6px;
@@ -275,8 +277,7 @@ class PreviewWidget(QWidget):
                 margin: -4px 0;
                 border-radius: 7px;
             }}
-        """
-        )
+        """)
         nav_layout.addWidget(self.nav_slider)
 
         self.duration_label = QLabel("/ 0.0s")
@@ -291,8 +292,8 @@ class PreviewWidget(QWidget):
         from .signal_editor import SignalCutterTimeline
 
         self.timeline = SignalCutterTimeline(theme=self.theme, show_markers=False)
-        self.timeline.setMinimumHeight(60)
-        self.timeline.setMaximumHeight(80)
+        self.timeline.setMinimumHeight(50)  # Reduced from 60px
+        self.timeline.setMaximumHeight(70)  # Reduced from 80px
         signal_layout.addWidget(self.timeline)
 
         content_layout.addLayout(signal_layout, stretch=3)
@@ -305,14 +306,14 @@ class PreviewWidget(QWidget):
 
         # Range 1 band power widget (typically Eyes Closed - displayed first)
         self.band_power_widget_range1 = BandPowerComparisonWidget(self.theme)
-        self.band_power_widget_range1.setMinimumWidth(250)
-        self.band_power_widget_range1.setMaximumWidth(320)
+        self.band_power_widget_range1.setMinimumWidth(200)  # Reduced from 250px
+        self.band_power_widget_range1.setMaximumWidth(280)  # Reduced from 320px
         band_power_layout.addWidget(self.band_power_widget_range1)
 
         # Range 2 band power widget (typically Eyes Open - displayed second)
         self.band_power_widget_range2 = BandPowerComparisonWidget(self.theme)
-        self.band_power_widget_range2.setMinimumWidth(250)
-        self.band_power_widget_range2.setMaximumWidth(320)
+        self.band_power_widget_range2.setMinimumWidth(200)  # Reduced from 250px
+        self.band_power_widget_range2.setMaximumWidth(280)  # Reduced from 320px
         band_power_layout.addWidget(self.band_power_widget_range2)
 
         content_layout.addLayout(band_power_layout, stretch=1)
@@ -1144,14 +1145,37 @@ class ICAComponentSelector(QWidget):
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
 
+        # Create a single scroll area for ALL content
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        scroll_area.setStyleSheet(f"""
+            QScrollArea {{ background: transparent; border: none; }}
+            QScrollBar:vertical {{ border: none; background: {self.theme['background']}; width: 12px; margin: 0px; }}
+            QScrollBar::handle:vertical {{ background: #bdc3c7; min-height: 20px; border-radius: 6px; }}
+            QScrollBar::handle:vertical:hover {{ background: #95a5a6; }}
+            QScrollBar:horizontal {{ border: none; background: {self.theme['background']}; height: 12px; margin: 0px; }}
+            QScrollBar::handle:horizontal {{ background: #bdc3c7; min-width: 20px; border-radius: 6px; }}
+            QScrollBar::handle:horizontal:hover {{ background: #95a5a6; }}
+        """)
+
+        # Create a container widget for all scrollable content
+        scroll_content = QWidget()
+        scroll_content_layout = QVBoxLayout(scroll_content)
+        scroll_content_layout.setContentsMargins(
+            0, 0, 10, 0
+        )  # Right margin for scrollbar
+        scroll_content_layout.setSpacing(15)
+
+        # Header with back button and title
         header_layout = QHBoxLayout()
 
         # Back button
         self.back_btn = QPushButton("⬅️ Back to Preview")
         self.back_btn.setMinimumHeight(40)
         self.back_btn.clicked.connect(self._on_back_clicked)
-        self.back_btn.setStyleSheet(
-            f"""
+        self.back_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self.theme.get('secondary', '#6c757d')};
                 color: white;
@@ -1164,8 +1188,7 @@ class ICAComponentSelector(QWidget):
             QPushButton:hover {{
                 background-color: {self.theme.get('text_light', '#5a6268')};
             }}
-        """
-        )
+        """)
         header_layout.addWidget(self.back_btn)
 
         header_layout.addStretch()
@@ -1174,8 +1197,9 @@ class ICAComponentSelector(QWidget):
         self.title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         header_layout.addWidget(self.title_label)
         header_layout.addStretch()
-        main_layout.addLayout(header_layout)
+        scroll_content_layout.addLayout(header_layout)
 
+        # Control buttons
         controls_layout = QHBoxLayout()
         self.select_suggested_btn = QPushButton("Select Suggested")
         self.select_all_btn = QPushButton("Select All")
@@ -1184,35 +1208,63 @@ class ICAComponentSelector(QWidget):
         controls_layout.addWidget(self.select_all_btn)
         controls_layout.addWidget(self.select_none_btn)
         controls_layout.addStretch()
-        main_layout.addLayout(controls_layout)
+        scroll_content_layout.addLayout(controls_layout)
 
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setStyleSheet(
-            f"""
-            QScrollArea {{ background: transparent; border: none; }}
-            QScrollBar:vertical {{ border: none; background: {self.theme['background']}; width: 12px; margin: 0px; }}
-            QScrollBar::handle:vertical {{ background: #bdc3c7; min-height: 20px; border-radius: 6px; }}
-            QScrollBar::handle:vertical:hover {{ background: #95a5a6; }}
-        """
-        )
-
+        # Components list (no separate scroll area)
         self.components_widget = QWidget()
         self.components_layout = QVBoxLayout(self.components_widget)
-        self.components_layout.setContentsMargins(0, 0, 5, 0)
+        self.components_layout.setContentsMargins(0, 0, 0, 0)
         self.components_layout.setSpacing(10)
-        self.scroll_area.setWidget(self.components_widget)
-        main_layout.addWidget(self.scroll_area, 1)  # Μικρότερο stretch factor
+        scroll_content_layout.addWidget(self.components_widget)
 
-        # Add Preview Widget
+        # Preview Widget (no separate scroll area)
         self.preview_widget = PreviewWidget(self.theme)
-        self.preview_widget.setMinimumHeight(300)  # Minimum height for preview
-        main_layout.addWidget(self.preview_widget, 1)  # Equal space with scroll area
+        self.preview_widget.setMinimumHeight(400)
+        scroll_content_layout.addWidget(self.preview_widget)
+
+        # Button layout at bottom
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(15)
+
+        # Save diagrams button
+        self.save_diagrams_btn = QPushButton("💾 Save Diagrams")
+        self.save_diagrams_btn.setMinimumHeight(40)
+        self.save_diagrams_btn.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+        )
+        self.save_diagrams_btn.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.save_diagrams_btn.clicked.connect(self._save_all_diagrams)
+        self.save_diagrams_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.theme.get('success', '#28a745')};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {self.theme.get('success_hover', '#218838')};
+            }}
+            QPushButton:pressed {{
+                background-color: {self.theme.get('success', '#28a745')};
+            }}
+        """)
+        button_layout.addWidget(self.save_diagrams_btn)
 
         self.apply_btn = QPushButton("✅ Apply Cleaning and Save")
-        self.apply_btn.setMinimumHeight(50)
-        self.apply_btn.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        main_layout.addWidget(self.apply_btn)
+        self.apply_btn.setMinimumHeight(40)
+        self.apply_btn.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self.apply_btn.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        button_layout.addWidget(self.apply_btn)
+
+        scroll_content_layout.addLayout(button_layout)
+
+        # Set the scroll content and add to main layout
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
 
         self.apply_styling()
 
@@ -1242,17 +1294,15 @@ class ICAComponentSelector(QWidget):
         self.select_none_btn.setStyleSheet(btn_style)
         self.select_suggested_btn.setStyleSheet(btn_style)
 
-        self.apply_btn.setStyleSheet(
-            f"""
+        self.apply_btn.setStyleSheet(f"""
             QPushButton {{ background-color: {self.theme['success']}; color: white; border-radius: 8px; }}
             QPushButton:hover {{ background-color: {self.theme.get('success_hover', self.theme['success'])}; }}
-        """
-        )
+        """)
 
     def create_single_component_widget(self, i):
         is_artifact = i in self.suggested_artifacts
         comp_container = QWidget()
-        comp_container.setMinimumHeight(200)
+        comp_container.setMinimumHeight(150)  # Reduced from 200px for small screens
         comp_layout = QHBoxLayout(comp_container)
         comp_layout.setContentsMargins(10, 5, 10, 5)
 
@@ -1284,8 +1334,7 @@ class ICAComponentSelector(QWidget):
 
         # The new "Analyze" button
         details_btn = QPushButton("🔎 Analyze")
-        details_btn.setStyleSheet(
-            f"""
+        details_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: #e9ecef; /* Απαλό γκρι φόντο */
                 color: {self.theme.get('text_light', '#6c757d')}; /* Πιο σκούρο κείμενο */
@@ -1300,8 +1349,7 @@ class ICAComponentSelector(QWidget):
                 border-color: {self.theme.get('primary', '#007AFF')};
                 color: {self.theme.get('text', '#212529')};
             }}
-        """
-        )
+        """)
         details_btn.clicked.connect(
             lambda state, idx=i: self.show_component_properties(idx)
         )  # Connect to new function
@@ -1333,16 +1381,14 @@ class ICAComponentSelector(QWidget):
         else:
             bg_color = "#e8f8f5"
             border_color = self.theme["success"]
-        widget.setStyleSheet(
-            f"""
+        widget.setStyleSheet(f"""
             QWidget {{
                 background-color: {bg_color};
                 border: 2px solid {border_color};
                 border-radius: 8px;
                 padding: 5px;
             }}
-        """
-        )
+        """)
 
     def set_all_checkboxes(self, state: bool):
         # ... (Η συνάρτηση παραμένει ίδια)
@@ -1414,6 +1460,97 @@ class ICAComponentSelector(QWidget):
         )
         self.preview_thread.preview_ready.connect(self.preview_widget.update_preview)
         self.preview_thread.start()
+
+    def _save_all_diagrams(self):
+        """
+        Save all component diagrams to the root repository folder.
+
+        Saves the preview plot, component plots, and band power comparisons
+        as PNG files with timestamp.
+        """
+        try:
+            # Get timestamp for unique filenames
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # Get root folder
+            root_folder = Path.cwd()
+
+            saved_files = []
+
+            # Save preview widget figure
+            if hasattr(self.preview_widget, "figure") and hasattr(
+                self.preview_widget.figure, "get_axes"
+            ):
+                figure = self.preview_widget.figure
+                if figure is not None and len(figure.get_axes()) > 0:
+                    filename = root_folder / f"ica_preview_{timestamp}.png"
+                    figure.savefig(filename, dpi=150, bbox_inches="tight")
+                    saved_files.append(str(filename.name))
+
+            # Save frequency band comparison - Eyes Closed (Range 1)
+            if hasattr(self.preview_widget, "band_power_widget_range1"):
+                widget = self.preview_widget.band_power_widget_range1
+                if hasattr(widget, "figure") and widget.figure is not None:
+                    if len(widget.figure.get_axes()) > 0:
+                        filename = (
+                            root_folder
+                            / f"band_power_comparison_eyes_closed_{timestamp}.png"
+                        )
+                        widget.figure.savefig(filename, dpi=150, bbox_inches="tight")
+                        saved_files.append(str(filename.name))
+
+            # Save frequency band comparison - Eyes Open (Range 2)
+            if hasattr(self.preview_widget, "band_power_widget_range2"):
+                widget = self.preview_widget.band_power_widget_range2
+                if hasattr(widget, "figure") and widget.figure is not None:
+                    if len(widget.figure.get_axes()) > 0:
+                        filename = (
+                            root_folder
+                            / f"band_power_comparison_eyes_open_{timestamp}.png"
+                        )
+                        widget.figure.savefig(filename, dpi=150, bbox_inches="tight")
+                        saved_files.append(str(filename.name))
+
+            # Save component plots if available
+            for i, widget in self.component_widgets.items():
+                if hasattr(widget, "figures") and widget.figures:
+                    for idx, fig in enumerate(widget.figures):
+                        if fig is not None and len(fig.get_axes()) > 0:
+                            filename = (
+                                root_folder / f"component_{i}_plot{idx}_{timestamp}.png"
+                            )
+                            fig.savefig(filename, dpi=150, bbox_inches="tight")
+                            saved_files.append(str(filename.name))
+
+            # Show success message
+            if saved_files:
+                # Limit display to first 10 files
+                display_files = saved_files[:10]
+                more_text = (
+                    f"\n... and {len(saved_files) - 10} more files"
+                    if len(saved_files) > 10
+                    else ""
+                )
+                message = (
+                    f"Successfully saved {len(saved_files)} diagram(s):\n\n"
+                    + "\n".join(f"• {f}" for f in display_files)
+                    + more_text
+                    + f"\n\nLocation: {root_folder}"
+                )
+                QMessageBox.information(self, "Diagrams Saved", message)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "No Diagrams",
+                    "No diagrams available to save. Please process data first.",
+                )
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Save Error",
+                f"An error occurred while saving diagrams:\n{str(e)}",
+            )
 
     def set_ica_data(
         self,

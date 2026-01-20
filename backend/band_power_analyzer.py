@@ -100,7 +100,11 @@ class BandPowerAnalyzer:
 
             # Calculate total power in the EEG-relevant range (0.5 - 40 Hz)
             eeg_mask = (freqs >= 0.5) & (freqs <= 40.0)
-            total_power = float(np.trapz(psd[eeg_mask], freqs[eeg_mask]))
+            # Use trapezoid (numpy 2.0+) or trapz (older numpy) for compatibility
+            try:
+                total_power = float(np.trapezoid(psd[eeg_mask], freqs[eeg_mask]))
+            except AttributeError:
+                total_power = float(np.trapz(psd[eeg_mask], freqs[eeg_mask]))
 
             if total_power == 0:
                 return {band: 0.0 for band in self.bands}
@@ -110,7 +114,13 @@ class BandPowerAnalyzer:
             for band_name, (low_freq, high_freq) in self.bands.items():
                 band_mask = (freqs >= low_freq) & (freqs < high_freq)
                 if np.any(band_mask):
-                    band_power = float(np.trapz(psd[band_mask], freqs[band_mask]))
+                    # Use trapezoid (numpy 2.0+) or trapz (older numpy) for compatibility
+                    try:
+                        band_power = float(
+                            np.trapezoid(psd[band_mask], freqs[band_mask])
+                        )
+                    except AttributeError:
+                        band_power = float(np.trapz(psd[band_mask], freqs[band_mask]))
                     band_powers[band_name] = (band_power / total_power) * 100.0
                 else:
                     band_powers[band_name] = 0.0

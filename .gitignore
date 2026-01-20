@@ -235,6 +235,12 @@ memory_*.txt
 artifact_cleaning_*.png
 ica_components_*.png
 comparison_*.png
+signal_comparison_*.png
+band_power_analysis_*.png
+ica_preview_*.png
+component_*_plot*.png
+band_power_comparison_eyes_closed_*.png
+band_power_comparison_eyes_open_*.png
 stats_*.txt
 session_*.log
 

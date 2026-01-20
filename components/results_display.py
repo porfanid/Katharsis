@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -45,8 +46,7 @@ class StatisticsTableWidget(QWidget):
 
         # Statistics table
         self.table = QTableWidget()
-        self.table.setStyleSheet(
-            """
+        self.table.setStyleSheet("""
             QTableWidget {
                 border: 1px solid #bdc3c7;
                 border-radius: 4px;
@@ -64,8 +64,7 @@ class StatisticsTableWidget(QWidget):
                 border: none;
                 font-weight: bold;
             }
-        """
-        )
+        """)
 
         layout.addWidget(self.table)
 
@@ -158,9 +157,14 @@ class ComparisonPlotWidget(QWidget):
         title_label.setStyleSheet("color: #2c3e50; margin: 10px;")
         layout.addWidget(title_label)
 
-        # Matplotlib figure
-        self.figure = Figure(figsize=(12, 8), dpi=80)
+        # Matplotlib figure - responsive sizing
+        self.figure = Figure(figsize=(10, 6), dpi=80)
         self.canvas = FigureCanvas(self.figure)
+        # Make canvas size responsive
+        self.canvas.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        self.canvas.setMinimumHeight(400)
         layout.addWidget(self.canvas)
 
     def plot_comparison(
@@ -273,8 +277,7 @@ class ResultsDisplayWidget(QWidget):
         # Header
         header_label = QLabel("🎯 EEG Artifact Cleaning Results")
         header_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        header_label.setStyleSheet(
-            """
+        header_label.setStyleSheet("""
             QLabel {
                 color: #2c3e50;
                 background-color: #ecf0f1;
@@ -282,8 +285,7 @@ class ResultsDisplayWidget(QWidget):
                 border-radius: 8px;
                 margin: 10px;
             }
-        """
-        )
+        """)
         header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header_label)
 
@@ -303,8 +305,7 @@ class ResultsDisplayWidget(QWidget):
         """Create summary widget"""
         group_box = QGroupBox("📋 Processing Summary")
         group_box.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        group_box.setStyleSheet(
-            """
+        group_box.setStyleSheet("""
             QGroupBox {
                 color: #2c3e50;
                 border: 2px solid #3498db;
@@ -317,8 +318,7 @@ class ResultsDisplayWidget(QWidget):
                 left: 10px;
                 padding: 0 5px 0 5px;
             }
-        """
-        )
+        """)
 
         layout = QGridLayout(group_box)
 
