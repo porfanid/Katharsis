@@ -1465,7 +1465,8 @@ class ICAComponentSelector(QWidget):
         """
         Save all component diagrams to the root repository folder.
 
-        Saves the preview plot and component plots as PNG files with timestamp.
+        Saves the preview plot, component plots, and band power comparisons
+        as PNG files with timestamp.
         """
         try:
             # Get timestamp for unique filenames
@@ -1485,6 +1486,30 @@ class ICAComponentSelector(QWidget):
                     filename = root_folder / f"ica_preview_{timestamp}.png"
                     figure.savefig(filename, dpi=150, bbox_inches="tight")
                     saved_files.append(str(filename.name))
+
+            # Save frequency band comparison - Eyes Closed (Range 1)
+            if hasattr(self.preview_widget, "band_power_widget_range1"):
+                widget = self.preview_widget.band_power_widget_range1
+                if hasattr(widget, "figure") and widget.figure is not None:
+                    if len(widget.figure.get_axes()) > 0:
+                        filename = (
+                            root_folder
+                            / f"band_power_comparison_eyes_closed_{timestamp}.png"
+                        )
+                        widget.figure.savefig(filename, dpi=150, bbox_inches="tight")
+                        saved_files.append(str(filename.name))
+
+            # Save frequency band comparison - Eyes Open (Range 2)
+            if hasattr(self.preview_widget, "band_power_widget_range2"):
+                widget = self.preview_widget.band_power_widget_range2
+                if hasattr(widget, "figure") and widget.figure is not None:
+                    if len(widget.figure.get_axes()) > 0:
+                        filename = (
+                            root_folder
+                            / f"band_power_comparison_eyes_open_{timestamp}.png"
+                        )
+                        widget.figure.savefig(filename, dpi=150, bbox_inches="tight")
+                        saved_files.append(str(filename.name))
 
             # Save component plots if available
             for i, widget in self.component_widgets.items():
