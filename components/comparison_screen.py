@@ -5,7 +5,7 @@ Comparison Screen Widget - "Before & After" Visual Comparison
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 import mne
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -17,7 +17,6 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSpacerItem,
-    QSplitter,
     QTabWidget,
     QVBoxLayout,
     QWidget,
