@@ -237,6 +237,8 @@ ica_components_*.png
 comparison_*.png
 signal_comparison_*.png
 band_power_analysis_*.png
+ica_preview_*.png
+component_*_plot*.png
 stats_*.txt
 session_*.log
 
