@@ -1207,18 +1207,26 @@ class ICAComponentSelector(QWidget):
         preview_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
-        preview_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        preview_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+        )  # Always show for visibility
         preview_scroll.setStyleSheet(f"""
             QScrollArea {{ background: transparent; border: none; }}
             QScrollBar:vertical {{ border: none; background: {self.theme['background']}; width: 12px; margin: 0px; }}
             QScrollBar::handle:vertical {{ background: #bdc3c7; min-height: 20px; border-radius: 6px; }}
             QScrollBar::handle:vertical:hover {{ background: #95a5a6; }}
+            QScrollBar:horizontal {{ border: none; background: {self.theme['background']}; height: 12px; margin: 0px; }}
+            QScrollBar::handle:horizontal {{ background: #bdc3c7; min-width: 20px; border-radius: 6px; }}
+            QScrollBar::handle:horizontal:hover {{ background: #95a5a6; }}
         """)
 
         self.preview_widget = PreviewWidget(self.theme)
-        self.preview_widget.setMinimumHeight(200)  # Reduced for small screens
+        # Set a fixed height that ensures content is fully visible
+        self.preview_widget.setMinimumHeight(400)  # Increased to ensure content fits
+        self.preview_widget.setMaximumHeight(600)  # Cap maximum height
         preview_scroll.setWidget(self.preview_widget)
-        main_layout.addWidget(preview_scroll, 1)  # Equal space with scroll area
+        # Don't use stretch factor - let it take natural size
+        main_layout.addWidget(preview_scroll, 0)
 
         # Button layout at bottom
         button_layout = QHBoxLayout()
